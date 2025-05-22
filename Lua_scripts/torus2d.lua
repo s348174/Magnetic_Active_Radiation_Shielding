@@ -95,4 +95,15 @@ mi_saveas('toroidal_biot_savart.fem')
 mi_analyze()
 mi_loadsolution()
 
+-- Example: Export B-field over a grid
+file = openfile("field_export.dat", "w")
+write(file, "x y Bx By\n")
+for x = 9.0, 11.0, 0.1 do
+  for y = -1.0, 1.0, 0.1 do
+    a, bx, by = mo_getpointvalues(x, y)
+    write(file, format("%f %f %f %f\n", x, y, bx, by))
+  end
+end
+closefile(file)
+
 exit()
