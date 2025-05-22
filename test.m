@@ -2,6 +2,7 @@ clc
 clear
 close all
 
+%% Addpath to mfiles in FEMM 4.2 installation (to be changed by every user)
 addpath("C:\Users\lukea\Downloads\femm42\mfiles");
 
 openfemm;
