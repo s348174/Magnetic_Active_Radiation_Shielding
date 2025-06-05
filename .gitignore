@@ -1,2 +1,4 @@
 # Ignore all power point
 *.pptx
+# Ignore all MATLAB autosaving file
+*.asv
