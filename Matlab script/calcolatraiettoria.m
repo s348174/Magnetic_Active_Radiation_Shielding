@@ -19,7 +19,7 @@ function plot_field_B(I,R,rho)
     yVec = y(:);
     zVec = z(:);
 
-    % for loop in parallelo
+    % for loop
     parfor i = 1:nPoints
         r = [xVec(i), yVec(i), zVec(i)];
         [Bx(i), By(i), Bz(i)] = calcola_campo_B(R, I, r, rho);
