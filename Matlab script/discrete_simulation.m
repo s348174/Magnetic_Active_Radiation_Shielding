@@ -1,11 +1,16 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% CONFRONT VALUES OF B CALCULATED WITH DIFFERENT METHODS %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% PARAMETERS INITIALIZATION
 R = 15;
 rho = 1;
 I = 10000;
 N = 100;
-x = linspace(0,2*torus.R,N);
+x = linspace(0,2*R,N);
 
 %% DISCRETE SIMULATION METHOD CALCULATIONS
-coils = 1000;
+coils = 360;
 torus = Torus(R,rho,I,coils);
 B_mag_disc = zeros(N,1);
 for i = 1:N
@@ -49,7 +54,6 @@ hold off;
 
 %% RELATIVE ERROR
 rel_err = abs(B_mag_theo - B_mag_disc)./B_mag_disc;
-disp(rel_err);
 figure;
 plot(x, rel_err, 'LineWidth', 2, 'Color', 'k');
 title("Relative error between simulations");

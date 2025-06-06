@@ -1,3 +1,7 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% DEFINE CLASS FOR A CONDUCTIVE TORUS DEFINED AD MULTIPLE PARALLEL FILAMENTS FORMING A COIL %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 classdef Torus
     properties
         % Input properties
@@ -17,7 +21,8 @@ classdef Torus
             obj.I = I/N_coils;
             obj.N_coils = N_coils;
             
-            angles = (linspace(0,2*pi,obj.N_coils))';
+            angles = (linspace(0,2*pi,obj.N_coils+1))';
+            angles(end) = [];
             obj.coils_centers = zeros(obj.N_coils,3);
             obj.coils_centers(:,3) = rho.*sin(angles);
             obj.coils_radii = R.*ones(obj.N_coils,1) - rho.*cos(angles);
