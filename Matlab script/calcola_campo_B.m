@@ -18,7 +18,7 @@ function [Bx, By, Bz] = calcola_campo_B(R, I, r, rho)
     z = r(3);
 
     % Controllo se il punto è interno al toro
-    if power(R - sqrt(x^2+y^2), 2)+z^2 < rho  
+    if power(R - sqrt(x^2+y^2), 2)+z^2 < rho^2  
         Bx = 0;
         By = 0;
         Bz = 0;
