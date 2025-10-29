@@ -2,3 +2,12 @@
 *.pptx
 # Ignore all MATLAB autosaving file
 *.asv
+
+# Folder
+*Debug*
+externals
+*Release*
+*release*
+*debug*
+# Ignore all user CMAKE files
+*.txt.user
