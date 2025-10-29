@@ -23,7 +23,11 @@ function v_samples = sample_MB_speed(m, N)
     % Esteem of f_max for rejection sampling
     v_vals = linspace(v_min, v_max, 100000);
     f_vals = f(v_vals);
-    f_max = max(f_vals);
+    f_max_theo = max(f_vals);
+    v_mean = sqrt((2*kB*T)/m);
+    f_max = f(v_mean);
+    disp(f_max);
+    disp(f_max_theo);
 
     % Rejection sampling
     v_samples = zeros(1, N);

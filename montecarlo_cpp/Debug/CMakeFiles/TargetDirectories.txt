@@ -1,0 +1,5 @@
+/home/alberto/Documenti/Materiale scuola Alberto/Ricerca scudi magnetici/montecarlo_cpp/Debug/CMakeFiles/MARS.dir
+/home/alberto/Documenti/Materiale scuola Alberto/Ricerca scudi magnetici/montecarlo_cpp/Debug/CMakeFiles/edit_cache.dir
+/home/alberto/Documenti/Materiale scuola Alberto/Ricerca scudi magnetici/montecarlo_cpp/Debug/CMakeFiles/rebuild_cache.dir
+/home/alberto/Documenti/Materiale scuola Alberto/Ricerca scudi magnetici/montecarlo_cpp/Debug/src/CMakeFiles/edit_cache.dir
+/home/alberto/Documenti/Materiale scuola Alberto/Ricerca scudi magnetici/montecarlo_cpp/Debug/src/CMakeFiles/rebuild_cache.dir

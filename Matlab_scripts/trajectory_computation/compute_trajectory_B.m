@@ -53,11 +53,5 @@ function [r,shield] = compute_trajectory_B(r0, v0, q, m, R, rho, I, dt, T_max)
     if power(R - sqrt(x_t^2+y_t^2), 2)+z_t^2 < rho
         shield = false;
     end
-
-    %display(B, 'field');
-    %display(F, 'force');
-    %display(a,'acc.');
-    %display(v(i+1,:), 'speed');
-    %display(r(i+1,:), 'pos.');
   end
 end

@@ -1,0 +1,6 @@
+-I/home/alberto/Documenti/Materiale scuola Alberto/Appunti/Programmazione e calcolo scientifico/Consegne/Progetto_PCS_2024/externals/Main_Source/eigen3
+-I/usr/include/qt4
+-DNDEBUG
+-o
+/home/alberto/Documenti/Materiale scuola Alberto/Appunti/Programmazione e calcolo scientifico/Consegne/Progetto_PCS_2024/externals/Main_Build/eigen3/demos/mandelbrot/mandelbrot.moc
+/home/alberto/Documenti/Materiale scuola Alberto/Appunti/Programmazione e calcolo scientifico/Consegne/Progetto_PCS_2024/externals/Main_Source/eigen3/demos/mandelbrot/mandelbrot.h
