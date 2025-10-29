@@ -1,4 +1,4 @@
-function B_phi = B_spira(R, I)
+function B_phi = coil_B_field(R, I)
     % Funzione per calcolare il campo B_phi in funzione di rho
     % Input:
     %   R - Raggio della spira
@@ -35,7 +35,3 @@ function B_phi = B_spira(R, I)
     % Output dei valori di B_phi
     B_phi = B_values;
 end
-
-I = 3500
-R = 50
-B = B_spira(R,I)

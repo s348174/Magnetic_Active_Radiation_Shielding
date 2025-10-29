@@ -10,9 +10,9 @@ classdef Torus
         I;               % Current intensity
         N_coils;         % Number of coils for discrete calculation
         
-        % Properties calculated from input
-        coils_centers    % Array of size N_wires containing the center of each coil
-        coils_radii      % Array containing the radius of each coil
+        % Properties computed from input
+        coils_centers;    % Array of size N_wires containing the center of each coil
+        coils_radii;      % Array containing the radius of each coil
     end
     methods
         function obj = Torus(R,rho,I,N_coils) % Class constructor
@@ -29,7 +29,7 @@ classdef Torus
             %disp(obj.coils_radii);
             %disp(obj.coils_centers);
         end
-        function B_field = get_point_field(obj, point) % Function that calculates the field at given point
+        function B_field = get_point_field(obj, point) % Function that computes the field at given point
             coils_fields = zeros(obj.N_coils,3);
             for i = 1:obj.N_coils
                 r = point-obj.coils_centers(i,:);
@@ -37,7 +37,7 @@ classdef Torus
                 %disp(r);
                 %fprintf("Radius:");
                 %disp(obj.coils_radii(i));
-                [Bx, By, Bz] = calcola_campo_B(obj.coils_radii(i), obj.I, r, 0);
+                [Bx, By, Bz] = compute_B_field(obj.coils_radii(i), obj.I, r, 0);
                 %fprintf("Integration result:");
                 %disp([Bx, By, Bz]);
                 coils_fields(i,:) = [Bx, By, Bz];

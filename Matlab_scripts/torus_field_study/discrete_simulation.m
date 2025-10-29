@@ -24,7 +24,7 @@ end
 B_mag_theo = zeros(N,1);
 for i = 1:N
     point = [x(i), 0, 0];
-    [Bx, By, Bz] = calcola_campo_B(R, I, point, rho);
+    [Bx, By, Bz] = compute_B_field(R, I, point, rho);
     B = [Bx, By, Bz];
     B_mag_theo(i) = norm(B);
 end

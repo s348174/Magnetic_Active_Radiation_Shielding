@@ -2,7 +2,7 @@
 rho = 1;
 I = 10000;
 N_coils = 360;
-R = linspace(10, 1000, 1000);
+R = linspace(10, 1000, 100);
 n_simulation = length(R);
 B_habitat = zeros(n_simulation, 1);
 parfor i = 1:n_simulation
