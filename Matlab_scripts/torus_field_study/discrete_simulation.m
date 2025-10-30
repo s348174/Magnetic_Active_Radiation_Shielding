@@ -3,7 +3,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% PARAMETERS INITIALIZATION
-R = 10;
+R = 15;
 rho = 1.5;
 I = 10000;
 N = 1000;
@@ -33,7 +33,7 @@ plot(x,B_mag_disc,'LineWidth',2,'Color','b');
 hold on;
 plot(x,B_mag_theo,'LineWidth',2,'Color','g');
 legend({"Discrete simulation", "Theorical model"}, 'Location', 'Best');
-title('Distribution of B magnitude along x-axis');
+title('Distribution of B magnitude along x-axis', ['(R = ', int2str(R), ', I = ', int2str(I), ')']);
 xlabel('X-axis');
 ylabel('B magnitude');
 grid on;

@@ -25,7 +25,7 @@ function plot_field_B(I,R,rho)
     % for loop
     parfor i = 1:nPoints
         r = [xVec(i), yVec(i), zVec(i)];
-        [Bx(i), By(i), Bz(i)] = calcola_campo_B(R, I, r, rho);
+        [Bx(i), By(i), Bz(i)] = compute_B_field(R, I, r, rho);
     end
 
     % Ricostruisce la forma matriciale per il plot
@@ -127,15 +127,16 @@ end
 
 R = 20;
 rho = 1.5;
-r0 = [0,80,0];
-v0 = [0,-1e5,0];
+r0 = [0,100,0];
+v0 = [0,-5e5,0];
 %m = 55.85*1.66e-27; % Mass of nucleus Fe26
 %m = 9.11e-31; % Electron mass
 m = 1.67e-27; % Proton mass
 q = 1.6e-19;
-I = 5e5;
+I = 1e5;
 T_max = 1e-3;
 dt = 1e-7;
 [r,shield] = compute_trajectory_B(r0, v0, q, m, R, rho, I, dt, T_max);
 plot_trajectory_B(r,R,rho,m,q,v0,I);
-%plot_field_B(I,R,rho);
+display(shield);
+B_phi = coil_B_field(R, I);

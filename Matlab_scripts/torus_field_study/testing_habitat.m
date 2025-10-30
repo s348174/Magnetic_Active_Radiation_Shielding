@@ -1,7 +1,7 @@
 %% Test different numbers of coils in simulation to see if B field inside habitat changes
-R = 15;
-rho = 1;
-I = 10000;
+R = 20;
+rho = 1.5;
+I = 100000;
 point = [R,0,0];
 N_coils = (1000:100:10000)';
 n_simulation = length(N_coils);

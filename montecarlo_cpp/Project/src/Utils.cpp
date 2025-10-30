@@ -9,14 +9,14 @@
 using namespace std;
 using namespace Eigen;
 
-double MB_pdf(const double v, const double m, const double kB, const double T)
+double mbPdf(const double v, const double m, const double kB, const double T)
 {
     // Maxwell-Boltzman pdf: f(v) ∝ v^2 * exp(-v^2)
     double f = pow(m/(2*M_PI*kB*T),3/2)*4*M_PI*pow(v,2)*exp(-(m*pow(v,2))/(2*kB*T));
     return f;
 }
 
-vector<double> sample_MB_speed(const double m, const int N)
+vector<double> sampleMbSpeed(const double m, const int N)
 {
     // Boltzmann constand and Sun's photosphere temperature
     const double kB = 1.38e-23;   // J/K
@@ -28,7 +28,7 @@ vector<double> sample_MB_speed(const double m, const int N)
 
     // Define f_max
     double v_mean = sqrt((2*kB*T)/m);
-    double f_max = MB_pdf(v_mean, m, kB, T);
+    double f_max = mbPdf(v_mean, m, kB, T);
 
     // Define a vector of N samples
     vector<double> v_samples;
@@ -42,7 +42,7 @@ vector<double> sample_MB_speed(const double m, const int N)
     while (i <= N) {
         double v_rand = velocity(gen);
         double y_rand = density(gen);
-        if (y_rand <= MB_pdf(v_rand, m, kB, T)) { // Acceptance region
+        if (y_rand <= mbPdf(v_rand, m, kB, T)) { // Acceptance region
             v_samples.push_back(v_rand);
             i += 1;
         }
