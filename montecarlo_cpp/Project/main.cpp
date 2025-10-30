@@ -7,7 +7,6 @@ using namespace Eigen;
 
 int main()
 {
-    cout << a << endl;
     double m = 1.67e-27;
     double N = 100;
     vector<double> v_samples = sampleMbSpeed(m, N);
