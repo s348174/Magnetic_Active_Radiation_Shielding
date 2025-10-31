@@ -128,7 +128,7 @@ end
 R = 20;
 rho = 1.5;
 r0 = [0,100,0];
-v0 = [0,-5e5,0];
+v0 = [0,-1e5,0];
 %m = 55.85*1.66e-27; % Mass of nucleus Fe26
 %m = 9.11e-31; % Electron mass
 m = 1.67e-27; % Proton mass
