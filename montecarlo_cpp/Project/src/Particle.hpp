@@ -41,6 +41,8 @@ struct Particle {
         hit = false;
     }
 
+    ~Particle() {} // Class destructor
+
     bool isParticleInTorus(Torus& torus) { // Verifies if the particle hit the torus
         if (torus.isPointInTorus(X_t)) {
             return true;
@@ -56,20 +58,8 @@ struct Particle {
         Vector3d F_L = q * v_t.cross(B); // Compute Lorenz force
         // Update acceleration, speed and position
         a_t = F_L / m;
-
-        // if (!tj.a.empty()) {
-        //     v_t = v_t + dt * (a_t + tj.a.back()) / 2;
-        // } else {
-        //     cerr << "Error: tj.a is empty!\n";
-        // }
-
         v_t = v_t + dt * a_t;
-
-        if (!tj.v.empty()) {
-            X_t = X_t + dt * (v_t + tj.v.back()) / 2;
-        } else {
-            cerr << "Error: tj.v is empty!\n";
-        }
+        X_t = X_t + dt * (v_t + tj.v.back()) / 2;
 
         // Update trajectory
         tj.a.push_back(a_t);

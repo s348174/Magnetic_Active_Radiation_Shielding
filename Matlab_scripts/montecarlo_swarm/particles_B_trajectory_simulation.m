@@ -10,8 +10,10 @@ function success_rate = particles_B_trajectory_simulation(R,rho,m,q,I,dt,N_max)
 
     % Sampling v0 modules from Maxwell-Boltzman distribution
     v_samples = sample_MB_speed(m,N_max);
+    v_samples = sort(v_samples);
     intersect_count = 0; % Hits counter 
     for i = 1:N_max
+        display(v_samples(i));
         % Sampling initial position x0 from uniform distribution on sphere
         % of radius 4R
         theta = unifrnd(0,2*pi);
