@@ -3,20 +3,19 @@
 #include <iostream>
 #include <Torus.hpp>
 #include <Particle.hpp>
+#include <Utils.hpp>
 
 using namespace std;
 using namespace Eigen;
 
 int main()
 {
-    double m = 1.67e-27;
-    // double m = 9.1e-31;
-    double q = 1.6e-19;
-    double N = 100;
+    // Simulation arguments
+    double N = 1000;
+    const double T = 1e7; // K
     double dt = 1e-7;
-    // double T_max = 1e-3;
-    // Vector3d v0(0,-1e5,0);
-    // Vector3d X0(0,100,0);
+
+    // Define Torus
     double R = 20;
     double rho = 1.5;
     double I = 1e4;
@@ -25,7 +24,9 @@ int main()
     torus.rho = rho;
     torus.I = I;
 
-    if (monteCarlo(torus, m, q, N, dt))
-        cout << "Simulation completed successfully!" << endl;
+    runFromCSV_MT("../Project/particles_input.csv", torus, N, T, dt);
+
+    // if (monteCarlo(torus, m, q, N, T, dt))
+    //     cout << "Simulation completed successfully!" << endl;
     return 0;
 }

@@ -53,3 +53,5 @@ add_executable(${CMAKE_PROJECT_NAME} main.cpp
 target_link_libraries(${CMAKE_PROJECT_NAME} ${${CMAKE_PROJECT_NAME}_LINKED_LIBRARIES})
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${${CMAKE_PROJECT_NAME}_INCLUDE})
 target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -fPIC)
+
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/particles_input.csv DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

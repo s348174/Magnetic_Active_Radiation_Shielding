@@ -58,7 +58,7 @@ struct Torus {
         weights(numPoints - 1) = 1.0;
         for (int i = 1; i < numPoints - 1; ++i)
             // Assign 2 if i is even, else 4
-            if (i % 2 == 0) {weights(i) = 2;} else {weights(i) = 4;}
+            if (i % 2 == 0) weights(i) = 2; else weights(i) = 4;
 
         // Simpson integration (vectorized)
         double integral_x = (weights * fx).sum() * dtheta / 3.0;

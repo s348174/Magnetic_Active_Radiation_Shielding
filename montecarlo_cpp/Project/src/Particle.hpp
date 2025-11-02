@@ -5,6 +5,11 @@
 #include <Trajectory.hpp>
 #include <Torus.hpp>
 #include <iostream>
+#include <algorithm>
+#include <math.h>
+#include <cmath>
+
+const double c_light = 299792458.0; // m/s
 
 using namespace std;
 using namespace Eigen;
@@ -15,6 +20,7 @@ struct Particle {
     Vector3d X_t; // Instant position
     Vector3d v_t; // Instant speed
     Vector3d a_t; // Instant acceleration
+    Vector3d p_t; // Instant relativistic momentum
     double T_max; // Max time for simulation
     double dt; // Time step
     Trajectory tj; // Trajectory
@@ -37,6 +43,11 @@ struct Particle {
         tj.v.push_back(v0);
         a_t << 0, 0, 0;
         tj.a.push_back(a_t);
+        // Init relativistic momentum p = gamma*m*v
+        double v2 = v_t.squaredNorm();
+        double gamma = 1.0 / sqrt(1.0 - min(v2 / (c_light*c_light), 0.999999999999)); // Avoid v >= c
+        p_t = gamma * m * v_t;
+        tj.p.push_back(p_t);
 
         hit = false;
     }
@@ -48,20 +59,50 @@ struct Particle {
             return true;
         }
         // To reduce risk of missing due to overshooting, we check also for the mean next expected position
-        Vector3d X_next = X_t + dt * v_t + dt * dt * a_t / 2;
-        Vector3d X_mean = (X_t + X_next) / 2;
-        return torus.isPointInTorus(X_mean);
+        // Vector3d X_next = X_t + dt * v_t + dt * dt * a_t / 2;
+        // Vector3d X_mean = (X_t + X_next) / 2;
+        // return torus.isPointInTorus(X_mean);
+        return false;
     }
 
     bool updatePosition(Torus& torus){ // Update the trajectory. Returns TRUE if the torus gets hit
-        Vector3d B = torus.torusMagneticField(X_t); // Compute the B field in X_t
-        Vector3d F_L = q * v_t.cross(B); // Compute Lorenz force
-        // Update acceleration, speed and position
-        a_t = F_L / m;
-        v_t = v_t + dt * a_t;
-        X_t = X_t + dt * (v_t + tj.v.back()) / 2;
+        // Compute B field and Lorentz force
+        Vector3d B = torus.torusMagneticField(X_t);
+        Vector3d E = Vector3d::Zero(); // if you have E; default zero
+        // Vector3d F_L = q * (E + v_t.cross(B));
 
-        // Update trajectory
+        // Adaptive step control
+        const double dx_max = 1e-2;      // Max displacement per step (m)
+        const double dt_min = 1e-10;     // Min step size
+        const double dt_max = 1e-4;      // Max step size
+        double Bmag = B.norm();
+        double vmag = v_t.norm();
+        // Limit by displacement
+        double dt_disp = dx_max / max(vmag, 1e-9);
+        // Limit by 10% of cyclotron (gyration) period (if Bmag > tol): if B is small, we use bigger dt
+        double dt_cycl = (Bmag > 1e-12) ? 0.1 * (2 * M_PI * m) / (abs(q) * Bmag) : dt_max;
+        // Take the smaller of the two
+        double dt_new = min({dt_disp, dt_cycl, dt_max});
+        dt = clamp(dt_new, dt_min, dt_max); // Clamp between max and min to avoid too small or too big dt
+
+        // Boris integrator
+        // Half acceleration from E
+        Vector3d v_minus = v_t + (q * E / m) * (0.5 * dt);
+
+        // Rotation due to B
+        Vector3d t = (q * B / m) * (0.5 * dt);
+        Vector3d v_prime = v_minus + v_minus.cross(t);
+        Vector3d v_plus = v_minus + (2.0 / (1.0 + t.squaredNorm())) * (v_prime.cross(t));
+
+        // Half acceleration from E
+        v_t = v_plus + (q * E / m) * (0.5 * dt);
+
+        // Update position
+        X_t += v_t * dt;
+
+        // Update
+        a_t = q * (E + v_t.cross(B)) / m;
+        tj.p.push_back(p_t);
         tj.a.push_back(a_t);
         tj.v.push_back(v_t);
         tj.X.push_back(X_t);
