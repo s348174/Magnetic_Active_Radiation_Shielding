@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <filesystem>
+#include <chrono>
 
 using namespace std;
 using namespace Eigen;
@@ -63,7 +64,7 @@ vector<double> sampleMbSpeed(const double m, const int N, const double T)
     return v_samples;
 }
 
-bool monteCarlo(Torus& torus, const string& particleName, const double& m, const double& q, const int& N, const double& T, const double& dt) { // Monte Carlo simulation
+bool monteCarlo(Torus& torus, const string& particleName, const double& m, const double& q, const int& N, const double& T, const double& dt, unsigned long& seed) { // Monte Carlo simulation
     // Sample speeds from Maxwell Boltzman
     vector<double> v_samples = sampleMbSpeed(m, N, T);
     sort(v_samples.begin(), v_samples.end());
@@ -72,14 +73,14 @@ bool monteCarlo(Torus& torus, const string& particleName, const double& m, const
     uniform_real_distribution<double> polar(0, M_PI);
 
     // Open file for output
-    string folderout = "results";
+    string folderout = "results/" + to_string(seed);
     if (mkdir(folderout.c_str(), 0777) == -1) {
         if (errno != EEXIST) {
             cerr << "Could not create directory " << folderout << endl;
         }
     }
     ostringstream filename;
-    filename << folderout << particleName << "_results.csv";
+    filename << folderout << "/" << particleName << "_results_" << seed << ".csv";
     ofstream outfile(filename.str());
     if (!outfile.is_open()) {
         cerr << "Error: could not open output file.\n";
@@ -114,21 +115,21 @@ bool monteCarlo(Torus& torus, const string& particleName, const double& m, const
         }
         if (part.hit) {
             hitCounter++;
-            outfile << i << "," << scientific << 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e-19 << ",hit,"
+            outfile << i << "," << scientific << 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e19 << ",hit,"
                     << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
                     << scientific << v0(0) << "," << v0(1) << "," << v0(2) << "\n";
         }
         else {
-            outfile << i << "," << scientific << 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e-19 << ",miss,"
+            outfile << i << "," << scientific << 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e19 << ",miss,"
                     << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
                     << scientific << v0(0) << "," << v0(1) << "," << v0(2) << "\n";
         }
     }
     double hitRatio = hitCounter / static_cast<double>(N);
-    cout << "There have been " << hitCounter << " hits" << endl;
-    cout << "Your hit ratio is " << hitRatio << endl;
+    // cout << "There have been " << hitCounter << " hits" << endl;
+    // cout << "Your hit ratio is " << hitRatio << endl;
     double successPerc = 100 * (1 - hitRatio);
-    cout << "Your success percentage is: " << successPerc << "%" << endl;
+    // cout << "Your success percentage is: " << successPerc << "%" << endl;
 
     // Write summary to file
     outfile << "\nSummary\n";
@@ -169,14 +170,14 @@ double evaluateExpression(const string& expr) {
 }
 
 // Thread worker function
-void runSimulation(Torus torus, string name, double m, double q, int N, double T, double dt) {
+void runSimulation(Torus torus, string name, double m, double q, int N, double T, double dt, unsigned long seed) {
     {
         lock_guard<mutex> lock(io_mutex);
         cout << "\n=== Starting simulation for " << name << " ===" << endl;
         cout << "m = " << m << ", q = " << q << endl;
     }
 
-    bool ok = monteCarlo(torus, name, m, q, N, T, dt);
+    bool ok = monteCarlo(torus, name, m, q, N, T, dt, seed);
 
     {
         lock_guard<mutex> lock(io_mutex);
@@ -189,6 +190,16 @@ void runSimulation(Torus torus, string name, double m, double q, int N, double T
 
 // Main reader & dispatcher
 void runFromCSV_MT(const string& filename, Torus torus, int N, double T, double dt) {
+    // === Generate ONE random seed for this run ===
+    unsigned long seed = static_cast<unsigned long>(
+        chrono::high_resolution_clock::now().time_since_epoch().count()
+        );
+
+    {
+        lock_guard<mutex> lock(io_mutex);
+        cout << "Generated global seed: " << seed << endl;
+    }
+
     ifstream file(filename);
     if (!file.is_open()) {
         cerr << "Error: Could not open " << filename << endl;
@@ -201,7 +212,6 @@ void runFromCSV_MT(const string& filename, Torus torus, int N, double T, double 
 
     string line;
     getline(file, line); // skip header
-    cout << line << endl;
 
     vector<thread> threads;
 
@@ -224,15 +234,12 @@ void runFromCSV_MT(const string& filename, Torus torus, int N, double T, double 
             double q = evaluateExpression(qStr);
 
             // Launch one thread per simulation
-            cout << "Launching thread for " << name << " (m=" << m << ", q=" << q << ")" << endl;
-            threads.emplace_back(runSimulation, torus, name, m, q, N, T, dt);
+            threads.emplace_back(runSimulation, torus, name, m, q, N, T, dt, seed);
         }
         catch (const std::exception& e) {
             lock_guard<mutex> lock(io_mutex);
             cerr << "Error parsing line: " << line << "\n" << e.what() << endl;
         }
-
-
     }
 
     file.close();

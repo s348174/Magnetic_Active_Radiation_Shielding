@@ -11,14 +11,14 @@ using namespace Eigen;
 int main()
 {
     // Simulation arguments
-    double N = 1000;
+    double N = 100;
     const double T = 1e7; // K
     double dt = 1e-7;
 
     // Define Torus
     double R = 20;
     double rho = 1.5;
-    double I = 1e4;
+    double I = 1e5;
     Torus torus;
     torus.R = R;
     torus.rho = rho;

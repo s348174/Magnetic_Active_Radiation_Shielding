@@ -69,11 +69,10 @@ struct Particle {
         // Compute B field and Lorentz force
         Vector3d B = torus.torusMagneticField(X_t);
         Vector3d E = Vector3d::Zero(); // if you have E; default zero
-        // Vector3d F_L = q * (E + v_t.cross(B));
 
         // Adaptive step control
-        const double dx_max = 1e-2;      // Max displacement per step (m)
-        const double dt_min = 1e-10;     // Min step size
+        const double dx_max = 1e0;      // Max displacement per step (m)
+        const double dt_min = 1e-9;     // Min step size
         const double dt_max = 1e-4;      // Max step size
         double Bmag = B.norm();
         double vmag = v_t.norm();
@@ -96,6 +95,12 @@ struct Particle {
 
         // Half acceleration from E
         v_t = v_plus + (q * E / m) * (0.5 * dt);
+
+        // CONTROL: EULER METHOD
+        // Vector3d F_L = q * (E + v_t.cross(B));
+        // Vector3d F_L = Vector3d::Zero();
+        // a_t = F_L / m;
+        // v_t = v_t + (a_t + tj.a.back()) / 2;
 
         // Update position
         X_t += v_t * dt;
