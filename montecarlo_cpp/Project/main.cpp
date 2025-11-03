@@ -11,15 +11,15 @@ using namespace Eigen;
 int main()
 {
     // Simulation arguments
-    double N = 100;
-    const double T = 1e10; // K
+    double N = 1000;
+    const double T = 1e7; // K
     double dt = 1e-9;
-    unsigned long seed = 106;
+    unsigned long seed = 1002;
 
     // Define Torus
     double R = 20;
     double rho = 1.5;
-    double I = 1e5;
+    double I = 1e4;
     Torus torus;
     torus.R = R;
     torus.rho = rho;

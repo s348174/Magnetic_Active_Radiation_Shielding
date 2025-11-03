@@ -161,6 +161,7 @@ bool monteCarlo(Torus& torus, const string& particleName, const double& m, const
     outfile << "Hit ratio," << hitRatio << "\n";
     outfile << "Success percentage," << successPerc << "%\n";
     outfile << "Total simulation energy," << scientific << eVTotal << "eV\n";
+    outfile << "Average particle energy," << eVTotal / N << "eV\n";
     outfile << "Hit percentage of eV," << fixed << eVPerc << "%\n";
     outfile << "Seed," << seed << "\n";
 
