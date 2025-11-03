@@ -68,12 +68,13 @@ struct Particle {
     bool updatePosition(Torus& torus){ // Update the trajectory. Returns TRUE if the torus gets hit
         // Compute B field and Lorentz force
         Vector3d B = torus.torusMagneticField(X_t);
+        // Vector3d B = Vector3d::Zero();
         Vector3d E = Vector3d::Zero(); // if you have E; default zero
 
         // Adaptive step control
         const double dx_max = 1e0;      // Max displacement per step (m)
-        const double dt_min = 1e-9;     // Min step size
-        const double dt_max = 1e-4;      // Max step size
+        const double dt_min = 1e-10;    // Min step size
+        const double dt_max = 1e-4;     // Max step size
         double Bmag = B.norm();
         double vmag = v_t.norm();
         // Limit by displacement

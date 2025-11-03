@@ -1,24 +1,31 @@
+// Project sources
 #include "Utils.hpp"
-#include <vector>
+#include <Torus.hpp>
+#include <Particle.hpp>
+// External libraries
 #include <Eigen/Eigen>
+// Starndard libraries for math
+#include <vector>
+#include <numeric>
 #include <numbers>
 #include <math.h>
 #include <cmath>
 #include <random>
-#include <Torus.hpp>
-#include <Particle.hpp>
+// For i/o and string manipulation
 #include <iostream>
 #include <iomanip>
 #include <sstream>
 #include <fstream>
 #include <string>
+#include <regex>
+// For multithreading
 #include <thread>
 #include <mutex>
-#include <regex>
+// For directory creation
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <filesystem>
-#include <chrono>
+
 
 using namespace std;
 using namespace Eigen;
@@ -38,7 +45,7 @@ vector<double> sampleMbSpeed(const double m, const int N, const double T)
 
     // Sampling interval
     const double v_min = 0;
-    const double v_max = 1e7;
+    const double v_max = 3e9;
 
     // Define f_max
     double v_mean = sqrt((2*kB*T)/m);
@@ -64,7 +71,7 @@ vector<double> sampleMbSpeed(const double m, const int N, const double T)
     return v_samples;
 }
 
-bool monteCarlo(Torus& torus, const string& particleName, const double& m, const double& q, const int& N, const double& T, const double& dt, unsigned long& seed) { // Monte Carlo simulation
+bool monteCarlo(Torus& torus, const string& particleName, const double& m, const double& q, const int& N, const double& T, double& dt, unsigned long& seed) { // Monte Carlo simulation
     // Sample speeds from Maxwell Boltzman
     vector<double> v_samples = sampleMbSpeed(m, N, T);
     sort(v_samples.begin(), v_samples.end());
@@ -73,12 +80,15 @@ bool monteCarlo(Torus& torus, const string& particleName, const double& m, const
     uniform_real_distribution<double> polar(0, M_PI);
 
     // Open file for output
-    string folderout = "results/" + to_string(seed);
-    if (mkdir(folderout.c_str(), 0777) == -1) {
-        if (errno != EEXIST) {
-            cerr << "Could not create directory " << folderout << endl;
-        }
+    string folderout = "../results/seed_" + to_string(seed);
+    try {
+        filesystem::create_directories(folderout); // Creates parent directories if missing
+        cout << "Output directory: " << filesystem::absolute(folderout) << endl;
     }
+    catch (const std::exception& e) {
+        cerr << "Error creating directory: " << e.what() << endl;
+    }
+
     ostringstream filename;
     filename << folderout << "/" << particleName << "_results_" << seed << ".csv";
     ofstream outfile(filename.str());
@@ -90,7 +100,8 @@ bool monteCarlo(Torus& torus, const string& particleName, const double& m, const
     outfile << setprecision(6);
     outfile << "i,eV,hit_status,x_0,y_0,z_0,v_x,v_y,v_z\n"; // CSV header
 
-    int hitCounter = 0; // Counter for how many times the torus gets hit
+    int hitCounter = 0; // Counter for how many times the torus gets
+    double eVCounter = 0; // Counter for how may eV received
     for (size_t i = 0; i < v_samples.size(); ++i) {
         // Sample initial position from a sphere of radius 4R
         double theta = azimut(gen);
@@ -111,25 +122,31 @@ bool monteCarlo(Torus& torus, const string& particleName, const double& m, const
         // Start trajectory computation
         double t = 0;
         while (!part.updatePosition(torus) && t < T_max) {
-            t += dt;
+            t += part.dt;
         }
+
+        double eV = 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e19;
         if (part.hit) {
             hitCounter++;
-            outfile << i << "," << scientific << 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e19 << ",hit,"
+            eVCounter += eV;
+            outfile << i << "," << scientific << eV << ",hit,"
                     << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
                     << scientific << v0(0) << "," << v0(1) << "," << v0(2) << "\n";
         }
         else {
-            outfile << i << "," << scientific << 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e19 << ",miss,"
+            outfile << i << "," << scientific << eV << ",miss,"
                     << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
                     << scientific << v0(0) << "," << v0(1) << "," << v0(2) << "\n";
         }
     }
     double hitRatio = hitCounter / static_cast<double>(N);
-    // cout << "There have been " << hitCounter << " hits" << endl;
-    // cout << "Your hit ratio is " << hitRatio << endl;
     double successPerc = 100 * (1 - hitRatio);
-    // cout << "Your success percentage is: " << successPerc << "%" << endl;
+    double sum_v2 = accumulate(
+        v_samples.begin(), v_samples.end(), 0.0,
+        [](double acc, double v) { return acc + v * v; }
+        );
+    double eVTotal = 0.5 * m * sum_v2 * 1.6022e19;
+    double eVPerc = 100 * (eVCounter / eVTotal);
 
     // Write summary to file
     outfile << "\nSummary\n";
@@ -143,6 +160,9 @@ bool monteCarlo(Torus& torus, const string& particleName, const double& m, const
     outfile << "Hits," << hitCounter << "\n";
     outfile << "Hit ratio," << hitRatio << "\n";
     outfile << "Success percentage," << successPerc << "%\n";
+    outfile << "Total simulation energy," << scientific << eVTotal << "eV\n";
+    outfile << "Hit percentage of eV," << fixed << eVPerc << "%\n";
+    outfile << "Seed," << seed << "\n";
 
     outfile.close();
 
@@ -189,17 +209,7 @@ void runSimulation(Torus torus, string name, double m, double q, int N, double T
 }
 
 // Main reader & dispatcher
-void runFromCSV_MT(const string& filename, Torus torus, int N, double T, double dt) {
-    // === Generate ONE random seed for this run ===
-    unsigned long seed = static_cast<unsigned long>(
-        chrono::high_resolution_clock::now().time_since_epoch().count()
-        );
-
-    {
-        lock_guard<mutex> lock(io_mutex);
-        cout << "Generated global seed: " << seed << endl;
-    }
-
+void runFromCSV_MT(const string& filename, Torus torus, int N, double T, double dt, unsigned long seed) {
     ifstream file(filename);
     if (!file.is_open()) {
         cerr << "Error: Could not open " << filename << endl;

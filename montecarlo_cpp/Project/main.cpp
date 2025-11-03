@@ -12,8 +12,9 @@ int main()
 {
     // Simulation arguments
     double N = 100;
-    const double T = 1e7; // K
-    double dt = 1e-7;
+    const double T = 1e10; // K
+    double dt = 1e-9;
+    unsigned long seed = 106;
 
     // Define Torus
     double R = 20;
@@ -24,7 +25,7 @@ int main()
     torus.rho = rho;
     torus.I = I;
 
-    runFromCSV_MT("../Project/particles_input.csv", torus, N, T, dt);
+    runFromCSV_MT("../Project/particles_input.csv", torus, N, T, dt, seed);
 
     // if (monteCarlo(torus, m, q, N, T, dt))
     //     cout << "Simulation completed successfully!" << endl;
