@@ -153,6 +153,7 @@ bool monteCarlo(Torus& torus, const string& particleName, const double& m, const
     outfile << fixed << "Radius," << torus.R << "m\n";
     outfile << scientific << setprecision(4);
     outfile << "Current," << torus.I << "A\n";
+    outfile << "Temperature," << T << "K\n";
     outfile << "Mass," << m << "kg\n";
     outfile << "Charge," << q << "C\n";
     outfile << fixed;

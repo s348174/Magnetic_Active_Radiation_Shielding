@@ -11,14 +11,14 @@ function v_samples = sample_MB_speed(m, N)
 
     % Boltzmann constand and Sun's photosphere temperature
     kB = 1.38e-23;   % J/K
-    T = 5800;        % K
+    T = 1e6;        % K
 
     % Adimensional density function: f(v) ∝ v^2 * exp(-v^2)
     f = @(v) (m/(2*pi*kB*T))^(3/2)*4*pi.*v.^2.*exp(-(m.*v.^2)./(2*kB*T));
 
     % Sampling interval
     v_min = 0;
-    v_max = 300000;
+    v_max = 500000;
 
     % Esteem of f_max for rejection sampling
     v_vals = linspace(v_min, v_max, 100000);

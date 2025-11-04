@@ -14,9 +14,9 @@ int main()
     chrono::steady_clock::time_point t_begin = chrono::steady_clock::now();
     // Simulation arguments
     double N = 1e4;
-    const double T = 1e7; // K
+    const double T = 1e8; // K
     double dt = 1e-9;
-    unsigned long seed = 10000;
+    unsigned long seed = 10003;
 
     // Define Torus
     double R = 20;

@@ -3,10 +3,10 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% PARAMETERS INITIALIZATION
-R = 15;
+R = 20;
 rho = 1.5;
 I = 10000;
-N = 1000;
+N = 500;
 x = linspace(0,2*R,N);
 
 %% DISCRETE SIMULATION METHOD CALCULATIONS

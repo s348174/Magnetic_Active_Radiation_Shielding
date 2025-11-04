@@ -24,9 +24,10 @@ function [r,shield] = compute_trajectory_B(r0, v0, q, m, R, rho, I, dt, T_max)
   % Number of steps
   N = round(T_max / dt);
 
-  % Initialization of position and speed
+  % Initialization of position, speed and acceleration
   r = zeros(N, 3); % Position [x, y, z]
   v = zeros(N, 3); % Speed [vx, vy, vz]
+  a = zeros(N, 3); % Speed [ax, ay, az]
   r(1, :) = r0;
   v(1, :) = v0;
   
@@ -40,10 +41,10 @@ function [r,shield] = compute_trajectory_B(r0, v0, q, m, R, rho, I, dt, T_max)
     F = q.*cross(v(i, :), B);
 
     % Compute acceleration
-    a = F./m;
+    a(i+1, :) = F./m;
 
     % Update position and speed
-    v(i+1, :) = v(i, :) + dt.*a;
+    v(i+1, :) = v(i, :) + dt.*(a(i+1, :)+a(i, :))./2;
     r(i+1, :) = r(i, :) + dt.*(v(i+1, :)+v(i, :))./2;
     
     % If the Torus gets hit, set shield as False
