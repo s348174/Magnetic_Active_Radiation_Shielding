@@ -23,7 +23,7 @@ $$
 ## Proof that discrete approximation and central spire approximation are equal
 
 $$ \int_0^{2 \pi} \int_0^{2 \pi} {(R - \rho \cos(\alpha)) (z - \rho \sin(\alpha)) \cos(\theta) \over (x^2 + y^2 + (z - \rho \sin(\alpha))^2 + (R - \rho \cos(\alpha))^2 -2x(R - \rho \cos(\alpha)) \cos(\theta) - 2y(R - \rho \cos(\alpha)) \sin(\theta))^{3 \over 2}} d \alpha d \theta$$ 
-$$= R\int_0^{2 \pi} {z \cos(\theta) \over (x^2 + y^2 + z^2 + R^2 -2Rx \cos(\theta) - 2Ry \sin(\theta))^{3/2}} d \theta \ . $$
+$$= 2 \pi R\int_0^{2 \pi} {z \cos(\theta) \over (x^2 + y^2 + z^2 + R^2 -2Rx \cos(\theta) - 2Ry \sin(\theta))^{3/2}} d \theta \ . $$
 
 ## References
 Link for Boris algorithm: https://github.com/iwhoppock/boris-algorithm?tab=readme-ov-file
