@@ -1,0 +1,2384 @@
+$# Creating journal file C:\Users\lukea\OneDrive\Documenti\Luca\Mission to 
+$# Mars\Analisi_Pannello.db.jou at 08-Mar-26 22:12:57
+uil_file_rebuild.start("C:\Users\lukea\OneDrive\Desktop\Patran/template.db", @
+"C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Analisi_Pannello.db")
+$# Synchronizing the User Data Manager
+set_current_dir( "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars" )
+$# The current working directory has been changed to the database location 
+$# shown.                                                                     
+$#                                                                            
+$#                                   
+STRING sgm_create_curve_2d_created_ids[VIRTUAL]
+sgm_const_curve_2d_arcangles_v1( "1", 1500., 0., 60., "Coord 0.3",  @
+"[8500 0 0]", FALSE, sgm_create_curve_2d_created_ids )
+$# 1 Curve Created: Curve 1
+STRING sgm_sweep_surface_r_created_ids[VIRTUAL]
+sgm_const_surface_revolve( "1", "Coord 0.2", 20., 0., "Coord 0", "Curve 1",  @
+sgm_sweep_surface_r_created_ids )
+$# 1 Surface Created: Surface 1
+uil_toolbar.shaded_smooth(  )
+ga_view_aa_set( 23., -34., 0. )
+gu_fit_view(  )
+ui_exec_function( "mesh_seed_display_mgr", "init" )
+mesh_seed_create( "Curve 1", 1, 20, 0., 0., 0. )
+mesh_seed_create( "Surface 1.3", 1, 30, 0., 0., 0. )
+INTEGER fem_create_mesh_surfa_num_nodes
+INTEGER fem_create_mesh_surfa_num_elems
+STRING fem_create_mesh_s_nodes_created[VIRTUAL]
+STRING fem_create_mesh_s_elems_created[VIRTUAL]
+fem_create_mesh_surf_4( "IsoMesh", 49152, "Surface 1", 1, ["433.283"], "Quad4" @
+, "#", "#", "Coord 0", "Coord 0", fem_create_mesh_surfa_num_nodes,  @
+fem_create_mesh_surfa_num_elems, fem_create_mesh_s_nodes_created,  @
+fem_create_mesh_s_elems_created )
+$# 651 nodes and 600 elements created for Surface 1.
+$# === 651 nodes created.  IDs  = 1:651.
+$# === 600 elements created.  IDs  = 1:600.
+mesh_seed_display_mgr.erase(  )
+material.create3( "Analysis code ID", 1, "Analysis type ID", 1, "Alluminio",  @
+0, "Date: 08-Mar-26           Time: 22:29:45", "Isotropic", 1,  @
+"Directionality", 1, "Linearity", 1, "Homogeneous", 0, "Linear Elastic", 1,  @
+"Model Options & IDs", ["", "", "", "", ""], [0, 0, 0, 0, 0], "Active Flag",  @
+1, "Create", 10, "External Flag", FALSE, "Property IDs", ["Elastic Modulus",  @
+"Poisson Ratio", "Thermal Expan. Coeff", "Reference Temperature"], [2, 5, 24,  @
+1, 0], "Property Values", ["70000", "0.33", "0.000023", "293.15", ""],  @
+"#FFFF0000" )
+elementprops_create4( "Shell", 51, 25, 35, 1, 1, 20, [13, 20, 36, 4037, 4111,  @
+4118, 4119, 8111, 4401, 4402, 4403, 4404, 4405, 4406, 4407, 4408, 4409], [5,  @
+9, 1, 1, 1, 1, 1, 4, 4, 1, 1, 1, 1, 1, 1, 4, 4], ["m:Alluminio", "", "50", "", @
+ "", "", "", "", "", "", "", "", "", "", "", "", ""], "Surface 1", "#FFFF0000" )
+$# Property Set "Shell" created.
+ga_view_aa_set( 180., 90., 180. )
+loadsbcs_create2( "Incastro", "Displacement", "Nodal", "", "Static", [ @
+"Node 1:22 42 43 63 64 84 85 105 106 126 127 147 148 168 169 189 190 210 2" // @
+"11 231 232 252 253 273 274 294 295 315 316 336 337 357 358 378 379 399 40" // @
+"0 420 421 441 442 462 463 483 484 504 505 525 526 546 547 567 568 588 589" // @
+" 609 610 630:651"], "FEM", "Coord 0", "1.", ["<  0,0,0   >", "<   0,0,0  >",  @
+"<     >", "<     >"], ["", "", "", ""] )
+$# Load/BC set "Incastro" created.
+mesh_seed_display_mgr.erase(  )
+mesh_seed_display_mgr.erase(  )
+REAL fem_equiv_all_x_equivtol_ab
+INTEGER fem_equiv_all_x_segment
+fem_equiv_all_group5( [" "], 0, "", 1, 1, 0.0049999999, FALSE,  @
+fem_equiv_all_x_equivtol_ab, fem_equiv_all_x_segment, TRUE )
+$# Geometric equivalencing completed. 0 Nodes in Tolerance range, 0 nodes 
+$# deleted due to contact integrity check
+loadsbcs_create2( "Pressione", "Pressure", "Element Uniform", "2D", "Static",  @
+["Element 1:600"], "FEM", "", "1.", [" 0", " 0.1", " "], ["", "", ""] )
+$# Load/BC set "Pressione" created.
+ga_view_aa_set( 0., 0., 0. )
+loadsbcs_modify2( "Pressione", "Pressione", "Pressure", "Element Uniform",  @
+"2D", "Static", ["Element 1:600"], "FEM", "", "1.", ["0.1", "0", ""], ["", "", @
+ ""] )
+$# Load/BC set "Pressione" modified.
+loadsbcs_create2( "Gradiente_termico", "Temperature", "Nodal", "", "Static", [ @
+"Node 1:651"], "FEM", "", "1.", [" 343.15"], [""] )
+$# Load/BC set "Gradiente_termico" created.
+$#  Beginning analysis of  Analisi_Pannello
+jobfile.open( "Analisi_Pannello", "ANALYZE NO JOBFILE" )
+msc_delete_old_files( "Analisi_Pannello", ".bdf", ".h5" )
+jobfile.write_spl( "/* Jobfile for PATNAS created %A% at %A% */", ["08-Mar-26" @
+, "23:01:32"] )
+jobfile.writec( "", "TRANSLATOR = pat3nas" )
+jobfile.writec( "DATABASE", "C:\Users\lukea\OneDrive\Documenti\Luca\Missio" // @
+"n to Mars\Analisi_Pannello.db" )
+jobfile.writec( "JOBNAME", "Analisi_Pannello" )
+jobfile.writec( "ANALYSIS TITLE", "MSC.Nastran job created on 08-Mar-26 at" // @
+" 23:01:21" )
+jobfile.writec( "ANALYSIS SUBTITLE", "" )
+jobfile.writec( "ANALYSIS LABEL", "" )
+jobfile.writec( "", "" )
+jobfile.writec( "OBJECT", "Entire Model" )
+jobfile.writec( "METHOD", "Full Run" )
+jobfile.writec( "", "" )
+jobfile.writec( "MODEL SUFFIX", ".bdf" )
+jobfile.writec( "RESULTS SUFFIX", ".h5" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * File Search Path Declaration" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "File Search Path", "C:\Users\lukea" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patran" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\helpfiles" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\alters" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\icons\RibbonIcons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\bin" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\bin\exe" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscexplore_files\" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\dmap" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\plb" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\lib" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\plb" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\extra_files" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * Translation Parameters" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "DATA OUTPUT", "HDF5C+PRINT" )
+jobfile.writec( "OUTPUT2 REQUESTS", "P3 Built In" )
+jobfile.writec( "OUTPUT2 FORMAT", "Binary" )
+jobfile.writec( "HDF5OUT PRECISION", "HDF5P 32-BIT" )
+jobfile.writec( "DIVISION TOLERANCE", "1.0e-08" )
+jobfile.writec( "NUMERICAL TOLERANCE", "1.0e-04" )
+jobfile.writec( "WRITING TOLERANCE", "1.0e-21" )
+jobfile.writec( "GEOM CHECK", "INFORM" )
+jobfile.writec( "SORTED BULK", "NO" )
+jobfile.writec( "CARD FORMAT", "either" )
+jobfile.writec( "NODE COORDINATES", "reference frame" )
+jobfile.writec( "COORD COORDINATES", "global" )
+jobfile.writec( "MSC.Nastran VERSION", "2024.1" )
+jobfile.writec( "WRITE STORED PRECISION", "TRUE" )
+jobfile.writec( "WRITE IN FREE FORMAT", "FALSE" )
+jobfile.writec( "PROPS ON ELEM ENTRY", "FALSE" )
+jobfile.writec( "CONTINUATION ENTRY", "FALSE" )
+jobfile.writec( "PCOMPG ENTRY", "TRUE" )
+jobfile.writec( "CONVERT CBAR CBEAM", "FALSE" )
+jobfile.writec( "ITERATIVE SOLVER", "FALSE" )
+jobfile.writei( "SUPER ELEMENT 0", 0 )
+jobfile.writec( "SEALL WRITE", "FALSE" )
+jobfile.writec( "PART SUPERELEMENT CREATE", "TRUE" )
+jobfile.writec( "AUTOQSET", "FALSE" )
+jobfile.writec( "FIXEDB", "FALSE" )
+jobfile.writei( "SUPER TREE COUNT", 0 )
+jobfile.writec( "MODEL TOLERANCE", "0.0049999999" )
+jobfile.writec( "ELEMENT PROPERTY OFFSET", "0" )
+jobfile.writec( "MATERIAL PROPERTY OFFSET", "0" )
+jobfile.writec( "TABLE OFFSET", "0" )
+jobfile.writec( "LOAD SET OFFSET", "0" )
+jobfile.writec( "LOAD CASE OFFSET", "0" )
+jobfile.writec( "CONTROL SET OFFSET", "0" )
+jobfile.writec( "RIGID ELEMENT OFFSET", "0" )
+jobfile.writec( "SCALAR POINT OFFSET", "0" )
+jobfile.writec( "BEGINNING CONTINUATION MARKER", "+      A" )
+jobfile.writec( "NUMBER ONLY", "ON" )
+jobfile.writec( "BEGINNING NUMBER", "OFF" )
+jobfile.writec( "TRAILING NUMBER", "OFF" )
+jobfile.writec( "SYNTAX NUMBER", "ON" )
+jobfile.writec( "SYNTAX MARKER", "." )
+jobfile.writec( "EXTERNAL SUPERELEMENT METHOD", "NONE" )
+jobfile.writec( "GRID COORDINATES ROUNDING", "15" )
+jobfile.writec( "COORD DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "MPC DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "LBC DATA PRECISION ROUNDING", "7" )
+jobfile.writec( "MAT DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "PROP DATA PRECISION ROUNDING", "7" )
+jobfile.writec( "USE LEGACY PRECISION", "FALSE" )
+jobfile.writec( "EXPONENTIAL WRITE", "As Needed" )
+jobfile.writec( "EXPONENTIAL FORM", "Condensed" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * Solution Parameters" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "SOLUTION TYPE", "LINEAR STATIC" )
+jobfile.writei( "SOLUTION SEQUENCE", 101 )
+jobfile.writec( "DATABASE RUN", "ON" )
+jobfile.writec( "CYCLIC SYMMETRY", "OFF" )
+jobfile.writec( "AUTOMATIC CONSTRAINTS", "ON" )
+jobfile.writec( "INERTIA RELIEF", "OFF" )
+jobfile.writec( "ALTERNATE REDUCTION", "OFF" )
+jobfile.writec( "SHELL NORMAL TOLERANCE", "" )
+jobfile.writec( "MASS CALCULATION", "Lumped" )
+jobfile.writec( "DATA DECK ECHO", "None" )
+jobfile.writec( "PLATE RZ STIFFNESS FACTOR", "100.0" )
+jobfile.writec( "MAXIMUM PRINTED LINES", "" )
+jobfile.writec( "MAXIMUM RUN TIME", "" )
+jobfile.writec( "WT-MASS CONVERSION", "1.0" )
+jobfile.writec( "NODE ID FOR WT-GENER", "" )
+jobfile.writec( "RIGID ELEMENT TYPE", "LINEAR" )
+jobfile.writec( "USE SOL600", "OFF" )
+jobfile.writec( "CONTACT-AUTO-CONTACT-GENERATION", "OFF" )
+jobfile.writei( "CONTACT-SEGMENT-CONTROL METHOD", 0 )
+jobfile.writei( "CONTACT-DEFORMABLE-DEFORMABLE METHOD", 0 )
+jobfile.writei( "CONTACT-DERIVATION", 0 )
+jobfile.writei( "CONTACT-REL_ABS", 0 )
+jobfile.writei( "CONTACT-CRITERION", 0 )
+jobfile.writei( "CONTACT-LINCNT METHOD", 0 )
+jobfile.writec( "USE SOL700", "OFF" )
+jobfile.writec( "SN MEAN STRESS CORRECTION", "NONE" )
+jobfile.writec( "NEF FATIGUE STRESS OUTPUT", "NONE" )
+jobfile.writec( "NEF STRESS UNITS", "MPA" )
+jobfile.writec( "NEF STRESS COMBINATION", "ABSMAXPR" )
+jobfile.writec( "NEF RESULT LOCATION", "NODA" )
+jobfile.writec( "NEF RECOVERY LOCATION", "CORNER" )
+jobfile.writec( "NEF LAYER LOCATION", "WORST" )
+jobfile.writec( "NEF INTERPOLATION LIMIT", "0" )
+jobfile.writec( "NEF LEVEL OF MESSAGE", "0" )
+jobfile.writec( "NEF NUMBER OF THREADS", "1" )
+jobfile.writer( "NEF CERTAINTY OF SURVIVAL", 50. )
+jobfile.writer( "NEF OVERALL SCALE FACTOR", 1. )
+jobfile.writer( "NEF TOP STRESS PERCENTAGE FILTER", 100. )
+jobfile.writer( "NEF TOP DAMAGE PERCENTAGE FILTER", 100. )
+jobfile.writec( "NEF TIME HISTORY DIRECTORY", "./" )
+jobfile.writei( "NEF MAX LOAD PER EVENT", 1 )
+jobfile.writec( "NEF EVENT DATA", "0" )
+jobfile.writec( "NEF LOAD SEQUENCE DATA", "0" )
+jobfile.writec( "USE CONTACT TABLE", "OFF" )
+jobfile.writec( "INITIAL CONTACTPAIR LOADCASE NAME", "" )
+jobfile.writei( "MDOF DATA", 0 )
+jobfile.writec( "CELL WRITE", "ON" )
+jobfile.writei( "CELL INPUT 0", 0 )
+jobfile.writec( "FMS WRITE", "ON" )
+jobfile.writei( "FMS INPUT 0", 0 )
+jobfile.writec( "EXEC WRITE", "ON" )
+jobfile.writei( "EXEC INPUT 0", 0 )
+jobfile.writec( "CASE WRITE", "ON" )
+jobfile.writei( "CASE INPUT 0", 0 )
+jobfile.writec( "BULK WRITE", "ON" )
+jobfile.writei( "BULK INPUT 0", 0 )
+jobfile.writec( "CELL DTI POSITION", "START" )
+jobfile.writec( "FMS DTI POSITION", "START" )
+jobfile.writec( "EXEC DTI POSITION", "START" )
+jobfile.writec( "CASE DTI POSITION", "START" )
+jobfile.writec( "BULK DTI POSITION", "START" )
+jobfile.writec( "", "END" )
+jobfile.close(  )
+mscnastran_job.associate_subcases( "101", "Analisi_Pannello", 1, ["Default"] )
+analysis_submit_2( "MSC.Nastran", "Analisi_Pannello" )
+$# Patran 2024.1  (Student Edition) has obtained 0 concurrent license(s) from 
+$# FLEXlm per a request to execute on Windows node LAPTOP-FPHQ2IVC(
+$# ec2e98f686f1) (Windows 6.2 (Build 9200: Service Pack 0)) at 08-Mar-26 
+$# 23:01:32.
+$# 
+$# Reading model information from the specified database, 
+$# C:\Users\lukea\OneDrive\Documenti\Luca\Mission\ to\ Mars\Analisi_Pannello.db.
+$# Messages output from the Patran 2024.1  (Student Edition) input deck 
+$# translator on March     08, 2026 at 23:01:32.
+$# 
+$# The NASTRAN input file, Analisi_Pannello.bdf, has been successfully opened.
+$# 
+$# Translating 600 elements from the element property region Shell.
+$# 
+$# 1 property regions translated.
+$# 
+$# Translating 1 referenced material records.
+$# 
+$# Translating 651 nodes from the entire model.
+$# 
+$# Writing loads for Load Case : Default.
+$# 
+$# Translating static nodal temperatures of load set : Gradiente_termico.
+$# 
+$# Translating nodal constraints in load set : Incastro.
+$# Writing interface element lbcs.
+$# 
+$# Translating pressure loads in load set : Pressione.
+$# Total execution time in real seconds: 1
+$# Total execution time in CPU seconds: 0.280998
+$# 
+$# End of NASTRAN input file translation.
+$# Student Edition Patran Nastran Preference Patran 2024.1  (Student Edition) 
+$# has released 0 license(s) to FLEXlm at 08-Mar-26 23:01:33.
+$# The translation has completed successfully.
+$# Executing /bin/sh -c 
+$# C:\Users\lukea\OneDrive\Desktop\Patran\bin\MscNastranExecut
+$# e.exe -j Analisi_Pannello -m bdf -x 20241 -c %%prog=edu%auth=edu%arch=64% -v
+msc_dra_init_stream(  )
+msc_dra_add_param( "DATABASE", "C:\Users\lukea\OneDrive\Documenti\Luca\Mis" // @
+"sion to Mars\Analisi_Pannello.db" )
+msc_dra_add_param( "JOBNAME", "Analisi_Pannello" )
+msc_dra_add_param( "RESULTS FILE", "C:\Users\lukea\OneDrive\Documenti\Luca" // @
+"\Mission to Mars\analisi_pannello.h5" )
+msc_dra_add_param( "OBJECT", "Result Entities" )
+msc_dra_add_param( "ANALYSIS TYPE", "Structural" )
+msc_dra_add_param( "DIVISION TOLERANCE", "1.0E-8" )
+msc_dra_add_param( "NUMERICAL TOLERANCE", "1.0E-4" )
+msc_dra_add_param( "MODEL TOLERANCE", "0.0049999999" )
+msc_dra_add_param( "OBJECTIVE FUNCTION", "ON" )
+msc_dra_add_param( "DESIGN CONSTRAINTS", "ON" )
+msc_dra_add_param( "DESIGN VARIABLES", "ON" )
+msc_dra_add_param( "COMBINE RESULTCASES", "ON" )
+msc_dra_add_param( "COMBINE MODULES", "OFF" )
+msc_dra_add_param( "SPLINE IMPORT DATA", "OFF" )
+msc_dra_add_param( "SPLINE POST DATA", "ZERO" )
+msc_dra_add_param( "ROTATIONAL NODAL RESULTS", "ON" )
+msc_dra_add_param( "STRESS/STRAIN INVARIANTS", "OFF" )
+msc_dra_add_param( "PRINCIPAL DIRECTIONS", "OFF" )
+msc_dra_add_param( "CREATE P-ORDER FIELD", "" )
+msc_dra_add_param( "ELEMENT RESULTS POSITIONS", "Both        " )
+msc_dra_add_param( "NASTRAN VERSION", "" )
+msc_dra_add_param( "TITLE DESCRIPTION", "ON" )
+msc_dra_finish_stream(  )
+analysis_import( "MSC.Nastran", "Analisi_Pannello", "Attach HDF5 Results File" @
+, "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5" @
+, TRUE )
+$# Attaching Direct Results Access file: 
+$# "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5"
+$# *** Begin: Attach Result File ***
+$# Processing result load case: SC1:DEFAULT
+$# Processing result sub-case: Static subcase
+$# Total execution time in real seconds:        0.000
+$# Total execution time in CPU  seconds:        0.016
+$# *** End:   Attach Result File ***
+res_data_load_dbresult( 0, "Nodal", "Scalar", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "MAG", @
+ "Default", "DeriveAverage", "All", "ShapeFunc" )
+res_data_title( 0, "Nodal", "Scalar", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL, @@@$LN "] )
+res_display_fringe_create( "", "FreeFaces", 0, [""], 13, [ @
+"Range:Fri_default_Fringe", "RangeOverwrite:ON", "FringeStyle:Discrete/Smooth" @
+, "Shade:None", "ElemEdge:FreeEdge,Blue,Solid,1", "Shrink:0",  @
+"TitleDisplay:ON", "MinMaxDisplay:ON", "ValueDisplay:OFF", "Filter:None",  @
+"ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"RelativeToGeom:ORIG"], TRUE )
+res_display_fringe_post( "", 0, "Nodal", TRUE, TRUE )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"Global", "", "", "" )
+res_data_title( 0, "Nodal", "Vector", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL"] )
+res_display_deformation_create( "", "Elements", 0, [""], 10, [ @
+"DeformedStyle:White,Solid,1,Wireframe", "DeformedScale:Model=0.1",  @
+"UndeformedStyle:ON,Blue,Solid,1,Wireframe", "TitleDisplay:ON",  @
+"MinMaxDisplay:ON", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"DeformDisplay:Resultant", "DeformComps:OFF,OFF,OFF", "RelativeToGeom:ORIG"] )
+res_display_deformation_post( "", 0 )
+res_data_load_dbresult( 0, "Nodal", "Scalar", "SC1:DEFAULT",  @
+"A1:Static subcase", "Stress Tensor", "", "At Z1", "VONM", "Default",  @
+"DeriveAverage", "All", "ShapeFunc" )
+res_data_title( 0, "Nodal", "Scalar", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL, @@@$LN "] )
+res_display_fringe_create( "", "FreeFaces", 0, [""], 13, [ @
+"Range:Fri_default_Fringe", "RangeOverwrite:ON", "FringeStyle:Discrete/Smooth" @
+, "Shade:None", "ElemEdge:FreeEdge,Blue,Solid,1", "Shrink:0",  @
+"TitleDisplay:ON", "MinMaxDisplay:ON", "ValueDisplay:OFF", "Filter:None",  @
+"ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"RelativeToGeom:ORIG"], TRUE )
+res_display_fringe_post( "", 0, "Nodal", TRUE, TRUE )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"Global", "", "", "" )
+res_data_title( 0, "Nodal", "Vector", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL"] )
+res_display_deformation_create( "", "Elements", 0, [""], 10, [ @
+"DeformedStyle:White,Solid,1,Wireframe", "DeformedScale:Model=0.1",  @
+"UndeformedStyle:ON,Blue,Solid,1,Wireframe", "TitleDisplay:ON",  @
+"MinMaxDisplay:ON", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"DeformDisplay:Resultant", "DeformComps:OFF,OFF,OFF", "RelativeToGeom:ORIG"] )
+res_display_deformation_post( "", 0 )
+ga_view_aa_set( 23., -34., 0. )
+ga_view_aa_set( 23., 56., 0. )
+ga_view_aa_set( -67., 0., -34. )
+ga_view_aa_set( 157., 34, -180. )
+ga_view_aa_set( 23., -34., 0. )
+uil_primary_file.db_save(  )
+loadsbcs_modify2( "Incastro", "Appoggio", "Displacement", "Nodal", "",  @
+"Static", ["Node 1:22 42 43 63 64 84 85 105 106 126 127 147 148 168 169 18" // @
+"9 190 210 211 231 232 252 253 273 274 294 295 315 316 336 337 357 358 378" // @
+" 379 399 400 420 421 441 442 462 463 483 484 504 505 525 526 546 547 567 " // @
+"568 588 589 609 610 630:651"], "FEM", "Coord 0", "1.", ["<0., 0., 0.>", "<>", @
+ "", ""], ["", "", "", ""] )
+$# Load/BC set "Incastro" modified.
+$#  Beginning analysis of  Analisi_Pannello
+jobfile.open( "Analisi_Pannello", "ANALYZE NO JOBFILE" )
+$# Question from application APP INTERFACES
+$#     The jobname (Analisi_Pannello) is already defined in the database. Do 
+$# you wish to overwrite?
+$? YES 6016027 
+msc_delete_old_files( "Analisi_Pannello", ".bdf", ".h5" )
+$# Question from application APP INTERFACES
+$#     Files from a previous analysis conflict with the current job name: 
+$# "Analisi_Pannello".  These files are Analisi_Pannello.f04, 
+$# Analisi_Pannello.f06, Analisi_Pannello.log, Analisi_Pannello.h5, 
+$# Analisi_Pannello.bdf.  Will you permit deletion of these files?
+$? YES 6022037 
+$# Warning reported from application APP INTERFACES
+$#     The attachment to the file 
+$# C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5 
+$# has been deleted because that file is being deleted.
+jobfile.write_spl( "/* Jobfile for PATNAS created %A% at %A% */", ["09-Mar-26" @
+, "09:00:10"] )
+jobfile.writec( "", "TRANSLATOR = pat3nas" )
+jobfile.writec( "DATABASE", "C:\Users\lukea\OneDrive\Documenti\Luca\Missio" // @
+"n to Mars\Analisi_Pannello.db" )
+jobfile.writec( "JOBNAME", "Analisi_Pannello" )
+jobfile.writec( "ANALYSIS TITLE", "MSC.Nastran job created on 08-Mar-26 at" // @
+" 23:01:21" )
+jobfile.writec( "ANALYSIS SUBTITLE", "" )
+jobfile.writec( "ANALYSIS LABEL", "" )
+jobfile.writec( "", "" )
+jobfile.writec( "OBJECT", "Entire Model" )
+jobfile.writec( "METHOD", "Full Run" )
+jobfile.writec( "", "" )
+jobfile.writec( "MODEL SUFFIX", ".bdf" )
+jobfile.writec( "RESULTS SUFFIX", ".h5" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * File Search Path Declaration" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscexplore_files\" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\bin\exe" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\bin" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\icons\RibbonIcons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\alters" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\helpfiles" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patran" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\extra_files" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\plb" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\lib" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\plb" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\dmap" )
+jobfile.writec( "File Search Path", "C:\Users\lukea" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * Translation Parameters" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "DATA OUTPUT", "HDF5C+PRINT" )
+jobfile.writec( "OUTPUT2 REQUESTS", "P3 Built In" )
+jobfile.writec( "OUTPUT2 FORMAT", "Binary" )
+jobfile.writec( "HDF5OUT PRECISION", "HDF5P 32-BIT" )
+jobfile.writec( "DIVISION TOLERANCE", "1.0e-08" )
+jobfile.writec( "NUMERICAL TOLERANCE", "1.0e-04" )
+jobfile.writec( "WRITING TOLERANCE", "1.0e-21" )
+jobfile.writec( "GEOM CHECK", "INFORM" )
+jobfile.writec( "SORTED BULK", "NO" )
+jobfile.writec( "CARD FORMAT", "either" )
+jobfile.writec( "NODE COORDINATES", "reference frame" )
+jobfile.writec( "COORD COORDINATES", "global" )
+jobfile.writec( "MSC.Nastran VERSION", "2024.1" )
+jobfile.writec( "WRITE STORED PRECISION", "TRUE" )
+jobfile.writec( "WRITE IN FREE FORMAT", "FALSE" )
+jobfile.writec( "PROPS ON ELEM ENTRY", "FALSE" )
+jobfile.writec( "CONTINUATION ENTRY", "FALSE" )
+jobfile.writec( "PCOMPG ENTRY", "TRUE" )
+jobfile.writec( "CONVERT CBAR CBEAM", "FALSE" )
+jobfile.writec( "ITERATIVE SOLVER", "FALSE" )
+jobfile.writei( "SUPER ELEMENT 0", 0 )
+jobfile.writec( "SEALL WRITE", "FALSE" )
+jobfile.writec( "PART SUPERELEMENT CREATE", "TRUE" )
+jobfile.writec( "AUTOQSET", "FALSE" )
+jobfile.writec( "FIXEDB", "FALSE" )
+jobfile.writei( "SUPER TREE COUNT", 0 )
+jobfile.writec( "MODEL TOLERANCE", "0.0049999999" )
+jobfile.writec( "ELEMENT PROPERTY OFFSET", "0" )
+jobfile.writec( "MATERIAL PROPERTY OFFSET", "0" )
+jobfile.writec( "TABLE OFFSET", "0" )
+jobfile.writec( "LOAD SET OFFSET", "0" )
+jobfile.writec( "LOAD CASE OFFSET", "0" )
+jobfile.writec( "CONTROL SET OFFSET", "0" )
+jobfile.writec( "RIGID ELEMENT OFFSET", "0" )
+jobfile.writec( "SCALAR POINT OFFSET", "0" )
+jobfile.writec( "BEGINNING CONTINUATION MARKER", "+      A" )
+jobfile.writec( "NUMBER ONLY", "ON" )
+jobfile.writec( "BEGINNING NUMBER", "OFF" )
+jobfile.writec( "TRAILING NUMBER", "OFF" )
+jobfile.writec( "SYNTAX NUMBER", "ON" )
+jobfile.writec( "SYNTAX MARKER", "." )
+jobfile.writec( "EXTERNAL SUPERELEMENT METHOD", "NONE" )
+jobfile.writec( "GRID COORDINATES ROUNDING", "15" )
+jobfile.writec( "COORD DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "MPC DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "LBC DATA PRECISION ROUNDING", "7" )
+jobfile.writec( "MAT DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "PROP DATA PRECISION ROUNDING", "7" )
+jobfile.writec( "USE LEGACY PRECISION", "FALSE" )
+jobfile.writec( "EXPONENTIAL WRITE", "As Needed" )
+jobfile.writec( "EXPONENTIAL FORM", "Condensed" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * Solution Parameters" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "SOLUTION TYPE", "LINEAR STATIC" )
+jobfile.writei( "SOLUTION SEQUENCE", 101 )
+jobfile.writec( "DATABASE RUN", "ON" )
+jobfile.writec( "CYCLIC SYMMETRY", "OFF" )
+jobfile.writec( "AUTOMATIC CONSTRAINTS", "ON" )
+jobfile.writec( "INERTIA RELIEF", "OFF" )
+jobfile.writec( "ALTERNATE REDUCTION", "OFF" )
+jobfile.writec( "SHELL NORMAL TOLERANCE", "" )
+jobfile.writec( "MASS CALCULATION", "Lumped" )
+jobfile.writec( "DATA DECK ECHO", "None" )
+jobfile.writec( "PLATE RZ STIFFNESS FACTOR", "100.0" )
+jobfile.writec( "MAXIMUM PRINTED LINES", "" )
+jobfile.writec( "MAXIMUM RUN TIME", "" )
+jobfile.writec( "WT-MASS CONVERSION", "1.0" )
+jobfile.writec( "NODE ID FOR WT-GENER", "" )
+jobfile.writec( "RIGID ELEMENT TYPE", "LINEAR" )
+jobfile.writec( "USE SOL600", "OFF" )
+jobfile.writec( "CONTACT-AUTO-CONTACT-GENERATION", "OFF" )
+jobfile.writei( "CONTACT-SEGMENT-CONTROL METHOD", 0 )
+jobfile.writei( "CONTACT-DEFORMABLE-DEFORMABLE METHOD", 0 )
+jobfile.writei( "CONTACT-DERIVATION", 0 )
+jobfile.writei( "CONTACT-REL_ABS", 0 )
+jobfile.writei( "CONTACT-CRITERION", 0 )
+jobfile.writei( "CONTACT-LINCNT METHOD", 0 )
+jobfile.writec( "USE SOL700", "OFF" )
+jobfile.writec( "SN MEAN STRESS CORRECTION", "NONE" )
+jobfile.writec( "NEF FATIGUE STRESS OUTPUT", "NONE" )
+jobfile.writec( "NEF STRESS UNITS", "MPA" )
+jobfile.writec( "NEF STRESS COMBINATION", "ABSMAXPR" )
+jobfile.writec( "NEF RESULT LOCATION", "NODA" )
+jobfile.writec( "NEF RECOVERY LOCATION", "CORNER" )
+jobfile.writec( "NEF LAYER LOCATION", "WORST" )
+jobfile.writec( "NEF INTERPOLATION LIMIT", "0" )
+jobfile.writec( "NEF LEVEL OF MESSAGE", "0" )
+jobfile.writec( "NEF NUMBER OF THREADS", "1" )
+jobfile.writer( "NEF CERTAINTY OF SURVIVAL", 50. )
+jobfile.writer( "NEF OVERALL SCALE FACTOR", 1. )
+jobfile.writer( "NEF TOP STRESS PERCENTAGE FILTER", 100. )
+jobfile.writer( "NEF TOP DAMAGE PERCENTAGE FILTER", 100. )
+jobfile.writec( "NEF TIME HISTORY DIRECTORY", "./" )
+jobfile.writei( "NEF MAX LOAD PER EVENT", 1 )
+jobfile.writec( "NEF EVENT DATA", "0" )
+jobfile.writec( "NEF LOAD SEQUENCE DATA", "0" )
+jobfile.writec( "USE CONTACT TABLE", "OFF" )
+jobfile.writec( "INITIAL CONTACTPAIR LOADCASE NAME", "" )
+jobfile.writei( "MDOF DATA", 0 )
+jobfile.writec( "CELL WRITE", "ON" )
+jobfile.writei( "CELL INPUT 0", 0 )
+jobfile.writec( "FMS WRITE", "ON" )
+jobfile.writei( "FMS INPUT 0", 0 )
+jobfile.writec( "EXEC WRITE", "ON" )
+jobfile.writei( "EXEC INPUT 0", 0 )
+jobfile.writec( "CASE WRITE", "ON" )
+jobfile.writei( "CASE INPUT 0", 0 )
+jobfile.writec( "BULK WRITE", "ON" )
+jobfile.writei( "BULK INPUT 0", 0 )
+jobfile.writec( "CELL DTI POSITION", "START" )
+jobfile.writec( "FMS DTI POSITION", "START" )
+jobfile.writec( "EXEC DTI POSITION", "START" )
+jobfile.writec( "CASE DTI POSITION", "START" )
+jobfile.writec( "BULK DTI POSITION", "START" )
+jobfile.writec( "", "END" )
+jobfile.close(  )
+mscnastran_job.associate_subcases( "101", "Analisi_Pannello", 1, ["Default"] )
+analysis_submit_2( "MSC.Nastran", "Analisi_Pannello" )
+$# Patran 2024.1  (Student Edition) has obtained 0 concurrent license(s) from 
+$# FLEXlm per a request to execute on Windows node LAPTOP-FPHQ2IVC(
+$# ec2e98f686f1) (Windows 6.2 (Build 9200: Service Pack 0)) at 09-Mar-26 
+$# 09:00:10.
+$# 
+$# Reading model information from the specified database, 
+$# C:\Users\lukea\OneDrive\Documenti\Luca\Mission\ to\ Mars\Analisi_Pannello.db.
+$# Messages output from the Patran 2024.1  (Student Edition) input deck 
+$# translator on March     09, 2026 at 09:00:10.
+$# 
+$# The NASTRAN input file, Analisi_Pannello.bdf, has been successfully opened.
+$# 
+$# Translating 600 elements from the element property region Shell.
+$# 
+$# 1 property regions translated.
+$# 
+$# Translating 1 referenced material records.
+$# 
+$# Translating 651 nodes from the entire model.
+$# 
+$# Writing loads for Load Case : Default.
+$# 
+$# Translating static nodal temperatures of load set : Gradiente_termico.
+$# 
+$# Translating nodal constraints in load set : Appoggio.
+$# Writing interface element lbcs.
+$# 
+$# Translating pressure loads in load set : Pressione.
+$# Total execution time in real seconds: 1
+$# Total execution time in CPU seconds: 0.313004
+$# 
+$# End of NASTRAN input file translation.
+$# Student Edition Patran Nastran Preference Patran 2024.1  (Student Edition) 
+$# has released 0 license(s) to FLEXlm at 09-Mar-26 09:00:11.
+$# The translation has completed successfully.
+$# Executing /bin/sh -c 
+$# C:\Users\lukea\OneDrive\Desktop\Patran\bin\MscNastranExecut
+$# e.exe -j Analisi_Pannello -m bdf -x 20241 -c %%prog=edu%auth=edu%arch=64% -v
+msc_dra_init_stream(  )
+msc_dra_add_param( "DATABASE", "C:\Users\lukea\OneDrive\Documenti\Luca\Mis" // @
+"sion to Mars\Analisi_Pannello.db" )
+msc_dra_add_param( "JOBNAME", "Analisi_Pannello" )
+msc_dra_add_param( "RESULTS FILE", "C:\Users\lukea\OneDrive\Documenti\Luca" // @
+"\Mission to Mars\analisi_pannello.h5" )
+msc_dra_add_param( "OBJECT", "Result Entities" )
+msc_dra_add_param( "ANALYSIS TYPE", "Structural" )
+msc_dra_add_param( "DIVISION TOLERANCE", "1.0E-8" )
+msc_dra_add_param( "NUMERICAL TOLERANCE", "1.0E-4" )
+msc_dra_add_param( "MODEL TOLERANCE", "0.0049999999" )
+msc_dra_add_param( "OBJECTIVE FUNCTION", "ON" )
+msc_dra_add_param( "DESIGN CONSTRAINTS", "ON" )
+msc_dra_add_param( "DESIGN VARIABLES", "ON" )
+msc_dra_add_param( "COMBINE RESULTCASES", "ON" )
+msc_dra_add_param( "COMBINE MODULES", "OFF" )
+msc_dra_add_param( "SPLINE IMPORT DATA", "OFF" )
+msc_dra_add_param( "SPLINE POST DATA", "ZERO" )
+msc_dra_add_param( "ROTATIONAL NODAL RESULTS", "ON" )
+msc_dra_add_param( "STRESS/STRAIN INVARIANTS", "OFF" )
+msc_dra_add_param( "PRINCIPAL DIRECTIONS", "OFF" )
+msc_dra_add_param( "CREATE P-ORDER FIELD", "" )
+msc_dra_add_param( "ELEMENT RESULTS POSITIONS", "Both        " )
+msc_dra_add_param( "NASTRAN VERSION", "" )
+msc_dra_add_param( "TITLE DESCRIPTION", "ON" )
+msc_dra_finish_stream(  )
+analysis_import( "MSC.Nastran", "Analisi_Pannello", "Attach HDF5 Results File" @
+, "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5" @
+, TRUE )
+$# Attaching Direct Results Access file: 
+$# "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5"
+$# *** Begin: Attach Result File ***
+$# Processing result sub-case: Static subcase
+$# Total execution time in real seconds:        0.000
+$# Total execution time in CPU  seconds:        0.000
+$# *** End:   Attach Result File ***
+res_data_load_dbresult( 0, "Nodal", "Scalar", "SC1:DEFAULT",  @
+"A1:Static subcase", "Stress Tensor", "", "At Z1", "VONM", "Default",  @
+"DeriveAverage", "All", "ShapeFunc" )
+res_data_title( 0, "Nodal", "Scalar", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL, @@@$LN "] )
+res_display_fringe_create( "", "FreeFaces", 0, [""], 13, [ @
+"Range:Fri_default_Fringe", "RangeOverwrite:ON", "FringeStyle:Discrete/Smooth" @
+, "Shade:None", "ElemEdge:FreeEdge,Blue,Solid,1", "Shrink:0",  @
+"TitleDisplay:ON", "MinMaxDisplay:ON", "ValueDisplay:OFF", "Filter:None",  @
+"ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"RelativeToGeom:ORIG"], TRUE )
+res_display_fringe_post( "", 0, "Nodal", TRUE, TRUE )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"Global", "", "", "" )
+res_data_title( 0, "Nodal", "Vector", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL"] )
+res_display_deformation_create( "", "Elements", 0, [""], 10, [ @
+"DeformedStyle:White,Solid,1,Wireframe", "DeformedScale:Model=0.1",  @
+"UndeformedStyle:ON,Blue,Solid,1,Wireframe", "TitleDisplay:ON",  @
+"MinMaxDisplay:ON", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"DeformDisplay:Resultant", "DeformComps:OFF,OFF,OFF", "RelativeToGeom:ORIG"] )
+res_display_deformation_post( "", 0 )
+res_data_load_dbresult( 0, "Nodal", "Scalar", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "MAG", @
+ "Default", "DeriveAverage", "All", "ShapeFunc" )
+res_data_title( 0, "Nodal", "Scalar", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL, @@@$LN "] )
+res_display_fringe_create( "", "FreeFaces", 0, [""], 13, [ @
+"Range:Fri_default_Fringe", "RangeOverwrite:ON", "FringeStyle:Discrete/Smooth" @
+, "Shade:None", "ElemEdge:FreeEdge,Blue,Solid,1", "Shrink:0",  @
+"TitleDisplay:ON", "MinMaxDisplay:ON", "ValueDisplay:OFF", "Filter:None",  @
+"ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"RelativeToGeom:ORIG"], TRUE )
+res_display_fringe_post( "", 0, "Nodal", TRUE, TRUE )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"Global", "", "", "" )
+res_data_title( 0, "Nodal", "Vector", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL"] )
+res_display_deformation_create( "", "Elements", 0, [""], 10, [ @
+"DeformedStyle:White,Solid,1,Wireframe", "DeformedScale:Model=0.1",  @
+"UndeformedStyle:ON,Blue,Solid,1,Wireframe", "TitleDisplay:ON",  @
+"MinMaxDisplay:ON", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"DeformDisplay:Resultant", "DeformComps:OFF,OFF,OFF", "RelativeToGeom:ORIG"] )
+res_display_deformation_post( "", 0 )
+$# Error reported from application Results
+$#     The specified Results Display target is not valid.
+$? NO 4700001 
+$# Error reported from application Results
+$#     The specified Results Display target is not valid.
+$? NO 4700001 
+$# Error reported from application Results
+$#     The specified Results Display target is not valid.
+$? NO 4700001 
+$# Error reported from application Results
+$#     The specified Results Display target is not valid.
+$? NO 4700001 
+$# Error reported from application Results
+$#     The specified Results Display target is not valid.
+$? NO 4700001 
+ga_view_aa_set( 180., 90., 180. )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_create( "", "Nodes", 1, ["NO:Node 127:147"], 21, [ @
+"ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,Magnitude,MAG,%F12.6%",  @
+"ReportVColumn:3,X Component,XX,%F12.6%",  @
+"ReportVColumn:4,Y Component,YY,%F12.6%",  @
+"ReportVColumn:5,Z Component,ZZ,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "", 0, "Vector", "Nodal", "STDOUT", "patran.rpt" )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_create( "Analisi_pannello", "Nodes", 1, ["NO:Node 127:147"] @
+, 21, ["ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ", @
+ "ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,Magnitude,MAG,%F12.6%",  @
+"ReportVColumn:3,X Component,XX,%F12.6%",  @
+"ReportVColumn:4,Y Component,YY,%F12.6%",  @
+"ReportVColumn:5,Z Component,ZZ,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "Analisi_pannello", 0, "Vector", "Nodal", "STDOUT",  @
+"patran.rpt" )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_create( "", "Nodes", 1, ["NO:Node 127:147"], 21, [ @
+"ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,Magnitude,MAG,%F12.6%",  @
+"ReportVColumn:3,X Component,XX,%F12.6%",  @
+"ReportVColumn:4,Y Component,YY,%F12.6%",  @
+"ReportVColumn:5,Z Component,ZZ,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "", 0, "Vector", "Nodal", "STDOUT", "patran.rpt" )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_create( "", "Nodes", 1, ["NO:Node 127:147"], 21, [ @
+"ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,Magnitude,MAG,%F12.6%",  @
+"ReportVColumn:3,X Component,XX,%F12.6%",  @
+"ReportVColumn:4,Y Component,YY,%F12.6%",  @
+"ReportVColumn:5,Z Component,ZZ,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "", 0, "Vector", "Nodal", "STDOUT", "patran.rpt" )
+$# Critical Decision requested from application Results
+$#     The Report plot "Analisi_pannello" already exists.  You may view the 
+$# list of existing Report plots in the Existing Report Plots listbox 
+$# displayed by the "Plot Options" icon.  Do you want to modify the 
+$# "Analisi_pannello" plot?
+$? YES 4005003 
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_modify( "Analisi_pannello", "Analisi_pannello", "Nodes", 1, @
+ ["NO:Node 127:147"], 21, ["ReportType:Full",  @
+"ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,Magnitude,MAG,%F12.6%",  @
+"ReportVColumn:3,X Component,XX,%F12.6%",  @
+"ReportVColumn:4,Y Component,YY,%F12.6%",  @
+"ReportVColumn:5,Z Component,ZZ,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "Analisi_pannello", 0, "Vector", "Nodal",  @
+"Overwrite", "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Anali" // @
+"si_pannello" )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_create( "", "Nodes", 1, ["NO:Node 127:147"], 21, [ @
+"ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,X Location,XLOC,%F12.6%",  @
+"ReportVColumn:3,Y Location,YLOC,%F12.6%",  @
+"ReportVColumn:4,Z Location,ZLOC,%F12.6%",  @
+"ReportVColumn:5,Magnitude,MAG,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "", 0, "Vector", "Nodal", "Overwrite",  @
+"C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Analisi_pannello" )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_create( "", "Nodes", 1, ["NO:Node 127:147"], 21, [ @
+"ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,X Location,XLOC,%F12.6%",  @
+"ReportVColumn:3,Y Location,YLOC,%F12.6%",  @
+"ReportVColumn:4,Z Location,ZLOC,%F12.6%",  @
+"ReportVColumn:5,Magnitude,MAG,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "", 0, "Vector", "Nodal", "Overwrite",  @
+"C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Analisi_pannello" )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_create( "", "Nodes", 1, ["NO:Node 127:147"], 21, [ @
+"ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,X Location,XLOC,%F12.6%",  @
+"ReportVColumn:3,Y Location,YLOC,%F12.6%",  @
+"ReportVColumn:4,Z Location,ZLOC,%F12.6%",  @
+"ReportVColumn:5,Magnitude,MAG,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "", 0, "Vector", "Nodal", "Overwrite",  @
+"C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Analisi_pannello" )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_create( "", "Nodes", 1, ["NO:Node 127:147"], 21, [ @
+"ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,X Location,XLOC,%F12.6%",  @
+"ReportVColumn:3,Y Location,YLOC,%F12.6%",  @
+"ReportVColumn:4,Z Location,ZLOC,%F12.6%",  @
+"ReportVColumn:5,Magnitude,MAG,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "", 0, "Vector", "Nodal", "Overwrite",  @
+"C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Analisi_pannello" )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_create( "Report_analisi_pannello", "Nodes", 1, [ @
+"NO:Node 127:147"], 21, ["ReportType:Full",  @
+"ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,Magnitude,MAG,%F12.6%",  @
+"ReportVColumn:3,X Component,XX,%F12.6%",  @
+"ReportVColumn:4,Y Component,YY,%F12.6%",  @
+"ReportVColumn:5,Z Component,ZZ,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "Report_analisi_pannello", 0, "Vector", "Nodal",  @
+"Overwrite", "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Anali" // @
+"si_pannello" )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_create( "", "Nodes", 1, ["NO:Node 127:147"], 21, [ @
+"ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,Magnitude,MAG,%F12.6%",  @
+"ReportVColumn:3,X Component,XX,%F12.6%",  @
+"ReportVColumn:4,Y Component,YY,%F12.6%",  @
+"ReportVColumn:5,Z Component,ZZ,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "", 0, "Vector", "Nodal", "Overwrite",  @
+"C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Report_analisi_pan" // @
+"nello" )
+$# Critical Decision requested from application Results
+$#     The Report plot "Report_analisi_pannello" already exists.  You may 
+$# view the list of existing Report plots in the Existing Report Plots 
+$# listbox displayed by the "Plot Options" icon.  Do you want to modify the 
+$# "Report_analisi_pannello" plot?
+$? YES 4005003 
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_modify( "Report_analisi_pannello",  @
+"Report_analisi_pannello", "Nodes", 1, ["NO:Node 127:147"], 21, [ @
+"ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,Magnitude,MAG,%F12.6%",  @
+"ReportVColumn:3,X Component,XX,%F12.6%",  @
+"ReportVColumn:4,Y Component,YY,%F12.6%",  @
+"ReportVColumn:5,Z Component,ZZ,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "Report_analisi_pannello", 0, "Vector", "Nodal",  @
+"Overwrite", "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Repor" // @
+"t_analisi_pannello" )
+$# Critical Decision requested from application Results
+$#     The Report plot "Report_analisi_pannello" already exists.  You may 
+$# view the list of existing Report plots in the Existing Report Plots 
+$# listbox displayed by the "Plot Options" icon.  Do you want to modify the 
+$# "Report_analisi_pannello" plot?
+$? YES 4005003 
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_modify( "Report_analisi_pannello",  @
+"Report_analisi_pannello", "Nodes", 1, ["NO:Node 127:147"], 21, [ @
+"ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,X Location,XLOC,%F12.6%",  @
+"ReportVColumn:3,Y Location,YLOC,%F12.6%",  @
+"ReportVColumn:4,Z Location,ZLOC,%F12.6%",  @
+"ReportVColumn:5,Magnitude,MAG,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "Report_analisi_pannello", 0, "Vector", "Nodal",  @
+"Overwrite", "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Repor" // @
+"t_analisi_pannello" )
+res_data_load_dbresult( 0, "Nodal", "Tensor", "SC1:DEFAULT",  @
+"A1:Static subcase", "Stress Tensor", "", "At Z1", "", "AsIs", "DeriveAverage" @
+, "All", "ShapeFunc", "", 0. )
+res_data_dbres_list( 0, "Nodal", "Tensor", 1, ["SC1:DEFAULT"], [ @
+"A1:Static subcase"], ["Stress Tensor"], [""], ["At Z2"] )
+res_display_report_create( "Report_analisi_pannello_stress", "Nodes", 1, [ @
+"NO:Node 127:147"], 21, ["ReportType:Full",  @
+"ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportTColumn:1,Entity ID,ID,%I6%",  @
+"ReportTColumn:2,X Location,XLOC,%F12.6%",  @
+"ReportTColumn:3,Y Location,YLOC,%F12.6%",  @
+"ReportTColumn:4,Z Location,ZLOC,%F12.6%",  @
+"ReportTColumn:5,von Mises,VONM,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "Report_analisi_pannello_stress", 0, "Tensor",  @
+"Nodal", "Overwrite", "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to M" // @
+"ars\Report_analisi_pannello" )
+res_data_load_dbresult( 0, "Nodal", "Scalar", "SC1:DEFAULT",  @
+"A1:Static subcase", "Stress Tensor", "", "At Z1", "VONM", "Default",  @
+"DeriveAverage", "All", "ShapeFunc" )
+res_data_title( 0, "Nodal", "Scalar", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL, @@@$LN "] )
+res_display_fringe_create( "", "FreeFaces", 0, [""], 13, [ @
+"Range:Fri_default_Fringe", "RangeOverwrite:OFF",  @
+"FringeStyle:Discrete/Smooth", "Shade:None", "ElemEdge:FreeEdge,Blue,Solid,1", @
+ "Shrink:0", "TitleDisplay:ON", "MinMaxDisplay:ON", "ValueDisplay:OFF",  @
+"Filter:None", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"RelativeToGeom:ORIG"], TRUE )
+res_display_fringe_post( "", 0, "Nodal", TRUE, TRUE )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"Global", "", "", "" )
+res_data_title( 0, "Nodal", "Vector", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL"] )
+res_display_deformation_create( "", "Elements", 0, [""], 10, [ @
+"DeformedStyle:White,Solid,1,Wireframe", "DeformedScale:Model=0.1",  @
+"UndeformedStyle:ON,Blue,Solid,1,Wireframe", "TitleDisplay:ON",  @
+"MinMaxDisplay:ON", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"DeformDisplay:Resultant", "DeformComps:OFF,OFF,OFF", "RelativeToGeom:ORIG"] )
+res_display_deformation_post( "", 0 )
+res_data_load_dbresult( 0, "Nodal", "Tensor", "SC1:DEFAULT",  @
+"A1:Static subcase", "Stress Tensor", "", "At Z1", "", "AsIs", "DeriveAverage" @
+, "All", "ShapeFunc", "", 0. )
+res_data_dbres_list( 0, "Nodal", "Tensor", 1, ["SC1:DEFAULT"], [ @
+"A1:Static subcase"], ["Stress Tensor"], [""], ["At Z2"] )
+res_display_report_create( "", "Nodes", 1, ["NO:Node 1:21"], 21, [ @
+"ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportTColumn:1,Entity ID,ID,%I6%",  @
+"ReportTColumn:2,X Location,XLOC,%F12.6%",  @
+"ReportTColumn:3,Y Location,YLOC,%F12.6%",  @
+"ReportTColumn:4,Z Location,ZLOC,%F12.6%",  @
+"ReportTColumn:5,von Mises,VONM,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "", 0, "Tensor", "Nodal", "Overwrite",  @
+"C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Report_analisi_pan" // @
+"nello" )
+res_data_load_dbresult( 0, "Nodal", "Tensor", "SC1:DEFAULT",  @
+"A1:Static subcase", "Stress Tensor", "", "At Z1", "", "AsIs", "DeriveAverage" @
+, "All", "ShapeFunc", "", 0. )
+res_data_dbres_list( 0, "Nodal", "Tensor", 1, ["SC1:DEFAULT"], [ @
+"A1:Static subcase"], ["Stress Tensor"], [""], ["At Z2"] )
+res_display_report_create( "Report_analisi_pannello_stress_bordo", "Nodes", 1, @
+ ["NO:Node 1:21"], 21, ["ReportType:Full",  @
+"ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Element Tensor", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportTColumn:1,Entity ID,ID,%I6%",  @
+"ReportTColumn:2,X Location,XLOC,%F12.6%",  @
+"ReportTColumn:3,Y Location,YLOC,%F12.6%",  @
+"ReportTColumn:4,Z Location,ZLOC,%F12.6%",  @
+"ReportTColumn:5,von Mises,VONM,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "Report_analisi_pannello_stress_bordo", 0, "Tensor", @
+ "Nodal", "Overwrite", "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to " // @
+"Mars\Report_analisi_pannello" )
+ga_view_aa_set( 23., -34., 0. )
+loadsbcs_modify2( "Gradiente_termico", "Gradiente_termico", "Temperature",  @
+"Nodal", "", "Static", ["Node 1:651"], "FEM", "", "1.", ["173.15"], [""] )
+$# Load/BC set "Gradiente_termico" modified.
+loadsbcs_modify2( "Gradiente_termico", "Gradiente_termico", "Temperature",  @
+"Nodal", "", "Static", ["Node 1:651"], "FEM", "", "1.", ["173.14999"], [""] )
+$# Load/BC set "Gradiente_termico" modified.
+loadsbcs_modify2( "Gradiente_termico", "Gradiente_termico", "Temperature",  @
+"Nodal", "", "Static", ["Node 1:651"], "FEM", "", "1.", ["173.14999"], [""] )
+$# Load/BC set "Gradiente_termico" modified.
+loadsbcs_modify2( "Gradiente_termico", "Gradiente_termico", "Temperature",  @
+"Nodal", "", "Static", ["Node 1:651"], "FEM", "", "1.", ["343.14999"], [""] )
+$# Load/BC set "Gradiente_termico" modified.
+$#  Beginning analysis of  Analisi_Pannello
+jobfile.open( "Analisi_Pannello", "ANALYZE NO JOBFILE" )
+$# Question from application APP INTERFACES
+$#     The jobname (Analisi_Pannello) is already defined in the database. Do 
+$# you wish to overwrite?
+$? YES 6016027 
+msc_delete_old_files( "Analisi_Pannello", ".bdf", ".h5" )
+$# Question from application APP INTERFACES
+$#     Files from a previous analysis conflict with the current job name: 
+$# "Analisi_Pannello".  These files are Analisi_Pannello.f04, 
+$# Analisi_Pannello.f06, Analisi_Pannello.log, Analisi_Pannello.h5, 
+$# Analisi_Pannello.bdf.  Will you permit deletion of these files?
+$? YES 6022037 
+$# Warning reported from application APP INTERFACES
+$#     The attachment to the file 
+$# C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5 
+$# has been deleted because that file is being deleted.
+jobfile.write_spl( "/* Jobfile for PATNAS created %A% at %A% */", ["09-Mar-26" @
+, "16:16:46"] )
+jobfile.writec( "", "TRANSLATOR = pat3nas" )
+jobfile.writec( "DATABASE", "C:\Users\lukea\OneDrive\Documenti\Luca\Missio" // @
+"n to Mars\Analisi_Pannello.db" )
+jobfile.writec( "JOBNAME", "Analisi_Pannello" )
+jobfile.writec( "ANALYSIS TITLE", "MSC.Nastran job created on 08-Mar-26 at" // @
+" 23:01:21" )
+jobfile.writec( "ANALYSIS SUBTITLE", "" )
+jobfile.writec( "ANALYSIS LABEL", "" )
+jobfile.writec( "", "" )
+jobfile.writec( "OBJECT", "Entire Model" )
+jobfile.writec( "METHOD", "Full Run" )
+jobfile.writec( "", "" )
+jobfile.writec( "MODEL SUFFIX", ".bdf" )
+jobfile.writec( "RESULTS SUFFIX", ".h5" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * File Search Path Declaration" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\extra_files" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patran" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\helpfiles" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\alters" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\icons\RibbonIcons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\bin" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\bin\exe" )
+jobfile.writec( "File Search Path", "C:\Users\lukea" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\dmap" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\plb" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\lib" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\plb" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscexplore_files\" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * Translation Parameters" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "DATA OUTPUT", "HDF5C+PRINT" )
+jobfile.writec( "OUTPUT2 REQUESTS", "P3 Built In" )
+jobfile.writec( "OUTPUT2 FORMAT", "Binary" )
+jobfile.writec( "HDF5OUT PRECISION", "HDF5P 32-BIT" )
+jobfile.writec( "DIVISION TOLERANCE", "1.0e-08" )
+jobfile.writec( "NUMERICAL TOLERANCE", "1.0e-04" )
+jobfile.writec( "WRITING TOLERANCE", "1.0e-21" )
+jobfile.writec( "GEOM CHECK", "INFORM" )
+jobfile.writec( "SORTED BULK", "NO" )
+jobfile.writec( "CARD FORMAT", "either" )
+jobfile.writec( "NODE COORDINATES", "reference frame" )
+jobfile.writec( "COORD COORDINATES", "global" )
+jobfile.writec( "MSC.Nastran VERSION", "2024.1" )
+jobfile.writec( "WRITE STORED PRECISION", "TRUE" )
+jobfile.writec( "WRITE IN FREE FORMAT", "FALSE" )
+jobfile.writec( "PROPS ON ELEM ENTRY", "FALSE" )
+jobfile.writec( "CONTINUATION ENTRY", "FALSE" )
+jobfile.writec( "PCOMPG ENTRY", "TRUE" )
+jobfile.writec( "CONVERT CBAR CBEAM", "FALSE" )
+jobfile.writec( "ITERATIVE SOLVER", "FALSE" )
+jobfile.writei( "SUPER ELEMENT 0", 0 )
+jobfile.writec( "SEALL WRITE", "FALSE" )
+jobfile.writec( "PART SUPERELEMENT CREATE", "TRUE" )
+jobfile.writec( "AUTOQSET", "FALSE" )
+jobfile.writec( "FIXEDB", "FALSE" )
+jobfile.writei( "SUPER TREE COUNT", 0 )
+jobfile.writec( "MODEL TOLERANCE", "0.0049999999" )
+jobfile.writec( "ELEMENT PROPERTY OFFSET", "0" )
+jobfile.writec( "MATERIAL PROPERTY OFFSET", "0" )
+jobfile.writec( "TABLE OFFSET", "0" )
+jobfile.writec( "LOAD SET OFFSET", "0" )
+jobfile.writec( "LOAD CASE OFFSET", "0" )
+jobfile.writec( "CONTROL SET OFFSET", "0" )
+jobfile.writec( "RIGID ELEMENT OFFSET", "0" )
+jobfile.writec( "SCALAR POINT OFFSET", "0" )
+jobfile.writec( "BEGINNING CONTINUATION MARKER", "+      A" )
+jobfile.writec( "NUMBER ONLY", "ON" )
+jobfile.writec( "BEGINNING NUMBER", "OFF" )
+jobfile.writec( "TRAILING NUMBER", "OFF" )
+jobfile.writec( "SYNTAX NUMBER", "ON" )
+jobfile.writec( "SYNTAX MARKER", "." )
+jobfile.writec( "EXTERNAL SUPERELEMENT METHOD", "NONE" )
+jobfile.writec( "GRID COORDINATES ROUNDING", "15" )
+jobfile.writec( "COORD DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "MPC DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "LBC DATA PRECISION ROUNDING", "7" )
+jobfile.writec( "MAT DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "PROP DATA PRECISION ROUNDING", "7" )
+jobfile.writec( "USE LEGACY PRECISION", "FALSE" )
+jobfile.writec( "EXPONENTIAL WRITE", "As Needed" )
+jobfile.writec( "EXPONENTIAL FORM", "Condensed" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * Solution Parameters" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "SOLUTION TYPE", "LINEAR STATIC" )
+jobfile.writei( "SOLUTION SEQUENCE", 101 )
+jobfile.writec( "DATABASE RUN", "ON" )
+jobfile.writec( "CYCLIC SYMMETRY", "OFF" )
+jobfile.writec( "AUTOMATIC CONSTRAINTS", "ON" )
+jobfile.writec( "INERTIA RELIEF", "OFF" )
+jobfile.writec( "ALTERNATE REDUCTION", "OFF" )
+jobfile.writec( "SHELL NORMAL TOLERANCE", "" )
+jobfile.writec( "MASS CALCULATION", "Lumped" )
+jobfile.writec( "DATA DECK ECHO", "None" )
+jobfile.writec( "PLATE RZ STIFFNESS FACTOR", "100.0" )
+jobfile.writec( "MAXIMUM PRINTED LINES", "" )
+jobfile.writec( "MAXIMUM RUN TIME", "" )
+jobfile.writec( "WT-MASS CONVERSION", "1.0" )
+jobfile.writec( "NODE ID FOR WT-GENER", "" )
+jobfile.writec( "RIGID ELEMENT TYPE", "LINEAR" )
+jobfile.writec( "USE SOL600", "OFF" )
+jobfile.writec( "CONTACT-AUTO-CONTACT-GENERATION", "OFF" )
+jobfile.writei( "CONTACT-SEGMENT-CONTROL METHOD", 0 )
+jobfile.writei( "CONTACT-DEFORMABLE-DEFORMABLE METHOD", 0 )
+jobfile.writei( "CONTACT-DERIVATION", 0 )
+jobfile.writei( "CONTACT-REL_ABS", 0 )
+jobfile.writei( "CONTACT-CRITERION", 0 )
+jobfile.writei( "CONTACT-LINCNT METHOD", 0 )
+jobfile.writec( "USE SOL700", "OFF" )
+jobfile.writec( "SN MEAN STRESS CORRECTION", "NONE" )
+jobfile.writec( "NEF FATIGUE STRESS OUTPUT", "NONE" )
+jobfile.writec( "NEF STRESS UNITS", "MPA" )
+jobfile.writec( "NEF STRESS COMBINATION", "ABSMAXPR" )
+jobfile.writec( "NEF RESULT LOCATION", "NODA" )
+jobfile.writec( "NEF RECOVERY LOCATION", "CORNER" )
+jobfile.writec( "NEF LAYER LOCATION", "WORST" )
+jobfile.writec( "NEF INTERPOLATION LIMIT", "0" )
+jobfile.writec( "NEF LEVEL OF MESSAGE", "0" )
+jobfile.writec( "NEF NUMBER OF THREADS", "1" )
+jobfile.writer( "NEF CERTAINTY OF SURVIVAL", 50. )
+jobfile.writer( "NEF OVERALL SCALE FACTOR", 1. )
+jobfile.writer( "NEF TOP STRESS PERCENTAGE FILTER", 100. )
+jobfile.writer( "NEF TOP DAMAGE PERCENTAGE FILTER", 100. )
+jobfile.writec( "NEF TIME HISTORY DIRECTORY", "./" )
+jobfile.writei( "NEF MAX LOAD PER EVENT", 1 )
+jobfile.writec( "NEF EVENT DATA", "0" )
+jobfile.writec( "NEF LOAD SEQUENCE DATA", "0" )
+jobfile.writec( "USE CONTACT TABLE", "OFF" )
+jobfile.writec( "INITIAL CONTACTPAIR LOADCASE NAME", "" )
+jobfile.writei( "MDOF DATA", 0 )
+jobfile.writec( "CELL WRITE", "ON" )
+jobfile.writei( "CELL INPUT 0", 0 )
+jobfile.writec( "FMS WRITE", "ON" )
+jobfile.writei( "FMS INPUT 0", 0 )
+jobfile.writec( "EXEC WRITE", "ON" )
+jobfile.writei( "EXEC INPUT 0", 0 )
+jobfile.writec( "CASE WRITE", "ON" )
+jobfile.writei( "CASE INPUT 0", 0 )
+jobfile.writec( "BULK WRITE", "ON" )
+jobfile.writei( "BULK INPUT 0", 0 )
+jobfile.writec( "CELL DTI POSITION", "START" )
+jobfile.writec( "FMS DTI POSITION", "START" )
+jobfile.writec( "EXEC DTI POSITION", "START" )
+jobfile.writec( "CASE DTI POSITION", "START" )
+jobfile.writec( "BULK DTI POSITION", "START" )
+jobfile.writec( "", "END" )
+jobfile.close(  )
+mscnastran_job.associate_subcases( "101", "Analisi_Pannello", 1, ["Default"] )
+analysis_submit_2( "MSC.Nastran", "Analisi_Pannello" )
+$# Patran 2024.1  (Student Edition) has obtained 0 concurrent license(s) from 
+$# FLEXlm per a request to execute on Windows node LAPTOP-FPHQ2IVC(
+$# ec2e98f686f1) (Windows 6.2 (Build 9200: Service Pack 0)) at 09-Mar-26 
+$# 16:16:47.
+$# 
+$# Reading model information from the specified database, 
+$# C:\Users\lukea\OneDrive\Documenti\Luca\Mission\ to\ Mars\Analisi_Pannello.db.
+$# Messages output from the Patran 2024.1  (Student Edition) input deck 
+$# translator on March     09, 2026 at 16:16:47.
+$# 
+$# The NASTRAN input file, Analisi_Pannello.bdf, has been successfully opened.
+$# 
+$# Translating 600 elements from the element property region Shell.
+$# 
+$# 1 property regions translated.
+$# 
+$# Translating 1 referenced material records.
+$# 
+$# Translating 651 nodes from the entire model.
+$# 
+$# Writing loads for Load Case : Default.
+$# 
+$# Translating static nodal temperatures of load set : Gradiente_termico.
+$# 
+$# Translating nodal constraints in load set : Appoggio.
+$# Writing interface element lbcs.
+$# 
+$# Translating pressure loads in load set : Pressione.
+$# Total execution time in real seconds: 0.01
+$# Total execution time in CPU seconds: 0.421997
+$# 
+$# End of NASTRAN input file translation.
+$# Student Edition Patran Nastran Preference Patran 2024.1  (Student Edition) 
+$# has released 0 license(s) to FLEXlm at 09-Mar-26 16:16:47.
+$# The translation has completed successfully.
+$# Executing /bin/sh -c 
+$# C:\Users\lukea\OneDrive\Desktop\Patran\bin\MscNastranExecut
+$# e.exe -j Analisi_Pannello -m bdf -x 20241 -c %%prog=edu%auth=edu%arch=64% -v
+msc_dra_init_stream(  )
+msc_dra_add_param( "DATABASE", "C:\Users\lukea\OneDrive\Documenti\Luca\Mis" // @
+"sion to Mars\Analisi_Pannello.db" )
+msc_dra_add_param( "JOBNAME", "Analisi_Pannello" )
+msc_dra_add_param( "RESULTS FILE", "C:\Users\lukea\OneDrive\Documenti\Luca" // @
+"\Mission to Mars\analisi_pannello.h5" )
+msc_dra_add_param( "OBJECT", "Result Entities" )
+msc_dra_add_param( "ANALYSIS TYPE", "Structural" )
+msc_dra_add_param( "DIVISION TOLERANCE", "1.0E-8" )
+msc_dra_add_param( "NUMERICAL TOLERANCE", "1.0E-4" )
+msc_dra_add_param( "MODEL TOLERANCE", "0.0049999999" )
+msc_dra_add_param( "OBJECTIVE FUNCTION", "ON" )
+msc_dra_add_param( "DESIGN CONSTRAINTS", "ON" )
+msc_dra_add_param( "DESIGN VARIABLES", "ON" )
+msc_dra_add_param( "COMBINE RESULTCASES", "ON" )
+msc_dra_add_param( "COMBINE MODULES", "OFF" )
+msc_dra_add_param( "SPLINE IMPORT DATA", "OFF" )
+msc_dra_add_param( "SPLINE POST DATA", "ZERO" )
+msc_dra_add_param( "ROTATIONAL NODAL RESULTS", "ON" )
+msc_dra_add_param( "STRESS/STRAIN INVARIANTS", "OFF" )
+msc_dra_add_param( "PRINCIPAL DIRECTIONS", "OFF" )
+msc_dra_add_param( "CREATE P-ORDER FIELD", "" )
+msc_dra_add_param( "ELEMENT RESULTS POSITIONS", "Both        " )
+msc_dra_add_param( "NASTRAN VERSION", "" )
+msc_dra_add_param( "TITLE DESCRIPTION", "ON" )
+msc_dra_finish_stream(  )
+analysis_import( "MSC.Nastran", "Analisi_Pannello", "Attach HDF5 Results File" @
+, "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5" @
+, TRUE )
+$# Attaching Direct Results Access file: 
+$# "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5"
+$# *** Begin: Attach Result File ***
+$# Processing result sub-case: Static subcase
+$# Total execution time in real seconds:        0.000
+$# Total execution time in CPU  seconds:        0.000
+$# *** End:   Attach Result File ***
+res_data_load_dbresult( 0, "Nodal", "Scalar", "SC1:DEFAULT",  @
+"A1:Static subcase", "Stress Tensor", "", "At Z1", "VONM", "Default",  @
+"DeriveAverage", "All", "ShapeFunc" )
+res_data_title( 0, "Nodal", "Scalar", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL, @@@$LN "] )
+res_display_fringe_create( "", "FreeFaces", 0, [""], 13, [ @
+"Range:Fri_default_Fringe", "RangeOverwrite:OFF",  @
+"FringeStyle:Discrete/Smooth", "Shade:None", "ElemEdge:FreeEdge,Blue,Solid,1", @
+ "Shrink:0", "TitleDisplay:ON", "MinMaxDisplay:ON", "ValueDisplay:OFF",  @
+"Filter:None", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"RelativeToGeom:ORIG"], TRUE )
+res_display_fringe_post( "", 0, "Nodal", TRUE, TRUE )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"Global", "", "", "" )
+res_data_title( 0, "Nodal", "Vector", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL"] )
+res_display_deformation_create( "", "Elements", 0, [""], 10, [ @
+"DeformedStyle:White,Solid,1,Wireframe", "DeformedScale:Model=0.1",  @
+"UndeformedStyle:ON,Blue,Solid,1,Wireframe", "TitleDisplay:ON",  @
+"MinMaxDisplay:ON", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"DeformDisplay:Resultant", "DeformComps:OFF,OFF,OFF", "RelativeToGeom:ORIG"] )
+res_display_deformation_post( "", 0 )
+loadsbcs_modify2( "Gradiente_termico", "Gradiente_termico", "Temperature",  @
+"Nodal", "", "Static", ["Node 1:651"], "FEM", "", "1.", ["213.14999"], [""] )
+$# Load/BC set "Gradiente_termico" modified.
+$#  Beginning analysis of  Analisi_Pannello
+jobfile.open( "Analisi_Pannello", "ANALYZE NO JOBFILE" )
+$# Question from application APP INTERFACES
+$#     The jobname (Analisi_Pannello) is already defined in the database. Do 
+$# you wish to overwrite?
+$? YES 6016027 
+msc_delete_old_files( "Analisi_Pannello", ".bdf", ".h5" )
+$# Question from application APP INTERFACES
+$#     Files from a previous analysis conflict with the current job name: 
+$# "Analisi_Pannello".  These files are Analisi_Pannello.f04, 
+$# Analisi_Pannello.f06, Analisi_Pannello.log, Analisi_Pannello.h5, 
+$# Analisi_Pannello.bdf.  Will you permit deletion of these files?
+$? YES 6022037 
+$# Warning reported from application APP INTERFACES
+$#     The attachment to the file 
+$# C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5 
+$# has been deleted because that file is being deleted.
+jobfile.write_spl( "/* Jobfile for PATNAS created %A% at %A% */", ["09-Mar-26" @
+, "16:21:08"] )
+jobfile.writec( "", "TRANSLATOR = pat3nas" )
+jobfile.writec( "DATABASE", "C:\Users\lukea\OneDrive\Documenti\Luca\Missio" // @
+"n to Mars\Analisi_Pannello.db" )
+jobfile.writec( "JOBNAME", "Analisi_Pannello" )
+jobfile.writec( "ANALYSIS TITLE", "MSC.Nastran job created on 08-Mar-26 at" // @
+" 23:01:21" )
+jobfile.writec( "ANALYSIS SUBTITLE", "" )
+jobfile.writec( "ANALYSIS LABEL", "" )
+jobfile.writec( "", "" )
+jobfile.writec( "OBJECT", "Entire Model" )
+jobfile.writec( "METHOD", "Full Run" )
+jobfile.writec( "", "" )
+jobfile.writec( "MODEL SUFFIX", ".bdf" )
+jobfile.writec( "RESULTS SUFFIX", ".h5" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * File Search Path Declaration" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "File Search Path", "C:\Users\lukea" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\bin\exe" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\bin" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\icons\RibbonIcons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\alters" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\helpfiles" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patran" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscexplore_files\" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\plb" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\lib" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\plb" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\dmap" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\extra_files" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * Translation Parameters" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "DATA OUTPUT", "HDF5C+PRINT" )
+jobfile.writec( "OUTPUT2 REQUESTS", "P3 Built In" )
+jobfile.writec( "OUTPUT2 FORMAT", "Binary" )
+jobfile.writec( "HDF5OUT PRECISION", "HDF5P 32-BIT" )
+jobfile.writec( "DIVISION TOLERANCE", "1.0e-08" )
+jobfile.writec( "NUMERICAL TOLERANCE", "1.0e-04" )
+jobfile.writec( "WRITING TOLERANCE", "1.0e-21" )
+jobfile.writec( "GEOM CHECK", "INFORM" )
+jobfile.writec( "SORTED BULK", "NO" )
+jobfile.writec( "CARD FORMAT", "either" )
+jobfile.writec( "NODE COORDINATES", "reference frame" )
+jobfile.writec( "COORD COORDINATES", "global" )
+jobfile.writec( "MSC.Nastran VERSION", "2024.1" )
+jobfile.writec( "WRITE STORED PRECISION", "TRUE" )
+jobfile.writec( "WRITE IN FREE FORMAT", "FALSE" )
+jobfile.writec( "PROPS ON ELEM ENTRY", "FALSE" )
+jobfile.writec( "CONTINUATION ENTRY", "FALSE" )
+jobfile.writec( "PCOMPG ENTRY", "TRUE" )
+jobfile.writec( "CONVERT CBAR CBEAM", "FALSE" )
+jobfile.writec( "ITERATIVE SOLVER", "FALSE" )
+jobfile.writei( "SUPER ELEMENT 0", 0 )
+jobfile.writec( "SEALL WRITE", "FALSE" )
+jobfile.writec( "PART SUPERELEMENT CREATE", "TRUE" )
+jobfile.writec( "AUTOQSET", "FALSE" )
+jobfile.writec( "FIXEDB", "FALSE" )
+jobfile.writei( "SUPER TREE COUNT", 0 )
+jobfile.writec( "MODEL TOLERANCE", "0.0049999999" )
+jobfile.writec( "ELEMENT PROPERTY OFFSET", "0" )
+jobfile.writec( "MATERIAL PROPERTY OFFSET", "0" )
+jobfile.writec( "TABLE OFFSET", "0" )
+jobfile.writec( "LOAD SET OFFSET", "0" )
+jobfile.writec( "LOAD CASE OFFSET", "0" )
+jobfile.writec( "CONTROL SET OFFSET", "0" )
+jobfile.writec( "RIGID ELEMENT OFFSET", "0" )
+jobfile.writec( "SCALAR POINT OFFSET", "0" )
+jobfile.writec( "BEGINNING CONTINUATION MARKER", "+      A" )
+jobfile.writec( "NUMBER ONLY", "ON" )
+jobfile.writec( "BEGINNING NUMBER", "OFF" )
+jobfile.writec( "TRAILING NUMBER", "OFF" )
+jobfile.writec( "SYNTAX NUMBER", "ON" )
+jobfile.writec( "SYNTAX MARKER", "." )
+jobfile.writec( "EXTERNAL SUPERELEMENT METHOD", "NONE" )
+jobfile.writec( "GRID COORDINATES ROUNDING", "15" )
+jobfile.writec( "COORD DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "MPC DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "LBC DATA PRECISION ROUNDING", "7" )
+jobfile.writec( "MAT DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "PROP DATA PRECISION ROUNDING", "7" )
+jobfile.writec( "USE LEGACY PRECISION", "FALSE" )
+jobfile.writec( "EXPONENTIAL WRITE", "As Needed" )
+jobfile.writec( "EXPONENTIAL FORM", "Condensed" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * Solution Parameters" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "SOLUTION TYPE", "LINEAR STATIC" )
+jobfile.writei( "SOLUTION SEQUENCE", 101 )
+jobfile.writec( "DATABASE RUN", "ON" )
+jobfile.writec( "CYCLIC SYMMETRY", "OFF" )
+jobfile.writec( "AUTOMATIC CONSTRAINTS", "ON" )
+jobfile.writec( "INERTIA RELIEF", "OFF" )
+jobfile.writec( "ALTERNATE REDUCTION", "OFF" )
+jobfile.writec( "SHELL NORMAL TOLERANCE", "" )
+jobfile.writec( "MASS CALCULATION", "Lumped" )
+jobfile.writec( "DATA DECK ECHO", "None" )
+jobfile.writec( "PLATE RZ STIFFNESS FACTOR", "100.0" )
+jobfile.writec( "MAXIMUM PRINTED LINES", "" )
+jobfile.writec( "MAXIMUM RUN TIME", "" )
+jobfile.writec( "WT-MASS CONVERSION", "1.0" )
+jobfile.writec( "NODE ID FOR WT-GENER", "" )
+jobfile.writec( "RIGID ELEMENT TYPE", "LINEAR" )
+jobfile.writec( "USE SOL600", "OFF" )
+jobfile.writec( "CONTACT-AUTO-CONTACT-GENERATION", "OFF" )
+jobfile.writei( "CONTACT-SEGMENT-CONTROL METHOD", 0 )
+jobfile.writei( "CONTACT-DEFORMABLE-DEFORMABLE METHOD", 0 )
+jobfile.writei( "CONTACT-DERIVATION", 0 )
+jobfile.writei( "CONTACT-REL_ABS", 0 )
+jobfile.writei( "CONTACT-CRITERION", 0 )
+jobfile.writei( "CONTACT-LINCNT METHOD", 0 )
+jobfile.writec( "USE SOL700", "OFF" )
+jobfile.writec( "SN MEAN STRESS CORRECTION", "NONE" )
+jobfile.writec( "NEF FATIGUE STRESS OUTPUT", "NONE" )
+jobfile.writec( "NEF STRESS UNITS", "MPA" )
+jobfile.writec( "NEF STRESS COMBINATION", "ABSMAXPR" )
+jobfile.writec( "NEF RESULT LOCATION", "NODA" )
+jobfile.writec( "NEF RECOVERY LOCATION", "CORNER" )
+jobfile.writec( "NEF LAYER LOCATION", "WORST" )
+jobfile.writec( "NEF INTERPOLATION LIMIT", "0" )
+jobfile.writec( "NEF LEVEL OF MESSAGE", "0" )
+jobfile.writec( "NEF NUMBER OF THREADS", "1" )
+jobfile.writer( "NEF CERTAINTY OF SURVIVAL", 50. )
+jobfile.writer( "NEF OVERALL SCALE FACTOR", 1. )
+jobfile.writer( "NEF TOP STRESS PERCENTAGE FILTER", 100. )
+jobfile.writer( "NEF TOP DAMAGE PERCENTAGE FILTER", 100. )
+jobfile.writec( "NEF TIME HISTORY DIRECTORY", "./" )
+jobfile.writei( "NEF MAX LOAD PER EVENT", 1 )
+jobfile.writec( "NEF EVENT DATA", "0" )
+jobfile.writec( "NEF LOAD SEQUENCE DATA", "0" )
+jobfile.writec( "USE CONTACT TABLE", "OFF" )
+jobfile.writec( "INITIAL CONTACTPAIR LOADCASE NAME", "" )
+jobfile.writei( "MDOF DATA", 0 )
+jobfile.writec( "CELL WRITE", "ON" )
+jobfile.writei( "CELL INPUT 0", 0 )
+jobfile.writec( "FMS WRITE", "ON" )
+jobfile.writei( "FMS INPUT 0", 0 )
+jobfile.writec( "EXEC WRITE", "ON" )
+jobfile.writei( "EXEC INPUT 0", 0 )
+jobfile.writec( "CASE WRITE", "ON" )
+jobfile.writei( "CASE INPUT 0", 0 )
+jobfile.writec( "BULK WRITE", "ON" )
+jobfile.writei( "BULK INPUT 0", 0 )
+jobfile.writec( "CELL DTI POSITION", "START" )
+jobfile.writec( "FMS DTI POSITION", "START" )
+jobfile.writec( "EXEC DTI POSITION", "START" )
+jobfile.writec( "CASE DTI POSITION", "START" )
+jobfile.writec( "BULK DTI POSITION", "START" )
+jobfile.writec( "", "END" )
+jobfile.close(  )
+mscnastran_job.associate_subcases( "101", "Analisi_Pannello", 1, ["Default"] )
+analysis_submit_2( "MSC.Nastran", "Analisi_Pannello" )
+$# Patran 2024.1  (Student Edition) has obtained 0 concurrent license(s) from 
+$# FLEXlm per a request to execute on Windows node LAPTOP-FPHQ2IVC(
+$# ec2e98f686f1) (Windows 6.2 (Build 9200: Service Pack 0)) at 09-Mar-26 
+$# 16:21:08.
+$# 
+$# Reading model information from the specified database, 
+$# C:\Users\lukea\OneDrive\Documenti\Luca\Mission\ to\ Mars\Analisi_Pannello.db.
+$# Messages output from the Patran 2024.1  (Student Edition) input deck 
+$# translator on March     09, 2026 at 16:21:08.
+$# 
+$# The NASTRAN input file, Analisi_Pannello.bdf, has been successfully opened.
+$# 
+$# Translating 600 elements from the element property region Shell.
+$# 
+$# 1 property regions translated.
+$# 
+$# Translating 1 referenced material records.
+$# 
+$# Translating 651 nodes from the entire model.
+$# 
+$# Writing loads for Load Case : Default.
+$# 
+$# Translating static nodal temperatures of load set : Gradiente_termico.
+$# 
+$# Translating nodal constraints in load set : Appoggio.
+$# Writing interface element lbcs.
+$# 
+$# Translating pressure loads in load set : Pressione.
+$# Total execution time in real seconds: 1
+$# Total execution time in CPU seconds: 0.392029
+$# 
+$# End of NASTRAN input file translation.
+$# Student Edition Patran Nastran Preference Patran 2024.1  (Student Edition) 
+$# has released 0 license(s) to FLEXlm at 09-Mar-26 16:21:09.
+$# The translation has completed successfully.
+$# Executing /bin/sh -c 
+$# C:\Users\lukea\OneDrive\Desktop\Patran\bin\MscNastranExecut
+$# e.exe -j Analisi_Pannello -m bdf -x 20241 -c %%prog=edu%auth=edu%arch=64% -v
+msc_dra_init_stream(  )
+msc_dra_add_param( "DATABASE", "C:\Users\lukea\OneDrive\Documenti\Luca\Mis" // @
+"sion to Mars\Analisi_Pannello.db" )
+msc_dra_add_param( "JOBNAME", "Analisi_Pannello" )
+msc_dra_add_param( "RESULTS FILE", "C:\Users\lukea\OneDrive\Documenti\Luca" // @
+"\Mission to Mars\analisi_pannello.h5" )
+msc_dra_add_param( "OBJECT", "Result Entities" )
+msc_dra_add_param( "ANALYSIS TYPE", "Structural" )
+msc_dra_add_param( "DIVISION TOLERANCE", "1.0E-8" )
+msc_dra_add_param( "NUMERICAL TOLERANCE", "1.0E-4" )
+msc_dra_add_param( "MODEL TOLERANCE", "0.0049999999" )
+msc_dra_add_param( "OBJECTIVE FUNCTION", "ON" )
+msc_dra_add_param( "DESIGN CONSTRAINTS", "ON" )
+msc_dra_add_param( "DESIGN VARIABLES", "ON" )
+msc_dra_add_param( "COMBINE RESULTCASES", "ON" )
+msc_dra_add_param( "COMBINE MODULES", "OFF" )
+msc_dra_add_param( "SPLINE IMPORT DATA", "OFF" )
+msc_dra_add_param( "SPLINE POST DATA", "ZERO" )
+msc_dra_add_param( "ROTATIONAL NODAL RESULTS", "ON" )
+msc_dra_add_param( "STRESS/STRAIN INVARIANTS", "OFF" )
+msc_dra_add_param( "PRINCIPAL DIRECTIONS", "OFF" )
+msc_dra_add_param( "CREATE P-ORDER FIELD", "" )
+msc_dra_add_param( "ELEMENT RESULTS POSITIONS", "Both        " )
+msc_dra_add_param( "NASTRAN VERSION", "" )
+msc_dra_add_param( "TITLE DESCRIPTION", "ON" )
+msc_dra_finish_stream(  )
+analysis_import( "MSC.Nastran", "Analisi_Pannello", "Attach HDF5 Results File" @
+, "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5" @
+, TRUE )
+$# Attaching Direct Results Access file: 
+$# "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5"
+$# *** Begin: Attach Result File ***
+$# Processing result sub-case: Static subcase
+$# Total execution time in real seconds:        0.000
+$# Total execution time in CPU  seconds:        0.000
+$# *** End:   Attach Result File ***
+res_data_load_dbresult( 0, "Nodal", "Scalar", "SC1:DEFAULT",  @
+"A1:Static subcase", "Stress Tensor", "", "At Z1", "VONM", "Default",  @
+"DeriveAverage", "All", "ShapeFunc" )
+res_data_title( 0, "Nodal", "Scalar", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL, @@@$LN "] )
+res_display_fringe_create( "", "FreeFaces", 0, [""], 13, [ @
+"Range:Fri_default_Fringe", "RangeOverwrite:OFF",  @
+"FringeStyle:Discrete/Smooth", "Shade:None", "ElemEdge:FreeEdge,Blue,Solid,1", @
+ "Shrink:0", "TitleDisplay:ON", "MinMaxDisplay:ON", "ValueDisplay:OFF",  @
+"Filter:None", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"RelativeToGeom:ORIG"], TRUE )
+res_display_fringe_post( "", 0, "Nodal", TRUE, TRUE )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"Global", "", "", "" )
+res_data_title( 0, "Nodal", "Vector", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL"] )
+res_display_deformation_create( "", "Elements", 0, [""], 10, [ @
+"DeformedStyle:White,Solid,1,Wireframe", "DeformedScale:Model=0.1",  @
+"UndeformedStyle:ON,Blue,Solid,1,Wireframe", "TitleDisplay:ON",  @
+"MinMaxDisplay:ON", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"DeformDisplay:Resultant", "DeformComps:OFF,OFF,OFF", "RelativeToGeom:ORIG"] )
+res_display_deformation_post( "", 0 )
+ga_view_aa_set( 23., -34., 0. )
+ga_view_aa_set( 23., 56., 0. )
+ga_view_aa_set( -67., 0., -34. )
+ga_view_aa_set( 157., 34, -180. )
+ga_view_aa_set( -67., 0., -34. )
+ga_view_aa_set( 23., 56., 0. )
+ga_view_aa_set( 23., -34., 0. )
+ga_view_aa_set( 23., 56., 0. )
+res_data_load_dbresult( 0, "Nodal", "Scalar", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "MAG", @
+ "Default", "DeriveAverage", "All", "ShapeFunc" )
+res_data_title( 0, "Nodal", "Scalar", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL, @@@$LN "] )
+res_display_fringe_create( "", "FreeFaces", 0, [""], 13, [ @
+"Range:Fri_default_Fringe", "RangeOverwrite:OFF",  @
+"FringeStyle:Discrete/Smooth", "Shade:None", "ElemEdge:FreeEdge,Blue,Solid,1", @
+ "Shrink:0", "TitleDisplay:ON", "MinMaxDisplay:ON", "ValueDisplay:OFF",  @
+"Filter:None", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"RelativeToGeom:ORIG"], TRUE )
+res_display_fringe_post( "", 0, "Nodal", TRUE, TRUE )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"Global", "", "", "" )
+res_data_title( 0, "Nodal", "Vector", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL"] )
+res_display_deformation_create( "", "Elements", 0, [""], 10, [ @
+"DeformedStyle:White,Solid,1,Wireframe", "DeformedScale:Model=0.1",  @
+"UndeformedStyle:ON,Blue,Solid,1,Wireframe", "TitleDisplay:ON",  @
+"MinMaxDisplay:ON", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"DeformDisplay:Resultant", "DeformComps:OFF,OFF,OFF", "RelativeToGeom:ORIG"] )
+res_display_deformation_post( "", 0 )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_create( "Report_spostamenti_freddi", "Nodes", 1, [ @
+"NO:Node 127:147"], 21, ["ReportType:Full",  @
+"ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Node Vector", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,X Location,XLOC,%F12.6%",  @
+"ReportVColumn:3,Y Location,YLOC,%F12.6%",  @
+"ReportVColumn:4,Z Location,ZLOC,%F12.6%",  @
+"ReportVColumn:5,Magnitude,MAG,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "Report_spostamenti_freddi", 0, "Vector", "Nodal",  @
+"Overwrite", "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Repor" // @
+"t_analisi_pannello" )
+ga_view_aa_set( 0., 180., 0. )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"AsIs", "DeriveAverage", "All", "ShapeFunc", "", 0. )
+res_display_report_create( "Report_spostamenti_totali", "Nodes", 1, [ @
+"NO:Node 1:651"], 20, ["ReportType:Full",  @
+"ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Node Vector", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportVColumn:1,Entity ID,ID,%I6%",  @
+"ReportVColumn:2,X Location,XLOC,%F12.6%",  @
+"ReportVColumn:3,Y Location,YLOC,%F12.6%",  @
+"ReportVColumn:4,Z Location,ZLOC,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "Report_spostamenti_totali", 0, "Vector", "Nodal",  @
+"Overwrite", "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Repor" // @
+"t_analisi_pannello" )
+ga_view_aa_set( 23., -34., 0. )
+ga_view_aa_set( 23., 56., 0. )
+ga_view_aa_set( -67., 0., -34. )
+ga_view_aa_set( 157., 34, -180. )
+res_data_load_dbresult( 0, "Nodal", "Tensor", "SC1:DEFAULT",  @
+"A1:Static subcase", "Stress Tensor", "", "At Z1", "", "AsIs", "DeriveAverage" @
+, "All", "ShapeFunc", "", 0. )
+res_data_dbres_list( 0, "Nodal", "Tensor", 1, ["SC1:DEFAULT"], [ @
+"A1:Static subcase"], ["Stress Tensor"], [""], ["At Z2"] )
+res_display_report_create( "Report_stress_freddi_centrali", "Nodes", 1, [ @
+"NO:Node 127:147"], 21, ["ReportType:Full",  @
+"ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Node Vector", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportTColumn:1,Entity ID,ID,%I6%",  @
+"ReportTColumn:2,X Location,XLOC,%F12.6%",  @
+"ReportTColumn:3,Y Location,YLOC,%F12.6%",  @
+"ReportTColumn:4,Z Location,ZLOC,%F12.6%",  @
+"ReportTColumn:5,von Mises,VONM,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "Report_stress_freddi_centrali", 0, "Tensor",  @
+"Nodal", "Overwrite", "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to M" // @
+"ars\Report_analisi_pannello" )
+res_data_load_dbresult( 0, "Nodal", "Scalar", "SC1:DEFAULT",  @
+"A1:Static subcase", "Stress Tensor", "", "At Z1", "VONM", "Default",  @
+"DeriveAverage", "All", "ShapeFunc" )
+res_data_title( 0, "Nodal", "Scalar", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL, @@@$LN "] )
+res_display_fringe_create( "", "FreeFaces", 0, [""], 13, [ @
+"Range:Fri_default_Fringe", "RangeOverwrite:OFF",  @
+"FringeStyle:Discrete/Smooth", "Shade:None", "ElemEdge:FreeEdge,Blue,Solid,1", @
+ "Shrink:0", "TitleDisplay:ON", "MinMaxDisplay:ON", "ValueDisplay:OFF",  @
+"Filter:None", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"RelativeToGeom:ORIG"], TRUE )
+res_display_fringe_post( "", 0, "Nodal", TRUE, TRUE )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"Global", "", "", "" )
+res_data_title( 0, "Nodal", "Vector", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL"] )
+res_display_deformation_create( "", "Elements", 0, [""], 10, [ @
+"DeformedStyle:White,Solid,1,Wireframe", "DeformedScale:Model=0.1",  @
+"UndeformedStyle:ON,Blue,Solid,1,Wireframe", "TitleDisplay:ON",  @
+"MinMaxDisplay:ON", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"DeformDisplay:Resultant", "DeformComps:OFF,OFF,OFF", "RelativeToGeom:ORIG"] )
+res_display_deformation_post( "", 0 )
+res_data_load_dbresult( 0, "Nodal", "Tensor", "SC1:DEFAULT",  @
+"A1:Static subcase", "Stress Tensor", "", "At Z1", "", "AsIs", "DeriveAverage" @
+, "All", "ShapeFunc", "", 0. )
+res_data_dbres_list( 0, "Nodal", "Tensor", 1, ["SC1:DEFAULT"], [ @
+"A1:Static subcase"], ["Stress Tensor"], [""], ["At Z2"] )
+res_display_report_create( "Report", "Nodes", 1, ["NO:Node 1:21"], 21, [ @
+"ReportType:Full", "ReportTitle:$PRODUCT - Analysis Code: $CODE_NAME ",  @
+"ReportTitle:Load Case: $LC_NAME, $SC_NAME ",  @
+"ReportTitle:Result $PRES_NAME, $SRES_NAME - Layer $LYR_NAME ",  @
+"ReportTitle:Entity: Node Vector", "ReportHeader:Page $PAGE",  @
+"ReportFooter:$DATE", "ReportPage:Height=52,Width=128,TopMargin=5,LeftMarg" // @
+"in=8,BottomMargin=5", "ReportPagination:OFF", "ReportPageNumber:1",  @
+"ReportPageAlignment:Center", "ReportTColumn:1,Entity ID,ID,%I6%",  @
+"ReportTColumn:2,X Location,XLOC,%F12.6%",  @
+"ReportTColumn:3,Y Location,YLOC,%F12.6%",  @
+"ReportTColumn:4,Z Location,ZLOC,%F12.6%",  @
+"ReportTColumn:5,von Mises,VONM,%F12.6%", "EntitySort:LoadCase",  @
+"ValueSort:1,Ascending,Algebraic", "ColumnHeaders:ON", "Filter:None",  @
+"ScaleFactor:1."] )
+res_display_report_write( "Report", 0, "Tensor", "Nodal", "Overwrite",  @
+"C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\Report_analisi_pan" // @
+"nello" )
+mscnastran_subcase.create( "105", "Default", "This is a default subcase." )
+mscnastran_subcase.create_char_param( "LOAD CASE", "SC1:DEFAULT" )
+mscnastran_subcase.create_char_param( "SUBCASE TITLE",  @
+"This is a default subcase." )
+mscnastran_subcase.create_char_param( "SUBCASE SUBTITLE", "Default" )
+mscnastran_subcase.create_char_param( "SUBCASE LABEL",  @
+"This load case is the default load case that always appears" )
+mscnastran_subcase.create_char_param( "SUBCASE TITLE FLAG", "OFF" )
+mscnastran_subcase.create_char_param( "SUBCASE SUBTITLE FLAG", "ON" )
+mscnastran_subcase.create_char_param( "SUBCASE LABEL FLAG", "OFF" )
+mscnastran_subcase.create_char_param( "Default", "STRUCTURAL" )
+mscnastran_subcase.create_char_param( "DISPLACEMENTS", "1" )
+mscnastran_subcase.create_char_param( "DISPLACEMENTS 1",  @
+"DISPLACEMENT(SORT1,REAL)=0" )
+mscnastran_subcase.create_char_param( "CONSTRAINT FORCES", "1" )
+mscnastran_subcase.create_char_param( "CONSTRAINT FORCES 1",  @
+"SPCFORCES(SORT1,REAL)=0" )
+mscnastran_subcase.create_char_param( "EIGENVECTORS", "1" )
+mscnastran_subcase.create_char_param( "EIGENVECTORS 1", "VECTOR(SORT1,REAL)=0" )
+mscnastran_subcase.create_char_param( "SUBCASE WRITE", "ON" )
+mscnastran_subcase.create_char_param( "SUBCASE DIRECT TEXT POS", "OFF" )
+mscnastran_subcase.create_int_param( "SUBCASE INPUT 0", 0 )
+$#  Beginning analysis of  Analisi_Pannello
+jobfile.open( "Analisi_Pannello", "ANALYZE NO JOBFILE" )
+$# Question from application APP INTERFACES
+$#     The jobname (Analisi_Pannello) is already defined in the database. Do 
+$# you wish to overwrite?
+$? YES 6016027 
+msc_delete_old_files( "Analisi_Pannello", ".bdf", ".h5" )
+$# Question from application APP INTERFACES
+$#     Files from a previous analysis conflict with the current job name: 
+$# "Analisi_Pannello".  These files are Analisi_Pannello.f04, 
+$# Analisi_Pannello.f06, Analisi_Pannello.log, Analisi_Pannello.h5, 
+$# Analisi_Pannello.bdf.  Will you permit deletion of these files?
+$? YES 6022037 
+$# Warning reported from application APP INTERFACES
+$#     The attachment to the file 
+$# C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5 
+$# has been deleted because that file is being deleted.
+jobfile.write_spl( "/* Jobfile for PATNAS created %A% at %A% */", ["09-Mar-26" @
+, "19:47:20"] )
+jobfile.writec( "", "TRANSLATOR = pat3nas" )
+jobfile.writec( "DATABASE", "C:\Users\lukea\OneDrive\Documenti\Luca\Missio" // @
+"n to Mars\Analisi_Pannello.db" )
+jobfile.writec( "JOBNAME", "Analisi_Pannello" )
+jobfile.writec( "ANALYSIS TITLE", "MSC.Nastran job created on 08-Mar-26 at" // @
+" 23:01:21" )
+jobfile.writec( "ANALYSIS SUBTITLE", "" )
+jobfile.writec( "ANALYSIS LABEL", "" )
+jobfile.writec( "", "" )
+jobfile.writec( "OBJECT", "Entire Model" )
+jobfile.writec( "METHOD", "Full Run" )
+jobfile.writec( "", "" )
+jobfile.writec( "MODEL SUFFIX", ".bdf" )
+jobfile.writec( "RESULTS SUFFIX", ".h5" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * File Search Path Declaration" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscexplore_files\" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patran" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\helpfiles" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\alters" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\icons\RibbonIcons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\bin" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\bin\exe" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\extra_files" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\dmap" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\plb" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\lib" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\plb" )
+jobfile.writec( "File Search Path", "C:\Users\lukea" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * Translation Parameters" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "DATA OUTPUT", "HDF5C+PRINT" )
+jobfile.writec( "OUTPUT2 REQUESTS", "P3 Built In" )
+jobfile.writec( "OUTPUT2 FORMAT", "Binary" )
+jobfile.writec( "HDF5OUT PRECISION", "HDF5P 32-BIT" )
+jobfile.writec( "DIVISION TOLERANCE", "1.0e-08" )
+jobfile.writec( "NUMERICAL TOLERANCE", "1.0e-04" )
+jobfile.writec( "WRITING TOLERANCE", "1.0e-21" )
+jobfile.writec( "GEOM CHECK", "INFORM" )
+jobfile.writec( "SORTED BULK", "NO" )
+jobfile.writec( "CARD FORMAT", "either" )
+jobfile.writec( "NODE COORDINATES", "reference frame" )
+jobfile.writec( "COORD COORDINATES", "global" )
+jobfile.writec( "MSC.Nastran VERSION", "2024.1" )
+jobfile.writec( "WRITE STORED PRECISION", "TRUE" )
+jobfile.writec( "WRITE IN FREE FORMAT", "FALSE" )
+jobfile.writec( "PROPS ON ELEM ENTRY", "FALSE" )
+jobfile.writec( "CONTINUATION ENTRY", "FALSE" )
+jobfile.writec( "PCOMPG ENTRY", "TRUE" )
+jobfile.writec( "CONVERT CBAR CBEAM", "FALSE" )
+jobfile.writec( "ITERATIVE SOLVER", "FALSE" )
+jobfile.writei( "SUPER ELEMENT 0", 0 )
+jobfile.writec( "SEALL WRITE", "FALSE" )
+jobfile.writec( "PART SUPERELEMENT CREATE", "TRUE" )
+jobfile.writec( "AUTOQSET", "FALSE" )
+jobfile.writec( "FIXEDB", "FALSE" )
+jobfile.writei( "SUPER TREE COUNT", 0 )
+jobfile.writec( "MODEL TOLERANCE", "0.0049999999" )
+jobfile.writec( "ELEMENT PROPERTY OFFSET", "0" )
+jobfile.writec( "MATERIAL PROPERTY OFFSET", "0" )
+jobfile.writec( "TABLE OFFSET", "0" )
+jobfile.writec( "LOAD SET OFFSET", "0" )
+jobfile.writec( "LOAD CASE OFFSET", "0" )
+jobfile.writec( "CONTROL SET OFFSET", "0" )
+jobfile.writec( "RIGID ELEMENT OFFSET", "0" )
+jobfile.writec( "SCALAR POINT OFFSET", "0" )
+jobfile.writec( "BEGINNING CONTINUATION MARKER", "+      A" )
+jobfile.writec( "NUMBER ONLY", "ON" )
+jobfile.writec( "BEGINNING NUMBER", "OFF" )
+jobfile.writec( "TRAILING NUMBER", "OFF" )
+jobfile.writec( "SYNTAX NUMBER", "ON" )
+jobfile.writec( "SYNTAX MARKER", "." )
+jobfile.writec( "EXTERNAL SUPERELEMENT METHOD", "NONE" )
+jobfile.writec( "GRID COORDINATES ROUNDING", "15" )
+jobfile.writec( "COORD DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "MPC DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "LBC DATA PRECISION ROUNDING", "7" )
+jobfile.writec( "MAT DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "PROP DATA PRECISION ROUNDING", "7" )
+jobfile.writec( "USE LEGACY PRECISION", "FALSE" )
+jobfile.writec( "EXPONENTIAL WRITE", "As Needed" )
+jobfile.writec( "EXPONENTIAL FORM", "Condensed" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * Solution Parameters" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "SOLUTION TYPE", "BUCKLING" )
+jobfile.writei( "SOLUTION SEQUENCE", 105 )
+jobfile.writec( "DATABASE RUN", "ON" )
+jobfile.writec( "CYCLIC SYMMETRY", "OFF" )
+jobfile.writec( "AUTOMATIC CONSTRAINTS", "ON" )
+jobfile.writec( "SHELL NORMAL TOLERANCE", "" )
+jobfile.writec( "MASS CALCULATION", "Lumped" )
+jobfile.writec( "DATA DECK ECHO", "None" )
+jobfile.writec( "PLATE RZ STIFFNESS FACTOR", "100.0" )
+jobfile.writec( "MAXIMUM PRINTED LINES", "" )
+jobfile.writec( "MAXIMUM RUN TIME", "" )
+jobfile.writec( "WT-MASS CONVERSION", "1.0" )
+jobfile.writec( "NODE ID FOR WT-GENER", "" )
+jobfile.writec( "RIGID ELEMENT TYPE", "LINEAR" )
+jobfile.writec( "USE SOL600", "OFF" )
+jobfile.writec( "CONTACT-AUTO-CONTACT-GENERATION", "OFF" )
+jobfile.writei( "CONTACT-SEGMENT-CONTROL METHOD", 0 )
+jobfile.writei( "CONTACT-DEFORMABLE-DEFORMABLE METHOD", 0 )
+jobfile.writei( "CONTACT-LINCNT METHOD", 0 )
+jobfile.writec( "EXTRACTION METHOD", "Lanczos" )
+jobfile.writec( "LOWER EIGENVALUE", "" )
+jobfile.writec( "UPPER EIGENVALUE", "" )
+jobfile.writec( "NUMBER OF DESIRED ROOTS", "5" )
+jobfile.writec( "DIAGNOSTIC OUTPUT LEVEL", "0" )
+jobfile.writec( "NORMALIZATION METHOD", "Maximum" )
+jobfile.writec( "USE CONTACT TABLE", "OFF" )
+jobfile.writec( "INITIAL CONTACTPAIR LOADCASE NAME", "" )
+jobfile.writei( "MDOF DATA", 0 )
+jobfile.writec( "CELL WRITE", "ON" )
+jobfile.writei( "CELL INPUT 0", 0 )
+jobfile.writec( "FMS WRITE", "ON" )
+jobfile.writei( "FMS INPUT 0", 0 )
+jobfile.writec( "EXEC WRITE", "ON" )
+jobfile.writei( "EXEC INPUT 0", 0 )
+jobfile.writec( "CASE WRITE", "ON" )
+jobfile.writei( "CASE INPUT 0", 0 )
+jobfile.writec( "BULK WRITE", "ON" )
+jobfile.writei( "BULK INPUT 0", 0 )
+jobfile.writec( "CELL DTI POSITION", "START" )
+jobfile.writec( "FMS DTI POSITION", "START" )
+jobfile.writec( "EXEC DTI POSITION", "START" )
+jobfile.writec( "CASE DTI POSITION", "START" )
+jobfile.writec( "BULK DTI POSITION", "START" )
+jobfile.writec( "", "END" )
+jobfile.close(  )
+mscnastran_job.associate_subcases( "105", "Analisi_Pannello", 1, ["Default"] )
+analysis_submit_2( "MSC.Nastran", "Analisi_Pannello" )
+$# Patran 2024.1  (Student Edition) has obtained 0 concurrent license(s) from 
+$# FLEXlm per a request to execute on Windows node LAPTOP-FPHQ2IVC(
+$# ec2e98f686f1) (Windows 6.2 (Build 9200: Service Pack 0)) at 09-Mar-26 
+$# 19:47:21.
+$# 
+$# Reading model information from the specified database, 
+$# C:\Users\lukea\OneDrive\Documenti\Luca\Mission\ to\ Mars\Analisi_Pannello.db.
+$# Messages output from the Patran 2024.1  (Student Edition) input deck 
+$# translator on March     09, 2026 at 19:47:21.
+$# 
+$# The NASTRAN input file, Analisi_Pannello.bdf, has been successfully opened.
+$# 
+$# Translating 600 elements from the element property region Shell.
+$# 
+$# 1 property regions translated.
+$# 
+$# Translating 1 referenced material records.
+$# 
+$# Translating 651 nodes from the entire model.
+$# 
+$# Writing loads for Load Case : SC1:DEFAULT.
+$# Writing interface element lbcs.
+$# Total execution time in real seconds: 0.01
+$# Total execution time in CPU seconds: 0.0930176
+$# 
+$# End of NASTRAN input file translation.
+$# Student Edition Patran Nastran Preference Patran 2024.1  (Student Edition) 
+$# has released 0 license(s) to FLEXlm at 09-Mar-26 19:47:21.
+$# The translation has completed successfully.
+$# Executing /bin/sh -c 
+$# C:\Users\lukea\OneDrive\Desktop\Patran\bin\MscNastranExecut
+$# e.exe -j Analisi_Pannello -m bdf -x 20241 -c %%prog=edu%auth=edu%arch=64% -v
+msc_dra_init_stream(  )
+msc_dra_add_param( "DATABASE", "C:\Users\lukea\OneDrive\Documenti\Luca\Mis" // @
+"sion to Mars\Analisi_Pannello.db" )
+msc_dra_add_param( "JOBNAME", "Analisi_Pannello" )
+msc_dra_add_param( "RESULTS FILE", "C:\Users\lukea\OneDrive\Documenti\Luca" // @
+"\Mission to Mars\analisi_pannello.h5" )
+msc_dra_add_param( "OBJECT", "Result Entities" )
+msc_dra_add_param( "ANALYSIS TYPE", "Structural" )
+msc_dra_add_param( "DIVISION TOLERANCE", "1.0E-8" )
+msc_dra_add_param( "NUMERICAL TOLERANCE", "1.0E-4" )
+msc_dra_add_param( "MODEL TOLERANCE", "0.0049999999" )
+msc_dra_add_param( "OBJECTIVE FUNCTION", "ON" )
+msc_dra_add_param( "DESIGN CONSTRAINTS", "ON" )
+msc_dra_add_param( "DESIGN VARIABLES", "ON" )
+msc_dra_add_param( "COMBINE RESULTCASES", "ON" )
+msc_dra_add_param( "COMBINE MODULES", "OFF" )
+msc_dra_add_param( "SPLINE IMPORT DATA", "OFF" )
+msc_dra_add_param( "SPLINE POST DATA", "ZERO" )
+msc_dra_add_param( "ROTATIONAL NODAL RESULTS", "ON" )
+msc_dra_add_param( "STRESS/STRAIN INVARIANTS", "OFF" )
+msc_dra_add_param( "PRINCIPAL DIRECTIONS", "OFF" )
+msc_dra_add_param( "CREATE P-ORDER FIELD", "" )
+msc_dra_add_param( "ELEMENT RESULTS POSITIONS", "Both        " )
+msc_dra_add_param( "NASTRAN VERSION", "" )
+msc_dra_add_param( "TITLE DESCRIPTION", "ON" )
+msc_dra_finish_stream(  )
+analysis_import( "MSC.Nastran", "Analisi_Pannello", "Attach HDF5 Results File" @
+, "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5" @
+, TRUE )
+$# Attaching Direct Results Access file: 
+$# "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5"
+$# *** Begin: Attach Result File ***
+$# Warning reported from application Results
+$#     An internal error occurred when retrieving Direct Results Access data 
+$# in routine: "DraGetStateData".
+$#  Beginning analysis of  Analisi_Pannello
+jobfile.open( "Analisi_Pannello", "ANALYZE NO JOBFILE" )
+$# Question from application APP INTERFACES
+$#     The jobname (Analisi_Pannello) is already defined in the database. Do 
+$# you wish to overwrite?
+$? YES 6016027 
+msc_delete_old_files( "Analisi_Pannello", ".bdf", ".h5" )
+$# Question from application APP INTERFACES
+$#     Files from a previous analysis conflict with the current job name: 
+$# "Analisi_Pannello".  These files are Analisi_Pannello.f04, 
+$# Analisi_Pannello.f06, Analisi_Pannello.log, Analisi_Pannello.h5, 
+$# Analisi_Pannello.bdf.  Will you permit deletion of these files?
+$? YES 6022037 
+$# Warning reported from application APP INTERFACES
+$#     The attachment to the file 
+$# C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5 
+$# has been deleted because that file is being deleted.
+jobfile.write_spl( "/* Jobfile for PATNAS created %A% at %A% */", ["09-Mar-26" @
+, "19:59:58"] )
+jobfile.writec( "", "TRANSLATOR = pat3nas" )
+jobfile.writec( "DATABASE", "C:\Users\lukea\OneDrive\Documenti\Luca\Missio" // @
+"n to Mars\Analisi_Pannello.db" )
+jobfile.writec( "JOBNAME", "Analisi_Pannello" )
+jobfile.writec( "ANALYSIS TITLE", "MSC.Nastran job created on 08-Mar-26 at" // @
+" 23:01:21" )
+jobfile.writec( "ANALYSIS SUBTITLE", "" )
+jobfile.writec( "ANALYSIS LABEL", "" )
+jobfile.writec( "", "" )
+jobfile.writec( "OBJECT", "Entire Model" )
+jobfile.writec( "METHOD", "Full Run" )
+jobfile.writec( "", "" )
+jobfile.writec( "MODEL SUFFIX", ".bdf" )
+jobfile.writec( "RESULTS SUFFIX", ".h5" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * File Search Path Declaration" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\extra_files" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\bin\exe" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\bin" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\icons\RibbonIcons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\alters" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\helpfiles" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patran" )
+jobfile.writec( "File Search Path", "C:\Users\lukea" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\plb" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\shareware\msc\unsupported\utilities\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\icons" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\lib" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\plb" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscprocor_files\dmap" )
+jobfile.writec( "File Search Path", "C:\Users\lukea\OneDrive\Desktop\Patra" // @
+"n\mscexplore_files\" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * Translation Parameters" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "DATA OUTPUT", "PRINT+HDF5C" )
+jobfile.writec( "OUTPUT2 REQUESTS", "P3 Built In" )
+jobfile.writec( "OUTPUT2 FORMAT", "Binary" )
+jobfile.writec( "HDF5OUT PRECISION", "HDF5P 32-BIT" )
+jobfile.writec( "DIVISION TOLERANCE", "1.0e-08" )
+jobfile.writec( "NUMERICAL TOLERANCE", "1.0e-04" )
+jobfile.writec( "WRITING TOLERANCE", "1.0e-21" )
+jobfile.writec( "GEOM CHECK", "INFORM" )
+jobfile.writec( "SORTED BULK", "NO" )
+jobfile.writec( "CARD FORMAT", "either" )
+jobfile.writec( "NODE COORDINATES", "reference frame" )
+jobfile.writec( "COORD COORDINATES", "global" )
+jobfile.writec( "MSC.Nastran VERSION", "2024.1" )
+jobfile.writec( "WRITE STORED PRECISION", "TRUE" )
+jobfile.writec( "WRITE IN FREE FORMAT", "FALSE" )
+jobfile.writec( "PROPS ON ELEM ENTRY", "FALSE" )
+jobfile.writec( "CONTINUATION ENTRY", "FALSE" )
+jobfile.writec( "PCOMPG ENTRY", "TRUE" )
+jobfile.writec( "CONVERT CBAR CBEAM", "FALSE" )
+jobfile.writec( "ITERATIVE SOLVER", "FALSE" )
+jobfile.writei( "SUPER ELEMENT 0", 0 )
+jobfile.writec( "SEALL WRITE", "FALSE" )
+jobfile.writec( "PART SUPERELEMENT CREATE", "TRUE" )
+jobfile.writec( "AUTOQSET", "FALSE" )
+jobfile.writec( "FIXEDB", "FALSE" )
+jobfile.writei( "SUPER TREE COUNT", 0 )
+jobfile.writec( "MODEL TOLERANCE", "0.0049999999" )
+jobfile.writec( "ELEMENT PROPERTY OFFSET", "0" )
+jobfile.writec( "MATERIAL PROPERTY OFFSET", "0" )
+jobfile.writec( "TABLE OFFSET", "0" )
+jobfile.writec( "LOAD SET OFFSET", "0" )
+jobfile.writec( "LOAD CASE OFFSET", "0" )
+jobfile.writec( "CONTROL SET OFFSET", "0" )
+jobfile.writec( "RIGID ELEMENT OFFSET", "0" )
+jobfile.writec( "SCALAR POINT OFFSET", "0" )
+jobfile.writec( "BEGINNING CONTINUATION MARKER", "+      A" )
+jobfile.writec( "NUMBER ONLY", "ON" )
+jobfile.writec( "BEGINNING NUMBER", "OFF" )
+jobfile.writec( "TRAILING NUMBER", "OFF" )
+jobfile.writec( "SYNTAX NUMBER", "ON" )
+jobfile.writec( "SYNTAX MARKER", "." )
+jobfile.writec( "EXTERNAL SUPERELEMENT METHOD", "NONE" )
+jobfile.writec( "GRID COORDINATES ROUNDING", "15" )
+jobfile.writec( "COORD DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "MPC DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "LBC DATA PRECISION ROUNDING", "7" )
+jobfile.writec( "MAT DATA PRECISION ROUNDING", "15" )
+jobfile.writec( "PROP DATA PRECISION ROUNDING", "7" )
+jobfile.writec( "USE LEGACY PRECISION", "FALSE" )
+jobfile.writec( "EXPONENTIAL WRITE", "As Needed" )
+jobfile.writec( "EXPONENTIAL FORM", "Condensed" )
+jobfile.writec( "", "" )
+jobfile.writec( "", "/*" )
+jobfile.writec( "", " * Solution Parameters" )
+jobfile.writec( "", " */" )
+jobfile.writec( "", "" )
+jobfile.writec( "SOLUTION TYPE", "LINEAR STATIC" )
+jobfile.writei( "SOLUTION SEQUENCE", 101 )
+jobfile.writec( "DATABASE RUN", "ON" )
+jobfile.writec( "CYCLIC SYMMETRY", "OFF" )
+jobfile.writec( "AUTOMATIC CONSTRAINTS", "ON" )
+jobfile.writec( "INERTIA RELIEF", "OFF" )
+jobfile.writec( "ALTERNATE REDUCTION", "OFF" )
+jobfile.writec( "SHELL NORMAL TOLERANCE", "" )
+jobfile.writec( "MASS CALCULATION", "Lumped" )
+jobfile.writec( "DATA DECK ECHO", "None" )
+jobfile.writec( "PLATE RZ STIFFNESS FACTOR", "100.0" )
+jobfile.writec( "MAXIMUM PRINTED LINES", "" )
+jobfile.writec( "MAXIMUM RUN TIME", "" )
+jobfile.writec( "WT-MASS CONVERSION", "1.0" )
+jobfile.writec( "NODE ID FOR WT-GENER", "" )
+jobfile.writec( "RIGID ELEMENT TYPE", "LINEAR" )
+jobfile.writec( "USE SOL600", "OFF" )
+jobfile.writec( "CONTACT-AUTO-CONTACT-GENERATION", "OFF" )
+jobfile.writei( "CONTACT-SEGMENT-CONTROL METHOD", 0 )
+jobfile.writei( "CONTACT-DEFORMABLE-DEFORMABLE METHOD", 0 )
+jobfile.writei( "CONTACT-DERIVATION", 0 )
+jobfile.writei( "CONTACT-REL_ABS", 0 )
+jobfile.writei( "CONTACT-CRITERION", 0 )
+jobfile.writei( "CONTACT-LINCNT METHOD", 0 )
+jobfile.writec( "USE SOL700", "OFF" )
+jobfile.writec( "SN MEAN STRESS CORRECTION", "NONE" )
+jobfile.writec( "NEF FATIGUE STRESS OUTPUT", "NONE" )
+jobfile.writec( "NEF STRESS UNITS", "MPA" )
+jobfile.writec( "NEF STRESS COMBINATION", "ABSMAXPR" )
+jobfile.writec( "NEF RESULT LOCATION", "NODA" )
+jobfile.writec( "NEF RECOVERY LOCATION", "CORNER" )
+jobfile.writec( "NEF LAYER LOCATION", "WORST" )
+jobfile.writec( "NEF INTERPOLATION LIMIT", "0" )
+jobfile.writec( "NEF LEVEL OF MESSAGE", "0" )
+jobfile.writec( "NEF NUMBER OF THREADS", "1" )
+jobfile.writer( "NEF CERTAINTY OF SURVIVAL", 50. )
+jobfile.writer( "NEF OVERALL SCALE FACTOR", 1. )
+jobfile.writer( "NEF TOP STRESS PERCENTAGE FILTER", 100. )
+jobfile.writer( "NEF TOP DAMAGE PERCENTAGE FILTER", 100. )
+jobfile.writec( "NEF TIME HISTORY DIRECTORY", "./" )
+jobfile.writei( "NEF MAX LOAD PER EVENT", 1 )
+jobfile.writec( "NEF EVENT DATA", "0" )
+jobfile.writec( "NEF LOAD SEQUENCE DATA", "0" )
+jobfile.writec( "USE CONTACT TABLE", "OFF" )
+jobfile.writec( "INITIAL CONTACTPAIR LOADCASE NAME", "" )
+jobfile.writei( "MDOF DATA", 0 )
+jobfile.writec( "CELL WRITE", "ON" )
+jobfile.writei( "CELL INPUT 0", 0 )
+jobfile.writec( "FMS WRITE", "ON" )
+jobfile.writei( "FMS INPUT 0", 0 )
+jobfile.writec( "EXEC WRITE", "ON" )
+jobfile.writei( "EXEC INPUT 0", 0 )
+jobfile.writec( "CASE WRITE", "ON" )
+jobfile.writei( "CASE INPUT 0", 0 )
+jobfile.writec( "BULK WRITE", "ON" )
+jobfile.writei( "BULK INPUT 0", 0 )
+jobfile.writec( "CELL DTI POSITION", "START" )
+jobfile.writec( "FMS DTI POSITION", "START" )
+jobfile.writec( "EXEC DTI POSITION", "START" )
+jobfile.writec( "CASE DTI POSITION", "START" )
+jobfile.writec( "BULK DTI POSITION", "START" )
+jobfile.writec( "", "END" )
+jobfile.close(  )
+mscnastran_job.associate_subcases( "101", "Analisi_Pannello", 1, ["Default"] )
+analysis_submit_2( "MSC.Nastran", "Analisi_Pannello" )
+$# Patran 2024.1  (Student Edition) has obtained 0 concurrent license(s) from 
+$# FLEXlm per a request to execute on Windows node LAPTOP-FPHQ2IVC(
+$# ec2e98f686f1) (Windows 6.2 (Build 9200: Service Pack 0)) at 09-Mar-26 
+$# 19:59:58.
+$# 
+$# Reading model information from the specified database, 
+$# C:\Users\lukea\OneDrive\Documenti\Luca\Mission\ to\ Mars\Analisi_Pannello.db.
+$# Messages output from the Patran 2024.1  (Student Edition) input deck 
+$# translator on March     09, 2026 at 19:59:58.
+$# 
+$# The NASTRAN input file, Analisi_Pannello.bdf, has been successfully opened.
+$# 
+$# Translating 600 elements from the element property region Shell.
+$# 
+$# 1 property regions translated.
+$# 
+$# Translating 1 referenced material records.
+$# 
+$# Translating 651 nodes from the entire model.
+$# 
+$# Writing loads for Load Case : Default.
+$# 
+$# Translating static nodal temperatures of load set : Gradiente_termico.
+$# 
+$# Translating nodal constraints in load set : Appoggio.
+$# Writing interface element lbcs.
+$# 
+$# Translating pressure loads in load set : Pressione.
+$# Total execution time in real seconds: 0.01
+$# Total execution time in CPU seconds: 0.187988
+$# 
+$# End of NASTRAN input file translation.
+$# Student Edition Patran Nastran Preference Patran 2024.1  (Student Edition) 
+$# has released 0 license(s) to FLEXlm at 09-Mar-26 19:59:58.
+$# The translation has completed successfully.
+$# Executing /bin/sh -c 
+$# C:\Users\lukea\OneDrive\Desktop\Patran\bin\MscNastranExecut
+$# e.exe -j Analisi_Pannello -m bdf -x 20241 -c %%prog=edu%auth=edu%arch=64% -v
+msc_dra_init_stream(  )
+msc_dra_add_param( "DATABASE", "C:\Users\lukea\OneDrive\Documenti\Luca\Mis" // @
+"sion to Mars\Analisi_Pannello.db" )
+msc_dra_add_param( "JOBNAME", "Analisi_Pannello" )
+msc_dra_add_param( "RESULTS FILE", "C:\Users\lukea\OneDrive\Documenti\Luca" // @
+"\Mission to Mars\analisi_pannello.h5" )
+msc_dra_add_param( "OBJECT", "Result Entities" )
+msc_dra_add_param( "ANALYSIS TYPE", "Structural" )
+msc_dra_add_param( "DIVISION TOLERANCE", "1.0E-8" )
+msc_dra_add_param( "NUMERICAL TOLERANCE", "1.0E-4" )
+msc_dra_add_param( "MODEL TOLERANCE", "0.0049999999" )
+msc_dra_add_param( "OBJECTIVE FUNCTION", "ON" )
+msc_dra_add_param( "DESIGN CONSTRAINTS", "ON" )
+msc_dra_add_param( "DESIGN VARIABLES", "ON" )
+msc_dra_add_param( "COMBINE RESULTCASES", "ON" )
+msc_dra_add_param( "COMBINE MODULES", "OFF" )
+msc_dra_add_param( "SPLINE IMPORT DATA", "OFF" )
+msc_dra_add_param( "SPLINE POST DATA", "ZERO" )
+msc_dra_add_param( "ROTATIONAL NODAL RESULTS", "ON" )
+msc_dra_add_param( "STRESS/STRAIN INVARIANTS", "OFF" )
+msc_dra_add_param( "PRINCIPAL DIRECTIONS", "OFF" )
+msc_dra_add_param( "CREATE P-ORDER FIELD", "" )
+msc_dra_add_param( "ELEMENT RESULTS POSITIONS", "Both        " )
+msc_dra_add_param( "NASTRAN VERSION", "" )
+msc_dra_add_param( "TITLE DESCRIPTION", "ON" )
+msc_dra_finish_stream(  )
+analysis_import( "MSC.Nastran", "Analisi_Pannello", "Attach HDF5 Results File" @
+, "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5" @
+, TRUE )
+$# Attaching Direct Results Access file: 
+$# "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.h5"
+$# *** Begin: Attach Result File ***
+$# Processing result sub-case: Static subcase
+$# Total execution time in real seconds:        0.000
+$# Total execution time in CPU  seconds:        0.000
+$# *** End:   Attach Result File ***
+res_data_load_dbresult( 0, "Nodal", "Scalar", "SC1:DEFAULT",  @
+"A1:Static subcase", "Stress Tensor", "", "At Z1", "VONM", "Default",  @
+"DeriveAverage", "All", "ShapeFunc" )
+res_data_title( 0, "Nodal", "Scalar", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL, @@@$LN "] )
+res_display_fringe_create( "", "FreeFaces", 0, [""], 13, [ @
+"Range:Fri_default_Fringe", "RangeOverwrite:OFF",  @
+"FringeStyle:Discrete/Smooth", "Shade:None", "ElemEdge:FreeEdge,Blue,Solid,1", @
+ "Shrink:0", "TitleDisplay:ON", "MinMaxDisplay:ON", "ValueDisplay:OFF",  @
+"Filter:None", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"RelativeToGeom:ORIG"], TRUE )
+res_display_fringe_post( "", 0, "Nodal", TRUE, TRUE )
+res_data_load_dbresult( 0, "Nodal", "Vector", "SC1:DEFAULT",  @
+"A1:Static subcase", "Displacements", "Translational", "(NON-LAYERED)", "",  @
+"Global", "", "", "" )
+res_data_title( 0, "Nodal", "Vector", 1, [ @
+"$POFF@@@$PT: @@@$LCN, @@@$SCN, @@@$PRN, @@@$SRN, @@@$DRVL"] )
+res_display_deformation_create( "", "Elements", 0, [""], 10, [ @
+"DeformedStyle:White,Solid,1,Wireframe", "DeformedScale:Model=0.1",  @
+"UndeformedStyle:ON,Blue,Solid,1,Wireframe", "TitleDisplay:ON",  @
+"MinMaxDisplay:ON", "ScaleFactor:1.", "LabelStyle:Exponential, 12, White, 3",  @
+"DeformDisplay:Resultant", "DeformComps:OFF,OFF,OFF", "RelativeToGeom:ORIG"] )
+res_display_deformation_post( "", 0 )
+uil_primary_file.db_save(  )
+$# Flushing the User Data Manager
+$# Journal file stopped recording at 09-Mar-26 20:01:23

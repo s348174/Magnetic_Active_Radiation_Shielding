@@ -1,0 +1,211 @@
+MSC Nastran V2024.1 (AMD Windows 10 Home 6.2 9200) Control File: 
+----------------------------------------------------------------- 
+Nastran BUFFSIZE=8193 $(c:/users/lukea/onedrive/desktop/nastran/conf/nast20241.rcf[2])
+JID='C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.bdf'
+OUT='./analisi_pannello'
+MEM=1144MB      $ 
+PMEM=0+
+MACH='AMD'
+OPER='Windows 10 Home'
+OSV='6.2 9200'
+MODEL='AMD Ryzen 7 5700U with Radeon  (LAPTOP-FPHQ2IVC)'
+NPROC='16'
+CONFIG=15
+NPROC=16
+symbol=DELDIR='c:/users/lukea/onedrive/desktop/nastran/msc20241/nast/del' $(program default)
+symbol=DEMODIR='c:/users/lukea/onedrive/desktop/nastran/msc20241/nast/demo' $(program default)
+symbol=SSSALTERDIR='c:/users/lukea/onedrive/desktop/nastran/msc20241/nast/sssalter' $(program default)
+symbol=TPLDIR='c:/users/lukea/onedrive/desktop/nastran/msc20241/nast/tpl' $(program default)
+SDIR='c:/users/lukea/onedrive/desktop/analisi_pannello.T17804_59'
+DBS='c:/users/lukea/onedrive/desktop/analisi_pannello.T17804_59'
+SCR='yes'
+SMEM=100
+BPOOL=114MB
+DMPMEM=0
+NEWDEL='c:/users/lukea/onedrive/desktop/nastran/msc20241/win64i8/SSS'
+DEL='MSCDEF'
+SPOTWELD=''
+UDR=''
+DML=MSCDEF
+SDL=MSCDEF
+AUTH='edu'
+AUTHQUE=20
+MSGCAT='c:/users/lukea/onedrive/desktop/nastran/msc20241/win64i8/analysis.msg'
+MSGDEST='f06'
+PROG=edu
+NEWS='c:/users/lukea/onedrive/desktop/nastran/msc20241/nast/news.txt'
+----------------------------------------------------------------- 
+MSC_ISHELLPATH=c:\users\lukea\onedrive\documenti\luca\mission to mars 
+MSC_JIDPATH= 
+PATH=c:\users\lukea\onedrive\desktop\nastran\msc20241\win64i8\nvidia;c:\users\lukea\onedrive\desktop\nastran\msc20241\win64i8\intel\bin64;c:\users\lukea\onedrive\desktop\nastran\msc20241\win64i8\lib;c:\users\lukea\onedrive\desktop\nastran\msc20241\win64i8;C:\Users\lukea\OneDrive\Desktop\Patran\bin;C:\Users\lukea\OneDrive\Desktop\Patran\bin\exe;C:\Users\lukea\OneDrive\Desktop\Patran\Perl_msc\bin;C:\Users\lukea\OneDrive\Desktop\Patran\scasystem_files;C:\Users\lukea\OneDrive\Desktop\Patran\scasystem_files\SCA\IFPStar;C:\Users\lukea\OneDrive\Desktop\Patran\scasystem_files\SCA\AEMDB;C:\Users\lukea\OneDrive\Desktop\Patran\bin;C:\Users\lukea\OneDrive\Desktop\Patran\bin\exe;C:\Users\lukea\OneDrive\Desktop\Patran\Perl_msc\bin;C:\Users\lukea\OneDrive\Desktop\Patran\scasystem_files;C:\Users\lukea\OneDrive\Desktop\Patran\scasystem_files\SCA\IFPStar;C:\Users\lukea\OneDrive\Desktop\Patran\scasystem_files\SCA\AEMDB;C:\Users\lukea\OneDrive\Desktop\Patran\bin;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\MATLAB\R2024b\bin;C:\Program Files\MATLAB\R2021b\bin;C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\110\Tools\Binn\;C:\Program Files (x86)\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Microsoft SQL Server\120\Tools\Binn\;C:\Program Files\Microsoft SQL Server\120\DTS\Binn\;C:\Program Files (x86)\Windows Kits\8.1\Windows Performance Toolkit\;C:\Program Files\dotnet\;C:\Program Files\Git\cmd;;C:\Program Files\MSC.Software\Adams Student Edition\2025_1\bin;C:\Users\lukea\AppData\Local\Microsoft\WindowsApps;;C:\Users\lukea\AppData\Local\Programs\Microsoft VS Code\bin;; 
+SCA_SERVICE_CATALOG=c:\users\lukea\onedrive\desktop\nastran\msc20241\res\SCAServiceCatalog.xml 
+SCA_RESOURCE_DIR=c:\users\lukea\onedrive\desktop\nastran\msc20241\res 
+Cmd Line:    C:\Users\lukea\OneDrive\Desktop\Nastran\msc20241\win64i8\nastran.exe Analisi_Pannello.bdf prog=edu auth=edu bat=no 
+Current Dir: C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars 
+Time Cmd:    c:\users\lukea\onedrive\desktop\nastran\msc20241\win64i8\msctime 
+Executable:  c:\users\lukea\onedrive\desktop\nastran\msc20241\win64i8\analysis.exe 
+Arch= Kywd:  64  
+MSC_MSG:     stderr  
+FPE:         yes  
+----------------------------------------------------------------- 
+Current resource limits:
+ Physical memory:                     7563 MB
+ Physical memory available:            612 MB
+ Paging file size:                   26005 MB
+ Paging file size available:          6579 MB
+ Virtual memory:                 134217727 MB
+ Virtual memory available:       134213510 MB
+----------------------------------------------------------------- 
+System configuration:
+ Hostname:         LAPTOP-FPHQ2IVC.homenet.telecomitalia.it
+ Architecture:     win64i8
+ Platform:         AMD Windows 10 Home 6.2 9200 (Windows Compute Cluster)
+ Model:            AMD Ryzen 7 5700U with Radeon 
+ Clock freq.:      19025 MHz
+ Number of CPUs:   16
+ Number of CPUs:   0 ( limited by PBS )
+ Executable:       standard
+ Raw model ID:     15
+ Config number:    15
+ Physical memory:  7563 MB
+ Virtual memory:   26005 MB
+ Numeric format:   64-bit little-endian IEEE.
+ Bytes per word:   8
+ Disk block size:  512 bytes (64 words)
+ Remote shell cmd: "c:/users/lukea/onedrive/desktop/nastran/msc20241/win64i8/mscrmtcmd.exe" (Windows non-CCS nodes, UNIX)
+                   <ccs_cmd> (Windows CCS nodes)
+----------------------------------------------------------------- 
+MSC Nastran started  Mon Mar  9 19:59:59 osEo 2026 
+ 20:00:02  Beginning Analysis
+SCA Kernel 30.0.935612 successfully initialized
+BLAS/LAPACK .dll "c:\users\lukea\onedrive\desktop\nastran\msc20241\win64i8\libimalloc.dll" has been loaded.
+BLAS/LAPACK .dll "c:\users\lukea\onedrive\desktop\nastran\msc20241\win64i8\mkl_core.2.dll" has been loaded.
+BLAS/LAPACK .dll "c:\users\lukea\onedrive\desktop\nastran\msc20241\win64i8\mkl_intel_thread.2.dll" has been loaded.
+BLAS/LAPACK .dll "c:\users\lukea\onedrive\desktop\nastran\msc20241\win64i8\mkl_rt.2.dll" has been loaded.
+BLAS/LAPACK .dll "c:\users\lukea\onedrive\desktop\nastran\msc20241\win64i8\MSCblas.dll" has been loaded.
+
+ 20:00:02  MSC Authorization Information - Checkout Successful (1016, 0)
+ 20:00:02  -------------------------------------------------------------
+ 20:00:02  Acquired 1 license for Student Edition Nastran
+
+
+Beginning bulk data processing using the IFPStar component.
+For more information on IFPStar, please see KB article KB8019200
+on our support pages, at http://simcompanion.hexagon.com.
+
+ 20:00:03  2388 records read from JID file "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.bdf"
+
+Processing of bulk data entries is complete.
+
+ 20:00:03  Finite element model generation started.
+ 20:00:03  Finite element model generated 3906 degrees of freedom.
+ 20:00:03  Finite element model generation successfully completed.
+ 20:00:03  Application of Loads and Boundary Conditions to the finite element model started.
+ 20:00:03  Application of Loads and Boundary Conditions to the finite element model successfully completed.
+ 20:00:03  Solution of the system equations for linear statics started.
+ 20:00:03  Solution of the system equations for linear statics successfully completed.
+ 20:00:03  Linear static analysis completed.
+ ====================================================================================================================================
+
+ ================================== M O D E L  S O L U T I O N  S U M M A R Y  O U T P U T ==========================================
+
+ ====================================================================================================================================
+    Solution Summary: Input BDF Entry Summary Information:
+
+     INPUT BDF MODEL SUMMARY  (Totals for ALL BEGIN BULK sections)
+      ENTRY NAME        NUMBER OF ENTRIES
+      ----------        -----------------
+      CQUAD4                          600
+      GRID                            651
+      HDF5OUT                           1
+      LOAD                              1
+      MAT1                              1
+      PARAM                             1
+      PLOAD4                            2
+      PSHELL                            1
+      SPC1                              1
+      SPCADD                            1
+      TEMP                            651
+
+ ====================================================================================================================================
+    Solution Summary: Solution Model Element Summary Information:
+
+       FEM summary: the solution model contains the following element types
+       600 QUAD4    (EST typeID: 33) elements
+       600 TOTAL    number of elements.
+
+ ====================================================================================================================================
+    Solution Summary: Displacement DOF Sets Summary Information:
+
+                                        **** U S E T   D E F I N I T I O N   T A B L E ****
+ DOF SET              SB       SG        L        A        F        N        G        R        O        S        M         
+ DOF SET TOTALS      300        0     3606     3606     3606     3906     3906        0        0      300        0
+
+ ====================================================================================================================================
+    Solution Summary: Model Summary Information:
+     Number of Structure GRIDs              :         651
+     Number of Nonzero K-matrix terms       :      199836
+     Number of Solution Equations           :        3606
+
+ ====================================================================================================================================
+    Solution Summary: Disk Utilization Information:
+
+ *** TOTAL DISK USAGE STATISTICS ***
+
+ +------------- MAXIMUM DISK USAGE -------------+
+    HIWATER               SUB_DMAP        DMAP
+       (MB)   DAY_TIME      NAME         MODULE
+      0.875   20:00:02    PREFACE     0  PREFACE 
+
+
+ *** DATABASE USAGE STATISTICS ***
+ 
+ +---------------- LOGICAL DBSETS ----------------+   +------------------------------ DBSET FILES -----------------------------+
+  DBSET     ALLOCATED  BLOCKSIZE       USED   USED     FILE      ALLOCATED  ALLOCATED    HIWATER       HIWATER  I/O TRANSFERRED
+             (BLOCKS)    (WORDS)   (BLOCKS)      %                (BLOCKS)       (GB)   (BLOCKS)          (GB)             (GB)
+ 
+  MASTER        25000       8192        101   0.40     MASTER        25000       1.53        110         0.007            0.000
+  DBALL        500000       8192          5   0.00     DBALL        500000      30.52          5         0.000            0.000
+  OBJSCR        25000       8192        488   1.95     OBJSCR        25000       1.53        488         0.030            0.000
+  SCRATCH     1000100       8192         25   0.00    (MEMFILE         100       0.01        100         0.006            0.000)
+                                                       SCRATCH      500000      30.52        128         0.008            0.000
+                                                       SCR300       500000      30.52         75         0.005            0.000
+                                                                                                                 ==============
+                                                                                                          TOTAL:          0.001
+ 
+ *** BUFFER POOL AND SCRATCH 300 USAGE STATISTICS ***
+ 
+ +----------------- BUFFER POOL -----------------+      +-------------------------- SCRATCH 300 --------------------------+ 
+   OPTION        BLOCKS      BLOCKS      BLOCKS           OPTION    HIWATER               SUB_DMAP        DMAP     OPN/CLS
+  SELECTED     ALLOCATED     REUSED     RELEASED         SELECTED  (BLOCKS)   DAY_TIME      NAME         MODULE    COUNTER
+   BPOOL4          1824       35190           0              2          75    20:00:03    SEDRCVR   816  SDR2          0
+ ====================================================================================================================================
+
+ 20:00:03  21 records read from JID file "C:\Users\lukea\OneDrive\Documenti\Luca\Mission to Mars\analisi_pannello.bdf"
+ 20:00:03  NSEXIT: EXIT(0)
+ 20:00:03  Analysis complete  0
+Real:        1.990 seconds ( 0:00:01.990)
+User:        0.515 seconds ( 0:00:00.515)
+Sys:         0.515 seconds ( 0:00:00.515)
+ ==================================================
+ OS:                           6.2
+ OEM ID:                       9
+ Model:                        AMD Ryzen 7 5700U with Radeon Graphics  
+ Number of processors:         16
+ Page size:                    4096
+ Processor type:               8664
+ Minimum application address:  10000
+ Maximum application address:  fffeffff
+ Active processor mask:        65535
+ Nsocket:                      1
+ Ncore:                        8  ( 1 X 8 )
+ HyperThreading:               On
+ Ram:                          7563 Mb
+ ==================================================
+ Time Summary                 CPU       Wall   ( Time in Seconds )
+ Consider using SOLVE=AUTO if you have not.
+ =====================================================
+ Detailed performance information can be found in the 
+ "MSC Nastran High Performance Computing User's Guide"
+ =====================================================
+MSC Nastran finished Mon Mar  9 20:00:04 osEo 2026 
