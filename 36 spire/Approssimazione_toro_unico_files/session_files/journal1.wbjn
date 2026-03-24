@@ -1,0 +1,218 @@
+# encoding: utf-8
+# 2026 R1
+SetScriptVersion(Version="26.1.174")
+DesignModeler.SetGeometryEditorToSpaceClaim()
+template1 = GetTemplate(
+    TemplateName="Magnetostatic",
+    Solver="ANSYS")
+system1 = template1.CreateSystem()
+geometry1 = system1.GetContainer(ComponentName="Geometry")
+geometry1.Edit(IsSpaceClaimGeometry=True)
+geometryComponent1 = system1.GetComponent(Name="Geometry")
+geometryComponent1.Update(AllDependencies=True)
+modelComponent1 = system1.GetComponent(Name="Model")
+modelComponent1.Refresh()
+model1 = system1.GetContainer(ComponentName="Model")
+model1.Edit()
+favorites1 = EngData.LoadFavoriteItems()
+library1 = EngData.OpenLibrary(
+    Name="General Materials",
+    Source="General_Materials.xml")
+engineeringData1 = system1.GetContainer(ComponentName="Engineering Data")
+matl1 = engineeringData1.ImportMaterial(
+    Name="Copper Alloy",
+    Source="General_Materials.xml")
+EngData.EnableFilter(Enable=False)
+material1 = engineeringData1.GetMaterial(Name="Structural Steel")
+matlProp1 = material1.GetProperty(Name="Coefficient of Thermal Expansion")
+materialPropertyData1 = matlProp1.GetPropertyData(
+    Name="Coefficient of Thermal Expansion",
+    Qualifiers={"Definition": "Secant", "Behavior": "Isotropic"})
+materialPropertyData1.SetSuppression(Suppressed=True)
+materialPropertyData2 = matlProp1.GetPropertyData(
+    Name="Zero-Thermal-Strain Reference Temperature",
+    Qualifiers={"Definition": "Secant", "Behavior": "Isotropic"})
+materialPropertyData2.SetSuppression(Suppressed=True)
+matlProp2 = material1.GetProperty(Name="Specific Heat")
+materialPropertyData3 = matlProp2.GetPropertyData(
+    Name="Specific Heat",
+    Qualifiers={"Definition": "Constant Pressure", "Behavior": ""})
+materialPropertyData3.SetSuppression(Suppressed=True)
+matlProp3 = material1.GetProperty(Name="Thermal Conductivity")
+materialPropertyData4 = matlProp3.GetPropertyData(
+    Name="Thermal Conductivity",
+    Qualifiers={"Definition": "", "Behavior": "Isotropic"})
+materialPropertyData4.SetSuppression(Suppressed=True)
+matlProp4 = material1.GetProperty(Name="Compressive Ultimate Strength")
+materialPropertyData5 = matlProp4.GetPropertyData(
+    Name="Compressive Ultimate Strength",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData5.SetSuppression(Suppressed=True)
+matlProp5 = material1.GetProperty(Name="Tensile Ultimate Strength")
+materialPropertyData6 = matlProp5.GetPropertyData(
+    Name="Tensile Ultimate Strength",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData6.SetSuppression(Suppressed=True)
+matlProp6 = material1.GetProperty(Name="Compressive Yield Strength")
+materialPropertyData7 = matlProp6.GetPropertyData(
+    Name="Compressive Yield Strength",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData7.SetSuppression(Suppressed=True)
+matlProp7 = material1.GetProperty(Name="Tensile Yield Strength")
+materialPropertyData8 = matlProp7.GetPropertyData(
+    Name="Tensile Yield Strength",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData8.SetSuppression(Suppressed=True)
+matlProp8 = material1.GetProperty(Name="S-N Curve")
+materialPropertyData9 = matlProp8.GetPropertyData(
+    Name="S-N Curve",
+    Qualifiers={"Definition": "", "Behavior": "", "Interpolation": "Log-Log"})
+materialPropertyData9.SetSuppression(Suppressed=True)
+matlProp9 = material1.GetProperty(Name="Strain-Life Parameters")
+materialPropertyData10 = matlProp9.GetPropertyData(
+    Name="Strain-Life Parameters",
+    Qualifiers={"Definition": "", "Behavior": "", "Display Curve Type": "Strain-Life"})
+materialPropertyData10.SetSuppression(Suppressed=True)
+matlProp10 = material1.GetProperty(Name="Elasticity")
+materialPropertyData11 = matlProp10.GetPropertyData(
+    Name="Elasticity",
+    Qualifiers={"Definition": "", "Behavior": "Isotropic", "Derive from": "Young's Modulus and Poisson's Ratio"})
+materialPropertyData11.SetSuppression(Suppressed=True)
+material2 = engineeringData1.GetMaterial(Name="Air")
+matlProp11 = material2.GetProperty(Name="Thermal Conductivity")
+materialPropertyData12 = matlProp11.GetPropertyData(
+    Name="Thermal Conductivity",
+    Qualifiers={"Definition": "", "Behavior": "Isotropic"})
+materialPropertyData12.SetSuppression(Suppressed=True)
+matlProp12 = material2.GetProperty(Name="Specific Heat")
+materialPropertyData13 = matlProp12.GetPropertyData(
+    Name="Specific Heat",
+    Qualifiers={"Definition": "Constant Pressure", "Behavior": ""})
+materialPropertyData13.SetSuppression(Suppressed=True)
+matlProp13 = material2.GetProperty(Name="Relative Permeability")
+materialPropertyData14 = matlProp13.GetPropertyData(
+    Name="Relative Permeability",
+    Qualifiers={"Definition": "", "Behavior": "Isotropic"})
+materialPropertyData14.SetSuppression(Suppressed=True)
+materialPropertyData14.SetSuppression(Suppressed=False)
+matlProp14 = material2.GetProperty(Name="Speed of Sound")
+materialPropertyData15 = matlProp14.GetPropertyData(
+    Name="Speed of Sound",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData15.SetSuppression(Suppressed=True)
+matlProp15 = material2.GetProperty(Name="Viscosity")
+materialPropertyData16 = matlProp15.GetPropertyData(
+    Name="Viscosity",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData16.SetSuppression(Suppressed=True)
+matlProp16 = material2.GetProperty(Name="Absorption Coefficient")
+materialPropertyData17 = matlProp16.GetPropertyData(
+    Name="Absorption Coefficient",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData17.SetSuppression(Suppressed=True)
+matlProp17 = material2.GetProperty(Name="Critical Volume")
+materialPropertyData18 = matlProp17.GetPropertyData(
+    Name="Critical Volume",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData18.SetSuppression(Suppressed=True)
+matlProp18 = material2.GetProperty(Name="Acentric Factor")
+materialPropertyData19 = matlProp18.GetPropertyData(
+    Name="Acentric Factor",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData19.SetSuppression(Suppressed=True)
+matlProp19 = material2.GetProperty(Name="Critical Temperature")
+materialPropertyData20 = matlProp19.GetPropertyData(
+    Name="Critical Temperature",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData20.SetSuppression(Suppressed=True)
+matlProp20 = material2.GetProperty(Name="Formation Entropy")
+materialPropertyData21 = matlProp20.GetPropertyData(
+    Name="Formation Entropy",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData21.SetSuppression(Suppressed=True)
+matlProp21 = material2.GetProperty(Name="Critical Pressure")
+materialPropertyData22 = matlProp21.GetPropertyData(
+    Name="Critical Pressure",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData22.SetSuppression(Suppressed=True)
+matlProp22 = material2.GetProperty(Name="Molecular Weight")
+materialPropertyData23 = matlProp22.GetPropertyData(
+    Name="Molecular Weight",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData23.SetSuppression(Suppressed=True)
+matlProp23 = material2.GetProperty(Name="Lennard Jones Energy")
+materialPropertyData24 = matlProp23.GetPropertyData(
+    Name="Lennard Jones Energy",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData24.SetSuppression(Suppressed=True)
+matlProp24 = material2.GetProperty(Name="Lennard Jones Length")
+materialPropertyData25 = matlProp24.GetPropertyData(
+    Name="Lennard Jones Length",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData25.SetSuppression(Suppressed=True)
+matlProp25 = material2.GetProperty(Name="Thermal Accom Coefficient")
+materialPropertyData26 = matlProp25.GetPropertyData(
+    Name="Thermal Accom Coefficient",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData26.SetSuppression(Suppressed=True)
+matlProp26 = material2.GetProperty(Name="Velocity Accom Coefficient")
+materialPropertyData27 = matlProp26.GetPropertyData(
+    Name="Velocity Accom Coefficient",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData27.SetSuppression(Suppressed=True)
+matlProp27 = material2.GetProperty(Name="Reference Temperature")
+materialPropertyData28 = matlProp27.GetPropertyData(
+    Name="Reference Temperature",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData28.SetSuppression(Suppressed=True)
+Refresh()
+geometryComponent1.Update(AllDependencies=True)
+Refresh()
+model1.Edit()
+Refresh()
+matlProp28 = matl1.GetProperty(Name="Coefficient of Thermal Expansion")
+materialPropertyData29 = matlProp28.GetPropertyData(
+    Name="Coefficient of Thermal Expansion",
+    Qualifiers={"Definition": "Secant", "Behavior": "Isotropic"})
+materialPropertyData29.SetSuppression(Suppressed=True)
+materialPropertyData30 = matlProp28.GetPropertyData(
+    Name="Zero-Thermal-Strain Reference Temperature",
+    Qualifiers={"Definition": "Secant", "Behavior": "Isotropic"})
+materialPropertyData30.SetSuppression(Suppressed=True)
+matlProp29 = matl1.GetProperty(Name="Elasticity")
+materialPropertyData31 = matlProp29.GetPropertyData(
+    Name="Elasticity",
+    Qualifiers={"Definition": "", "Behavior": "Isotropic", "Derive from": "Young's Modulus and Poisson's Ratio"})
+materialPropertyData31.SetSuppression(Suppressed=True)
+matlProp30 = matl1.GetProperty(Name="Tensile Yield Strength")
+materialPropertyData32 = matlProp30.GetPropertyData(
+    Name="Tensile Yield Strength",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData32.SetSuppression(Suppressed=True)
+matlProp31 = matl1.GetProperty(Name="Compressive Yield Strength")
+materialPropertyData33 = matlProp31.GetPropertyData(
+    Name="Compressive Yield Strength",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData33.SetSuppression(Suppressed=True)
+matlProp32 = matl1.GetProperty(Name="Tensile Ultimate Strength")
+materialPropertyData34 = matlProp32.GetPropertyData(
+    Name="Tensile Ultimate Strength",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData34.SetSuppression(Suppressed=True)
+matlProp33 = matl1.GetProperty(Name="Compressive Ultimate Strength")
+materialPropertyData35 = matlProp33.GetPropertyData(
+    Name="Compressive Ultimate Strength",
+    Qualifiers={"Definition": "", "Behavior": ""})
+materialPropertyData35.SetSuppression(Suppressed=True)
+matlProp34 = matl1.GetProperty(Name="Thermal Conductivity")
+materialPropertyData36 = matlProp34.GetPropertyData(
+    Name="Thermal Conductivity",
+    Qualifiers={"Definition": "", "Behavior": "Isotropic"})
+materialPropertyData36.SetSuppression(Suppressed=True)
+matlProp35 = matl1.GetProperty(Name="Specific Heat")
+materialPropertyData37 = matlProp35.GetPropertyData(
+    Name="Specific Heat",
+    Qualifiers={"Definition": "Constant Pressure", "Behavior": ""})
+materialPropertyData37.SetSuppression(Suppressed=True)
+Refresh()
+Save(Overwrite=True)
