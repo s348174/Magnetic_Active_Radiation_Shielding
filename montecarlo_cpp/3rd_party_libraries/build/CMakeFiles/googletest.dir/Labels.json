@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/alberto/Documents/Magnetic_Active_Radiation_Shielding/montecarlo_cpp/3rd_party_libraries/build/CMakeFiles/googletest"
+		},
+		{
+			"file" : "/home/alberto/Documents/Magnetic_Active_Radiation_Shielding/montecarlo_cpp/3rd_party_libraries/build/CMakeFiles/googletest.rule"
+		},
+		{
+			"file" : "/home/alberto/Documents/Magnetic_Active_Radiation_Shielding/montecarlo_cpp/3rd_party_libraries/build/CMakeFiles/googletest-complete.rule"
+		},
+		{
+			"file" : "/home/alberto/Documents/Magnetic_Active_Radiation_Shielding/montecarlo_cpp/3rd_party_libraries/build/googletest-prefix/src/googletest-stamp/googletest-install.rule"
+		},
+		{
+			"file" : "/home/alberto/Documents/Magnetic_Active_Radiation_Shielding/montecarlo_cpp/3rd_party_libraries/build/googletest-prefix/src/googletest-stamp/googletest-mkdir.rule"
+		},
+		{
+			"file" : "/home/alberto/Documents/Magnetic_Active_Radiation_Shielding/montecarlo_cpp/3rd_party_libraries/build/googletest-prefix/src/googletest-stamp/googletest-download.rule"
+		},
+		{
+			"file" : "/home/alberto/Documents/Magnetic_Active_Radiation_Shielding/montecarlo_cpp/3rd_party_libraries/build/googletest-prefix/src/googletest-stamp/googletest-update.rule"
+		},
+		{
+			"file" : "/home/alberto/Documents/Magnetic_Active_Radiation_Shielding/montecarlo_cpp/3rd_party_libraries/build/googletest-prefix/src/googletest-stamp/googletest-patch.rule"
+		},
+		{
+			"file" : "/home/alberto/Documents/Magnetic_Active_Radiation_Shielding/montecarlo_cpp/3rd_party_libraries/build/googletest-prefix/src/googletest-stamp/googletest-configure.rule"
+		},
+		{
+			"file" : "/home/alberto/Documents/Magnetic_Active_Radiation_Shielding/montecarlo_cpp/3rd_party_libraries/build/googletest-prefix/src/googletest-stamp/googletest-build.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"googletest"
+		],
+		"name" : "googletest"
+	}
+}

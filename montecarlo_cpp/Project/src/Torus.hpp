@@ -1,11 +1,10 @@
 #pragma once
 
-#include <vector>
 #include <Eigen/Eigen>
 #include <math.h>
 #include <cmath>
-#include <numbers>
-#include <array>
+#include "Constants.hpp"
+
 
 using namespace std;
 using namespace Eigen;
@@ -18,8 +17,7 @@ struct Torus {
     // Static cached data (initialized once)
     static constexpr int N = 500;
     static constexpr int numPoints = 2 * N + 1;
-    static constexpr double mu0 = 4 * M_PI * 1e-7; // Define magnetic constant
-    static constexpr double dtheta = M_PI / N; // Integration step
+    static constexpr double dtheta = PI / N; // Integration step
     static inline ArrayXd sinT, cosT, weights;
     static inline bool precomputed = false;
 
@@ -76,7 +74,7 @@ struct Torus {
         double integral_z = (weights * fz).sum() * dtheta / 3.0;
 
         // Magnetic field vector
-        double coeff = mu0 * I * R / (4 * M_PI);
+        double coeff = mu0 * I * R / (4 * PI);
         B << coeff * integral_x, coeff * integral_y, coeff * integral_z;
         return B;
     }

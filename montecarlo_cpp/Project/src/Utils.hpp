@@ -8,7 +8,7 @@
 using namespace std;
 using namespace Eigen;
 
-double mbPdf(const double v, const double m, const double kB, const double T);
+double mbPdf(const double v, const double m, const double T);
 vector<double> sampleMbSpeed(const double m, const int N, const double T);
 bool monteCarlo(Torus& torus, const string& particleName, const double& m, const double& q, const int& N, const double& T, double& dt, unsigned long& seed);
 double evaluateExpression(const string& expr);

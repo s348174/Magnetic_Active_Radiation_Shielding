@@ -1,15 +1,13 @@
 #pragma once
 
+#include <Constants.hpp>
 #include <Eigen/Eigen>
 #include <vector>
 #include <Trajectory.hpp>
 #include <Torus.hpp>
-#include <iostream>
 #include <algorithm>
 #include <math.h>
 #include <cmath>
-
-const double c_light = 299792458.0; // m/s
 
 using namespace std;
 using namespace Eigen;
@@ -58,21 +56,16 @@ struct Particle {
         if (torus.isPointInTorus(X_t)) {
             return true;
         }
-        // To reduce risk of missing due to overshooting, we check also for the mean next expected position
-        // Vector3d X_next = X_t + dt * v_t + dt * dt * a_t / 2;
-        // Vector3d X_mean = (X_t + X_next) / 2;
-        // return torus.isPointInTorus(X_mean);
         return false;
     }
 
     bool updatePosition(Torus& torus){ // Update the trajectory. Returns TRUE if the torus gets hit
         // Compute B field and Lorentz force
         Vector3d B = torus.torusMagneticField(X_t);
-        // Vector3d B = Vector3d::Zero();
-        Vector3d E = Vector3d::Zero(); // if you have E; default zero
+        // Vector3d E = Vector3d::Zero(); // if you have E; default zero
 
         // Adaptive step control
-        const double dx_max = 1e0;      // Max displacement per step (m)
+        const double dx_max = torus.rho;      // Max displacement per step (m)
         const double dt_min = 1e-10;    // Min step size
         const double dt_max = 1e-4;     // Max step size
         double Bmag = B.norm();
@@ -87,7 +80,8 @@ struct Particle {
 
         // Boris integrator
         // Half acceleration from E
-        Vector3d v_minus = v_t + (q * E / m) * (0.5 * dt);
+        // Vector3d v_minus = v_t + (q * E / m) * (0.5 * dt);
+        Vector3d v_minus = v_t;
 
         // Rotation due to B
         Vector3d t = (q * B / m) * (0.5 * dt);
@@ -95,19 +89,15 @@ struct Particle {
         Vector3d v_plus = v_minus + (2.0 / (1.0 + t.squaredNorm())) * (v_prime.cross(t));
 
         // Half acceleration from E
-        v_t = v_plus + (q * E / m) * (0.5 * dt);
-
-        // CONTROL: EULER METHOD
-        // Vector3d F_L = q * (E + v_t.cross(B));
-        // Vector3d F_L = Vector3d::Zero();
-        // a_t = F_L / m;
-        // v_t = v_t + (a_t + tj.a.back()) / 2;
+        // v_t = v_plus + (q * E / m) * (0.5 * dt);
+        v_t = v_plus;
 
         // Update position
         X_t += v_t * dt;
 
         // Update
-        a_t = q * (E + v_t.cross(B)) / m;
+        // a_t = q * (E + v_t.cross(B)) / m;
+        a_t = q * v_t.cross(B) / m;
         tj.p.push_back(p_t);
         tj.a.push_back(a_t);
         tj.v.push_back(v_t);

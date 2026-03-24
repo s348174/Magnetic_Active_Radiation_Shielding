@@ -13,10 +13,10 @@ int main()
 {
     chrono::steady_clock::time_point t_begin = chrono::steady_clock::now();
     // Simulation arguments
-    double N = 1e4;
+    double N = 1e4; // Number of simulated particles
     const double T = 1e8; // K
-    double dt = 1e-9;
-    unsigned long seed = 10003;
+    double dt = 1e-9; // Initial time step
+    unsigned long seed = 30000;
 
     // Define Torus
     double R = 20;
@@ -27,7 +27,7 @@ int main()
     torus.rho = rho;
     torus.I = I;
 
-    // Run multithread simulation from CSV input
+    // Run multithread simulation from CSV input (for particles phyisics data)
     runFromCSV_MT("../Project/particles_input.csv", torus, N, T, dt, seed);
 
     chrono::steady_clock::time_point t_end = chrono::steady_clock::now();

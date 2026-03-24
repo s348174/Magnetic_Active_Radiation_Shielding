@@ -7,7 +7,7 @@
 // Starndard libraries for math
 #include <vector>
 #include <numeric>
-#include <numbers>
+#include "Constants.hpp"
 #include <math.h>
 #include <cmath>
 #include <random>
@@ -26,30 +26,26 @@
 #include <sys/types.h>
 #include <filesystem>
 
-
 using namespace std;
 using namespace Eigen;
 
-double mbPdf(const double v, const double m, const double kB, const double T)
+double mbPdf(const double v, const double m, const double T)
 {
     // Maxwell-Boltzman pdf: f(v) ∝ v^2 * exp(-v^2)
-    double f = pow(m / (2 * M_PI * kB * T), 1.5)
-               * 4 * M_PI * v * v * exp(- m * v * v / ( 2 * kB * T));
+    double f = pow(m / (2 * PI * kB * T), 1.5)
+               * 4 * PI * v * v * exp(- m * v * v / ( 2 * kB * T));
     return f;
 }
 
 vector<double> sampleMbSpeed(const double m, const int N, const double T)
 {
-    // Boltzmann constand and Sun's photosphere temperature
-    const double kB = 1.38e-23;   // J/K
-
     // Sampling interval
     const double v_min = 0;
     const double v_max = 3e9;
 
     // Define f_max
     double v_mean = sqrt((2*kB*T)/m);
-    double f_max = mbPdf(v_mean, m, kB, T);
+    double f_max = mbPdf(v_mean, m, T);
 
     // Define a vector of N samples
     vector<double> v_samples;
@@ -63,7 +59,7 @@ vector<double> sampleMbSpeed(const double m, const int N, const double T)
     while (i < N) {
         double v_rand = velocity(gen);
         double y_rand = density(gen);
-        if (y_rand <= mbPdf(v_rand, m, kB, T)) { // Acceptance region
+        if (y_rand <= mbPdf(v_rand, m, T)) { // Acceptance region
             v_samples.push_back(v_rand);
             i++;
         }
@@ -76,8 +72,8 @@ bool monteCarlo(Torus& torus, const string& particleName, const double& m, const
     vector<double> v_samples = sampleMbSpeed(m, N, T);
     sort(v_samples.begin(), v_samples.end());
     default_random_engine gen;
-    uniform_real_distribution<double> azimut(0, 2 * M_PI);
-    uniform_real_distribution<double> polar(0, M_PI);
+    uniform_real_distribution<double> azimut(0, 2 * PI);
+    uniform_real_distribution<double> polar(0, PI);
 
     // Open file for output
     string folderout = "../results/seed_" + to_string(seed);
@@ -102,7 +98,7 @@ bool monteCarlo(Torus& torus, const string& particleName, const double& m, const
 
     int hitCounter = 0; // Counter for how many times the torus gets
     double eVCounter = 0; // Counter for how may eV received
-    for (size_t i = 0; i < v_samples.size(); ++i) {
+    for (size_t i = 0; i < N; ++i) {
         // Sample initial position from a sphere of radius 4R
         double theta = azimut(gen);
         double phi = polar(gen);
