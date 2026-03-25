@@ -40,9 +40,6 @@ double mbPdf(const double v, const double m, const double kB, const double T)
 
 vector<double> sampleMbSpeed(const double m, const int N, const double T)
 {
-    // Boltzmann constant and Sun's photosphere temperature
-    const double kB = 1.38e-23;   // J/K
-
     // Sampling interval
     const double v_min = 0;
     const double v_max = 3e9;
