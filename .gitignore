@@ -9,7 +9,7 @@ externals
 *Release*
 *release*
 *debug*
-3rd_party_libraries/build/
+*build*
 
 # Ignore all user CMAKE files
 *.txt.user
