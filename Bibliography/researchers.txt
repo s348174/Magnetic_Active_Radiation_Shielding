@@ -1,0 +1,4 @@
+Peter Frazier: https://people.orie.cornell.edu/pfrazier/
+Jacob Gardner: https://jacobrgardner.github.io/#gpytorch
+Roman Garnett: https://www.cse.wustl.edu/~garnett/
+Paris Perdikaris: https://ai4science.seas.upenn.edu/team

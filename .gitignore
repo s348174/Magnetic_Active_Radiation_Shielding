@@ -10,6 +10,7 @@ externals
 *release*
 *debug*
 *build*
+*pyenv*
 
 # Ignore all user CMAKE files
 *.txt.user
