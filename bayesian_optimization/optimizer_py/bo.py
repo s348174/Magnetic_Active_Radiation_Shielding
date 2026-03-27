@@ -1,5 +1,5 @@
 import sys
-sys.path.append('../Release')
+sys.path.append('Release')
 import simulator
 
 # Call dummy function to test binding
