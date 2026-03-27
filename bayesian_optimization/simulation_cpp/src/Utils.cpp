@@ -1,6 +1,7 @@
 // Project sources
 #include "Utils.hpp"
-#include <Torus.hpp>
+#include <BField.hpp>
+#include <Revelator.hpp>
 #include <Particle.hpp>
 // External libraries
 #include <Eigen/Eigen>
@@ -67,7 +68,7 @@ vector<double> sampleMbSpeed(const double m, const int N, const double T)
     return v_samples;
 }
 
-bool monteCarlo(Torus& torus, const string& particleName, const double& m, const double& q, const int& N, const double& T, double& dt, unsigned long& seed) { // Monte Carlo simulation
+bool monteCarlo(BField& field, Revelator& revelator, const string& particleName, const double& m, const double& q, const int& N, const double& T, double& dt, unsigned long& seed) { // Monte Carlo simulation
     // Sample speeds from Maxwell Boltzman
     vector<double> v_samples = sampleMbSpeed(m, N, T);
     sort(v_samples.begin(), v_samples.end());
@@ -96,19 +97,18 @@ bool monteCarlo(Torus& torus, const string& particleName, const double& m, const
     outfile << setprecision(6);
     outfile << "i,eV,hit_status,x_0,y_0,z_0,v_x,v_y,v_z\n"; // CSV header
 
-    int hitCounter = 0; // Counter for how many times the torus gets
-    double eVCounter = 0; // Counter for how may eV received
+    int totHitP = 0; // Compute total hit probability
+    double expectedEVCounter = 0; // Counter for how may eV received
     for (size_t i = 0; i < N; ++i) {
         // Sample initial position from a sphere of radius 4R
         double theta = azimut(gen);
         double phi = polar(gen);
         Vector3d X0;
-        X0 << 4 * torus.R * sin(phi) * cos(theta), 4 * torus.R * sin(phi) * sin(theta), 4 * torus.R * cos(phi);
+        X0 << 4 * revelator.R * sin(phi) * cos(theta), 4 * revelator.R * sin(phi) * sin(theta), 4 * revelator.R * cos(phi);
 
         // Sample random target inside torus
         double alpha = azimut(gen);
-        Vector3d target(torus.R * cos(alpha), torus.R * sin(alpha), 0);
-        target = target - X0;
+        Vector3d target = - X0;
         Vector3d v0 = v_samples[i] * target / target.norm();
 
         // Define particle
@@ -117,49 +117,29 @@ bool monteCarlo(Torus& torus, const string& particleName, const double& m, const
 
         // Start trajectory computation
         double t = 0;
-        while (!part.updatePosition(torus) && t < T_max) {
+        while (t < T_max) {
+            part.updatePosition(field, revelator);
             t += part.dt;
         }
-
+        totHitP += part.hit_prob;
         double eV = 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e19;
-        if (part.hit) {
-            hitCounter++;
-            eVCounter += eV;
-            outfile << i << "," << scientific << eV << ",hit,"
-                    << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
-                    << scientific << v0(0) << "," << v0(1) << "," << v0(2) << "\n";
-        }
-        else {
-            outfile << i << "," << scientific << eV << ",miss,"
-                    << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
-                    << scientific << v0(0) << "," << v0(1) << "," << v0(2) << "\n";
-        }
+        expectedEVCounter += eV * totHitP;
+        outfile << i << "," << scientific << eV
+                << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
+                << scientific << v0(0) << "," << v0(1) << "," << v0(2) << "\n";
     }
-    double hitRatio = hitCounter / static_cast<double>(N);
-    double successPerc = 100 * (1 - hitRatio);
-    double sum_v2 = accumulate(
-        v_samples.begin(), v_samples.end(), 0.0,
-        [](double acc, double v) { return acc + v * v; }
-        );
-    double eVTotal = 0.5 * m * sum_v2 * 1.6022e19;
-    double eVPerc = 100 * (eVCounter / eVTotal);
+    double expectedHitValue = totHitP / static_cast<double>(N);
 
     // Write summary to file
     outfile << "\nSummary\n";
-    outfile << fixed << "Radius," << torus.R << "m\n";
+    outfile << fixed << "Radius," << revelator.R << "m\n";
     outfile << scientific << setprecision(4);
-    outfile << "Current," << torus.I << "A\n";
+    outfile << "Current," << revelator.I << "A\n";
     outfile << "Temperature," << T << "K\n";
     outfile << "Mass," << m << "kg\n";
     outfile << "Charge," << q << "C\n";
     outfile << fixed;
     outfile << "Total," << N << "\n";
-    outfile << "Hits," << hitCounter << "\n";
-    outfile << "Hit ratio," << hitRatio << "\n";
-    outfile << "Success percentage," << successPerc << "%\n";
-    outfile << "Total simulation energy," << scientific << eVTotal << "eV\n";
-    outfile << "Average particle energy," << eVTotal / N << "eV\n";
-    outfile << "Hit percentage of eV," << fixed << eVPerc << "%\n";
     outfile << "Seed," << seed << "\n";
 
     outfile.close();
@@ -188,14 +168,14 @@ double evaluateExpression(const string& expr) {
 }
 
 // Thread worker function
-void runSimulation(Torus torus, string name, double m, double q, int N, double T, double dt, unsigned long seed) {
+void runSimulation(BField field, Revelator revelator, string name, double m, double q, int N, double T, double dt, unsigned long seed) {
     {
         lock_guard<mutex> lock(io_mutex);
         cout << "\n=== Starting simulation for " << name << " ===" << endl;
         cout << "m = " << m << ", q = " << q << endl;
     }
 
-    bool ok = monteCarlo(torus, name, m, q, N, T, dt, seed);
+    bool ok = monteCarlo(field, revelator, name, m, q, N, T, dt, seed);
 
     {
         lock_guard<mutex> lock(io_mutex);

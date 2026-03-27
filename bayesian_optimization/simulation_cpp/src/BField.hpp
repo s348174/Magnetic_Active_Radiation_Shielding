@@ -1,0 +1,97 @@
+# pragma once
+
+#include <Constants.hpp>
+#include <Eigen/Eigen>
+#include <math.h>
+#include <cmath>
+#include <vector>
+
+using namespace std;
+using namespace Eigen;
+
+struct BField {
+    double n; // Number of coils
+    vector<Vector3d, n> centers; // Coils centers
+    vector<Vector3d, n> normals; // Coils normals
+    double R; // Coils radius
+    double I; // Coils current intensity
+
+    // Static cached data (initialized once)
+    static constexpr int N = 500;
+    static constexpr int numPoints = 2 * N + 1;
+    static constexpr double dtheta = PI / N; // Integration step
+    static inline ArrayXd sinT, cosT, weights;
+    static inline bool precomputed = false;
+
+    static void precomputeTables() {
+        if (precomputed) return;
+        VectorXd thetaVec(numPoints);
+        for (int i = 0; i < numPoints; ++i)
+            thetaVec(i) = i * dtheta;
+
+        sinT = thetaVec.array().sin();
+        cosT = thetaVec.array().cos();
+
+        weights.resize(numPoints);
+        weights(0) = 1.0;
+        weights(numPoints - 1) = 1.0;
+        for (int i = 1; i < numPoints - 1; ++i)
+            // Assign 2 if i is even, else 4
+            if (i % 2 == 0) weights(i) = 2; else weights(i) = 4;
+
+        precomputed = true;
+    }
+
+    BField(double n_in, vector<Vector3d>& centers_in, vector<Vector3d>& normals_in, double R_in, double I_in) {
+        n = n_in;
+        centers = centers_in;
+        normals = normals_in;
+        R = R_in;
+        I = I_in;
+    }
+
+    Vector3d coilBField(const Vector3d& X) {
+        // This mehod computes the magnetic field of a single coil in a given point X
+        // Precompute static variables
+        precomputeTables();
+        Vector3d B;
+
+        ArrayXd base = (X(0) * X(0) + X(1) * X(1) + X(2) * X(2) + R * R
+                        - 2 * R * X(0) * cosT
+                        - 2 * R * X(1) * sinT);
+        ArrayXd denom = base * base.sqrt(); // Equivalent to pow(1.5), but faster
+
+        // Integrand funtions
+        ArrayXd fx = X(2) * cosT / denom;
+        ArrayXd fy = X(2) * sinT / denom;
+        ArrayXd fz = (R - X(0) *  cosT - X(1) * sinT) / denom;
+
+        // Simpson integration (vectorized)
+        double integral_x = (weights * fx).sum() * dtheta / 3.0;
+        double integral_y = (weights * fy).sum() * dtheta / 3.0;
+        double integral_z = (weights * fz).sum() * dtheta / 3.0;
+
+        // Magnetic field vector
+        double coeff = mu0 * I * R / (4 * PI);
+        B << coeff * integral_x, coeff * integral_y, coeff * integral_z;
+        return B;
+    }
+
+    Quaterniond rotationFromZ(const Vector3d& nn) {
+        // Method to rotate frame of reference
+        Vector3d z(0, 0, 1);
+        return Quaterniond::FromTwoVectors(z, nn.normalized());
+    }
+
+    Vector3d totalBField(const Vector3d& X) {
+        // This methods just sums up the field over all coils
+        Vector3d totalB;
+        for (int i; i < n; ++i) {
+            Quaterniond q = rotationFromZ(normals(i)); // Compute rotation
+            X_local = q.conjugate * (X - centers(i)); // Rotate and recenter
+            B_local = coilBField(X_local); // Compute field in frame of reference
+            totalB += q * B; // Add to total field
+        }
+        return totalB;
+    }
+};

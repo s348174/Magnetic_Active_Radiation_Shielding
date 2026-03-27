@@ -1,10 +1,11 @@
 #pragma once
 
 #include <Constants.hpp>
+#include <Revelator.hpp>
 #include <Eigen/Eigen>
 #include <vector>
 #include <Trajectory.hpp>
-#include <Torus.hpp>
+#include <BField.hpp>
 #include <algorithm>
 #include <math.h>
 #include <cmath>
@@ -22,7 +23,7 @@ struct Particle {
     double T_max; // Max time for simulation
     double dt; // Time step
     Trajectory tj; // Trajectory
-    bool hit;
+    double hit_prob = 0; // Hit probability
 
     Particle(double m_val, double q_val, Vector3d X0, Vector3d v0, double T_val, double dt_val) { // Class constructor
         m = m_val;
@@ -46,26 +47,16 @@ struct Particle {
         double gamma = 1.0 / sqrt(1.0 - min(v2 / (c_light*c_light), 0.999999999999)); // Avoid v >= c
         p_t = gamma * m * v_t;
         tj.p.push_back(p_t);
-
-        hit = false;
     }
 
     ~Particle() {} // Class destructor
 
-    bool isParticleInTorus(Torus& torus) { // Verifies if the particle hit the torus
-        if (torus.isPointInTorus(X_t)) {
-            return true;
-        }
-        return false;
-    }
-
-    bool updatePosition(Torus& torus){ // Update the trajectory. Returns TRUE if the torus gets hit
+    void updatePosition(BField& field, Revelator& revelator){ // Update the trajectory. Returns TRUE if the torus gets hit
         // Compute B field and Lorentz force
-        Vector3d B = torus.torusMagneticField(X_t);
-        // Vector3d E = Vector3d::Zero(); // if you have E; default zero
+        Vector3d B = field.totalBField(X_t);
 
         // Adaptive step control
-        const double dx_max = torus.rho;      // Max displacement per step (m)
+        const double dx_max = revelator.R; // Max displacement per step (m)
         const double dt_min = 1e-10;    // Min step size
         const double dt_max = 1e-4;     // Max step size
         double Bmag = B.norm();
@@ -79,8 +70,6 @@ struct Particle {
         dt = clamp(dt_new, dt_min, dt_max); // Clamp between max and min to avoid too small or too big dt
 
         // Boris integrator
-        // Half acceleration from E
-        // Vector3d v_minus = v_t + (q * E / m) * (0.5 * dt);
         Vector3d v_minus = v_t;
 
         // Rotation due to B
@@ -89,24 +78,19 @@ struct Particle {
         Vector3d v_plus = v_minus + (2.0 / (1.0 + t.squaredNorm())) * (v_prime.cross(t));
 
         // Half acceleration from E
-        // v_t = v_plus + (q * E / m) * (0.5 * dt);
         v_t = v_plus;
 
         // Update position
         X_t += v_t * dt;
 
         // Update
-        // a_t = q * (E + v_t.cross(B)) / m;
         a_t = q * v_t.cross(B) / m;
         tj.p.push_back(p_t);
         tj.a.push_back(a_t);
         tj.v.push_back(v_t);
         tj.X.push_back(X_t);
 
-        if (isParticleInTorus(torus)) {
-            hit = true;
-            return hit;
-        }
-        return hit;
+        // Compute probability to be detected
+        if (X.norm() < revelator.R) hit_prob += revelator.revelatorProbability(X_t) * dt;
     }
 };
