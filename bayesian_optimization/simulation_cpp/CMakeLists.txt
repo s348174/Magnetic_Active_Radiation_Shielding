@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(Simulator)
+project(simulator)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -23,7 +23,7 @@ find_package(pybind11 REQUIRED)
 
 # --- Threads ---
 find_package(Threads REQUIRED)
-list(APPEND ${CMAKE_PROJECT_NAME}_LINKED_LIBRARIES PRIVATE Threads::Threads)
+#list(APPEND ${CMAKE_PROJECT_NAME}_LINKED_LIBRARIES PRIVATE Threads::Threads)
 
 # --- Eigen ---
 # Option 1: system Eigen
@@ -45,18 +45,26 @@ list(APPEND ${CMAKE_PROJECT_NAME}_HEADERS ${${CMAKE_PROJECT_NAME}_headers})
 list(APPEND ${CMAKE_PROJECT_NAME}_INCLUDE ${${CMAKE_PROJECT_NAME}_includes})
 
 # --- Python module ---
-pybind11_add_module(${CMAKE_PROJECT_NAME}
+pybind11_add_module(simulator
     bindings/pybind_module.cpp
-    ${${CMAKE_PROJECT_NAME}_SOURCES}
-    ${${CMAKE_PROJECT_NAME}_HEADERS}
+    ${simulator_sources}
 )
 
-target_link_libraries(${CMAKE_PROJECT_NAME}
+target_include_directories(simulator
+    PRIVATE
+    src  # this folder contains all your .hpp / struct files
+)
+
+target_link_libraries(simulator
     PRIVATE
     Eigen3::Eigen
     Threads::Threads
 )
 
+# Force .so output to Release folder
+#set_target_properties(simulator PROPERTIES
+#    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/Release
+#)
 
 # --- Optional standalone executable ---
 # --- Executable ---
