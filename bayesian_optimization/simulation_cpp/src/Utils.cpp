@@ -68,7 +68,10 @@ vector<double> sampleMbSpeed(const double m, const int N, const double T)
     return v_samples;
 }
 
-bool monteCarlo(BField& field, Revelator& revelator, const string& particleName, const double& m, const double& q, const int& N, const double& T, double& dt, unsigned long& seed) { // Monte Carlo simulation
+bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
+                const double& m, const double& q, const int& N, const double& T,
+                double& dt, unsigned long& seed) {
+    // Monte Carlo simulation
     // Sample speeds from Maxwell Boltzman
     vector<double> v_samples = sampleMbSpeed(m, N, T);
     sort(v_samples.begin(), v_samples.end());
@@ -121,14 +124,14 @@ bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
             part.updatePosition(field, revelator);
             t += part.dt;
         }
-        totHitP += part.hit_prob;
+        totHitP += v_samples[i] * part.hit_prob;
         double eV = 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e19;
-        expectedEVCounter += eV * totHitP;
+        // expectedEVCounter += eV * totHitP;
         outfile << i << "," << scientific << eV
                 << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
                 << scientific << v0(0) << "," << v0(1) << "," << v0(2) << "\n";
     }
-    double expectedHitValue = totHitP / static_cast<double>(N);
+    double expectedDose = totHitP / static_cast<double>(N);
 
     // Write summary to file
     outfile << "\nSummary\n";
@@ -138,6 +141,7 @@ bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
     outfile << "Temperature," << T << "K\n";
     outfile << "Mass," << m << "kg\n";
     outfile << "Charge," << q << "C\n";
+    outfile << "Dose expected value" << expectedDose << "\n";
     outfile << fixed;
     outfile << "Total," << N << "\n";
     outfile << "Seed," << seed << "\n";
@@ -187,7 +191,7 @@ void runSimulation(BField field, Revelator revelator, string name, double m, dou
 }
 
 // Main reader & dispatcher
-void runFromCSV_MT(const string& filename, Torus torus, int N, double T, double dt, unsigned long seed) {
+void runFromCSV_MT(const string& filename, BField field, Revelator revelator, int N, double T, double dt, unsigned long seed) {
     ifstream file(filename);
     if (!file.is_open()) {
         cerr << "Error: Could not open " << filename << endl;
@@ -222,7 +226,7 @@ void runFromCSV_MT(const string& filename, Torus torus, int N, double T, double 
             double q = evaluateExpression(qStr);
 
             // Launch one thread per simulation
-            threads.emplace_back(runSimulation, torus, name, m, q, N, T, dt, seed);
+            threads.emplace_back(runSimulation, field, revelator, name, m, q, N, T, dt, seed);
         }
         catch (const std::exception& e) {
             lock_guard<mutex> lock(io_mutex);

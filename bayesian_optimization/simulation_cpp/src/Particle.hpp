@@ -18,12 +18,14 @@ struct Particle {
     double q; // Charge
     Vector3d X_t; // Instant position
     Vector3d v_t; // Instant speed
-    Vector3d a_t; // Instant acceleration
-    Vector3d p_t; // Instant relativistic momentum
+    // Vector3d a_t; // Instant acceleration
+    // Vector3d p_t; // Instant relativistic momentum
     double T_max; // Max time for simulation
     double dt; // Time step
     Trajectory tj; // Trajectory
     double hit_prob = 0; // Hit probability
+    const double dt_min = 1e-10;    // Min step size
+    const double dt_max = 1e-4;     // Max step size
 
     Particle(double m_val, double q_val, Vector3d X0, Vector3d v0, double T_val, double dt_val) { // Class constructor
         m = m_val;
@@ -34,7 +36,7 @@ struct Particle {
         int N = round(T_max/dt);
         tj.X.reserve(N);
         tj.v.reserve(N);
-        tj.a.reserve(N);
+        // tj.a.reserve(N);
 
         X_t = X0;
         tj.X.push_back(X0);
@@ -43,10 +45,10 @@ struct Particle {
         a_t << 0, 0, 0;
         tj.a.push_back(a_t);
         // Init relativistic momentum p = gamma*m*v
-        double v2 = v_t.squaredNorm();
-        double gamma = 1.0 / sqrt(1.0 - min(v2 / (c_light*c_light), 0.999999999999)); // Avoid v >= c
-        p_t = gamma * m * v_t;
-        tj.p.push_back(p_t);
+        // double v2 = v_t.squaredNorm();
+        // double gamma = 1.0 / sqrt(1.0 - min(v2 / (c_light*c_light), 0.999999999999)); // Avoid v >= c
+        // p_t = gamma * m * v_t;
+        // tj.p.push_back(p_t);
     }
 
     ~Particle() {} // Class destructor
@@ -56,9 +58,7 @@ struct Particle {
         Vector3d B = field.totalBField(X_t);
 
         // Adaptive step control
-        const double dx_max = revelator.R; // Max displacement per step (m)
-        const double dt_min = 1e-10;    // Min step size
-        const double dt_max = 1e-4;     // Max step size
+        const double dx_max = revelator.R / 4; // Max displacement per step (m)
         double Bmag = B.norm();
         double vmag = v_t.norm();
         // Limit by displacement
@@ -69,28 +69,26 @@ struct Particle {
         double dt_new = min({dt_disp, dt_cycl, dt_max});
         dt = clamp(dt_new, dt_min, dt_max); // Clamp between max and min to avoid too small or too big dt
 
-        // Boris integrator
-        Vector3d v_minus = v_t;
-
-        // Rotation due to B
+        // Boris integrator simplified (no E field)
         Vector3d t = (q * B / m) * (0.5 * dt);
-        Vector3d v_prime = v_minus + v_minus.cross(t);
-        Vector3d v_plus = v_minus + (2.0 / (1.0 + t.squaredNorm())) * (v_prime.cross(t));
+        Vector3d v_prime = v_t + v_t.cross(t);
+        v_t = v_t + (2.0 / (1.0 + t.squaredNorm())) * (v_prime.cross(t));
 
-        // Half acceleration from E
-        v_t = v_plus;
+        // Compute probability to be detected at this time step with Simpson
+        Vector3d X_next = X_t + v_t * dt; // Next position
+        Vector3d (X_mean = X_t + X_next) / 2; // Mean position
+        hit_prob += (revelator.revelatorProbability(X_t) +
+                     revelator.revelatorProbability(X_mean) * 4 +
+                     revelator.revelatorProbability(X_next)) / 6 * dt;
 
         // Update position
-        X_t += v_t * dt;
+        X_t = X_next;
 
-        // Update
-        a_t = q * v_t.cross(B) / m;
-        tj.p.push_back(p_t);
-        tj.a.push_back(a_t);
+        // Update trajectory
+        // a_t = q * v_t.cross(B) / m;
+        // tj.p.push_back(p_t);
+        // tj.a.push_back(a_t);
         tj.v.push_back(v_t);
         tj.X.push_back(X_t);
-
-        // Compute probability to be detected
-        if (X.norm() < revelator.R) hit_prob += revelator.revelatorProbability(X_t) * dt;
     }
 };

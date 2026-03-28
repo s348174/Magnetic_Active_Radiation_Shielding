@@ -1,0 +1,713 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.2 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{none/global//global/global}
+    \entry{Kahn2014}{book}{}
+      \name{author}{3}{}{%
+        {{hash=e0ced1ec94383c6bbaacef3d393c0e65}{%
+           family={Kahn},
+           familyi={K\bibinitperiod},
+           given={Jeffrey},
+           giveni={J\bibinitperiod}}}%
+        {{hash=00608cacde1b7b1a551eeed46a324dbd}{%
+           family={Liverman},
+           familyi={L\bibinitperiod},
+           given={Catharyn\bibnamedelima T.},
+           giveni={C\bibinitperiod\bibinitdelim T\bibinitperiod}}}%
+        {{hash=8dfe8c0cbcce3563ba9a7d9c4d12f097}{%
+           family={McCoy},
+           familyi={M\bibinitperiod},
+           given={Margaret\bibnamedelima A.},
+           giveni={M\bibinitperiod\bibinitdelim A\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {National Academies Press}%
+      }
+      \strng{namehash}{32c7b38e2aabbc94810a2981fcda4261}
+      \strng{fullhash}{9f0f70bf4604f8be5bcbae0c66e13abf}
+      \strng{bibnamehash}{9f0f70bf4604f8be5bcbae0c66e13abf}
+      \strng{authorbibnamehash}{9f0f70bf4604f8be5bcbae0c66e13abf}
+      \strng{authornamehash}{32c7b38e2aabbc94810a2981fcda4261}
+      \strng{authorfullhash}{9f0f70bf4604f8be5bcbae0c66e13abf}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{isbn}{9780309296601}
+      \field{journaltitle}{Health Standards for Long Duration and Exploration Spaceflight: Ethics Principles, Responsibilities, and Decision Framework}
+      \field{month}{7}
+      \field{title}{Health standards for long duration and exploration spaceflight: Ethics principles, responsibilities, and decision framework}
+      \field{year}{2014}
+      \field{pages}{1\bibrangedash 172}
+      \range{pages}{172}
+      \verb{doi}
+      \verb 10.17226/18576
+      \endverb
+    \endentry
+    \entry{Vuolo2016}{article}{}
+      \name{author}{7}{}{%
+        {{hash=a87c87bd52d1d5b06fc09dbec04a9daf}{%
+           family={Vuolo},
+           familyi={V\bibinitperiod},
+           given={M.},
+           giveni={M\bibinitperiod}}}%
+        {{hash=75e7ff6b2d357fb91a9c03ff775296ed}{%
+           family={Giraudo},
+           familyi={G\bibinitperiod},
+           given={M.},
+           giveni={M\bibinitperiod}}}%
+        {{hash=4c7971478714ce29b62ed82fce3c5d1b}{%
+           family={Musenich},
+           familyi={M\bibinitperiod},
+           given={R.},
+           giveni={R\bibinitperiod}}}%
+        {{hash=e8c6556c58ec96a4e1cf7e8741e636ab}{%
+           family={Calvelli},
+           familyi={C\bibinitperiod},
+           given={V.},
+           giveni={V\bibinitperiod}}}%
+        {{hash=db23377f784b56a6f7c4c951bce7da95}{%
+           family={Ambroglini},
+           familyi={A\bibinitperiod},
+           given={F.},
+           giveni={F\bibinitperiod}}}%
+        {{hash=a63bcc2ebdec35e640e621ac14cda036}{%
+           family={Burger},
+           familyi={B\bibinitperiod},
+           given={W.\bibnamedelimi J.},
+           giveni={W\bibinitperiod\bibinitdelim J\bibinitperiod}}}%
+        {{hash=1277f2adce663def186816ccf25d5cc7}{%
+           family={Battiston},
+           familyi={B\bibinitperiod},
+           given={R.},
+           giveni={R\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Elsevier Ltd}%
+      }
+      \strng{namehash}{5bcf0d94389a1fc19737d0cc2a06536c}
+      \strng{fullhash}{08732b2d8cf899c949ecde8a401c8a2d}
+      \strng{bibnamehash}{5bcf0d94389a1fc19737d0cc2a06536c}
+      \strng{authorbibnamehash}{5bcf0d94389a1fc19737d0cc2a06536c}
+      \strng{authornamehash}{5bcf0d94389a1fc19737d0cc2a06536c}
+      \strng{authorfullhash}{08732b2d8cf899c949ecde8a401c8a2d}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{issn}{22145532}
+      \field{journaltitle}{Life Sciences in Space Research}
+      \field{month}{2}
+      \field{title}{Monte Carlo simulations for the space radiation superconducting shield project (SR2S)}
+      \field{volume}{8}
+      \field{year}{2016}
+      \field{pages}{22\bibrangedash 29}
+      \range{pages}{8}
+      \verb{doi}
+      \verb 10.1016/j.lssr.2015.12.003
+      \endverb
+    \endentry
+    \entry{undergrad2018}{article}{}
+      \name{author}{2}{}{%
+        {{hash=91ac6a8d41bca13b35cb9215853a4ed5}{%
+           family={Sailer},
+           familyi={S\bibinitperiod},
+           given={M.\bibnamedelimi W.},
+           giveni={M\bibinitperiod\bibinitdelim W\bibinitperiod}}}%
+        {{hash=63b71f0b0223dd2a8bf3b06ed697bdde}{%
+           family={Doss},
+           familyi={D\bibinitperiod},
+           given={H.\bibnamedelimi M.},
+           giveni={H\bibinitperiod\bibinitdelim M\bibinitperiod}}}%
+      }
+      \strng{namehash}{09cb2e4b981f008ff82fa085ed30d757}
+      \strng{fullhash}{09cb2e4b981f008ff82fa085ed30d757}
+      \strng{bibnamehash}{09cb2e4b981f008ff82fa085ed30d757}
+      \strng{authorbibnamehash}{09cb2e4b981f008ff82fa085ed30d757}
+      \strng{authornamehash}{09cb2e4b981f008ff82fa085ed30d757}
+      \strng{authorfullhash}{09cb2e4b981f008ff82fa085ed30d757}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Journal of Undergraduate Reasearch in Physics and Astronomy}
+      \field{title}{Radiation Shielding Using Magnetic Fields}
+      \field{year}{2018}
+      \verb{doi}
+      \verb 10.1063
+      \endverb
+    \endentry
+    \entry{Washburn2015}{article}{}
+      \name{author}{4}{}{%
+        {{hash=2263cf4b0aae5a09d79b12afdb2165c1}{%
+           family={Washburn},
+           familyi={W\bibinitperiod},
+           given={S.A.},
+           giveni={S\bibinitperiod}}}%
+        {{hash=65d1729fd5b377d7f10f81374b239ac2}{%
+           family={Blattnig},
+           familyi={B\bibinitperiod},
+           given={S.R.},
+           giveni={S\bibinitperiod}}}%
+        {{hash=46e2f5c42bbd263a9619682e09cf59bd}{%
+           family={Singleterry},
+           familyi={S\bibinitperiod},
+           given={R.C.},
+           giveni={R\bibinitperiod}}}%
+        {{hash=eb7f53f25c44ffd032aa3692323a6469}{%
+           family={Westover},
+           familyi={W\bibinitperiod},
+           given={S.C.},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{3558841ebf785c5fd2a5f7802349121f}
+      \strng{fullhash}{9c74ea688b8a9f6c1d791a6bc788e3af}
+      \strng{bibnamehash}{9c74ea688b8a9f6c1d791a6bc788e3af}
+      \strng{authorbibnamehash}{9c74ea688b8a9f6c1d791a6bc788e3af}
+      \strng{authornamehash}{3558841ebf785c5fd2a5f7802349121f}
+      \strng{authorfullhash}{9c74ea688b8a9f6c1d791a6bc788e3af}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{issn}{2214-5524}
+      \field{journaltitle}{Life Sciences in Space Research}
+      \field{title}{Active magnetic radiation shielding system analysis and key technologies}
+      \field{volume}{4}
+      \field{year}{2015}
+      \field{pages}{22\bibrangedash 34}
+      \range{pages}{13}
+      \verb{doi}
+      \verb https://doi.org/10.1016/j.lssr.2014.12.004
+      \endverb
+      \verb{urlraw}
+      \verb https://www.sciencedirect.com/science/article/pii/S2214552414000686
+      \endverb
+      \verb{url}
+      \verb https://www.sciencedirect.com/science/article/pii/S2214552414000686
+      \endverb
+    \endentry
+    \entry{niac2014nasa}{inproceedings}{}
+      \name{author}{8}{}{%
+        {{hash=182af16b898f753aababbb260b73fb0d}{%
+           family={Westover},
+           familyi={W\bibinitperiod},
+           given={S.},
+           giveni={S\bibinitperiod}}}%
+        {{hash=becbf615e5dfbe7b16ecb89399c63970}{%
+           family={Meinke},
+           familyi={M\bibinitperiod},
+           given={R.},
+           giveni={R\bibinitperiod}}}%
+        {{hash=6922475eb5a0744d2ef121fb621bec85}{%
+           family={Nerolich},
+           familyi={N\bibinitperiod},
+           given={S.},
+           giveni={S\bibinitperiod}}}%
+        {{hash=0d40aa9e9b36639ec4871640f26519a8}{%
+           family={Washburn},
+           familyi={W\bibinitperiod},
+           given={S.},
+           giveni={S\bibinitperiod}}}%
+        {{hash=1277f2adce663def186816ccf25d5cc7}{%
+           family={Battiston},
+           familyi={B\bibinitperiod},
+           given={R.},
+           giveni={R\bibinitperiod}}}%
+        {{hash=ff74af1a1d79897b49933cc4524f7b9a}{%
+           family={Burger},
+           familyi={B\bibinitperiod},
+           given={W.},
+           giveni={W\bibinitperiod}}}%
+        {{hash=7e3799389244cf20ee6d761f227250a3}{%
+           family={Kasaboski},
+           familyi={K\bibinitperiod},
+           given={D.},
+           giveni={D\bibinitperiod}}}%
+        {{hash=94aa7a615304013fe5d825126bc8ccf0}{%
+           family={Davies},
+           familyi={D\bibinitperiod},
+           given={F.},
+           giveni={F\bibinitperiod}}}%
+      }
+      \strng{namehash}{88be16ad515f567a573646ec46d25441}
+      \strng{fullhash}{44f05a25d946d2c9e1a6888b41183143}
+      \strng{bibnamehash}{88be16ad515f567a573646ec46d25441}
+      \strng{authorbibnamehash}{88be16ad515f567a573646ec46d25441}
+      \strng{authornamehash}{88be16ad515f567a573646ec46d25441}
+      \strng{authorfullhash}{44f05a25d946d2c9e1a6888b41183143}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Final Report for NASA Innovative Advanced Concept Phase II}
+      \field{number}{NASA Broad Agency Announcement NNH12ZUA004N}
+      \field{title}{Magnet Architectures and Active Radiation Shielding Study}
+      \field{year}{2014}
+    \endentry
+    \entry{Thabuis2022}{article}{}
+      \name{author}{4}{}{%
+        {{hash=cde6c4dc66dd933210d3dbf7075ebef7}{%
+           family={Thabuis},
+           familyi={T\bibinitperiod},
+           given={Adrien},
+           giveni={A\bibinitperiod}}}%
+        {{hash=3bdf9e15bfc20770817cf1668be10fd8}{%
+           family={Ren},
+           familyi={R\bibinitperiod},
+           given={Xiaotao},
+           giveni={X\bibinitperiod}}}%
+        {{hash=a924223df23c81d9d9ebd71cbee4ca56}{%
+           family={Duong},
+           familyi={D\bibinitperiod},
+           given={Trung},
+           giveni={T\bibinitperiod}}}%
+        {{hash=8e18af533eea29141b37e9b653b65728}{%
+           family={Perriard},
+           familyi={P\bibinitperiod},
+           given={Yves},
+           giveni={Y\bibinitperiod}}}%
+      }
+      \strng{namehash}{faf7059fe0b896d66d4a8a1343528809}
+      \strng{fullhash}{64754957bfd1ac92ad3247450b698468}
+      \strng{bibnamehash}{64754957bfd1ac92ad3247450b698468}
+      \strng{authorbibnamehash}{64754957bfd1ac92ad3247450b698468}
+      \strng{authornamehash}{faf7059fe0b896d66d4a8a1343528809}
+      \strng{authorfullhash}{64754957bfd1ac92ad3247450b698468}
+      \field{sortinit}{4}
+      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{IEEE Transactions on Magnetics}
+      \field{number}{9}
+      \field{title}{Exploring Beyond the Helmholtz Coils for Uniform Magnetic Field Generation With Topology Optimization}
+      \field{volume}{58}
+      \field{year}{2022}
+      \field{pages}{1\bibrangedash 4}
+      \range{pages}{4}
+      \verb{doi}
+      \verb 10.1109/TMAG.2022.3183362
+      \endverb
+    \endentry
+    \entry{KAPTANOGLU2024}{article}{}
+      \name{author}{3}{}{%
+        {{hash=59066c02fab4b67a53be5e9141b9da3b}{%
+           family={Kaptanoglu},
+           familyi={K\bibinitperiod},
+           given={Alan\bibnamedelima A.},
+           giveni={A\bibinitperiod\bibinitdelim A\bibinitperiod}}}%
+        {{hash=6c42936a256d314fba138a17f8bef36c}{%
+           family={Langlois},
+           familyi={L\bibinitperiod},
+           given={Gabriel\bibnamedelima P.},
+           giveni={G\bibinitperiod\bibinitdelim P\bibinitperiod}}}%
+        {{hash=e5fb9c32e1de02341b7d6bbd27eb1817}{%
+           family={Landreman},
+           familyi={L\bibinitperiod},
+           given={Matt},
+           giveni={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{d6bee5c5c069977b040126fb43dc3250}
+      \strng{fullhash}{25de562572eb9a66910160ffd1a780b5}
+      \strng{bibnamehash}{25de562572eb9a66910160ffd1a780b5}
+      \strng{authorbibnamehash}{25de562572eb9a66910160ffd1a780b5}
+      \strng{authornamehash}{d6bee5c5c069977b040126fb43dc3250}
+      \strng{authorfullhash}{25de562572eb9a66910160ffd1a780b5}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{issn}{0045-7825}
+      \field{journaltitle}{Computer Methods in Applied Mechanics and Engineering}
+      \field{title}{Topology optimization for inverse magnetostatics as sparse regression: Application to electromagnetic coils for stellarators}
+      \field{volume}{418}
+      \field{year}{2024}
+      \field{pages}{116504}
+      \range{pages}{1}
+      \verb{doi}
+      \verb https://doi.org/10.1016/j.cma.2023.116504
+      \endverb
+      \verb{urlraw}
+      \verb https://www.sciencedirect.com/science/article/pii/S004578252300628X
+      \endverb
+      \verb{url}
+      \verb https://www.sciencedirect.com/science/article/pii/S004578252300628X
+      \endverb
+    \endentry
+    \entry{Iles2021}{inbook}{}
+      \name{author}{7}{}{%
+        {{hash=8698d9f80f9273c7b9827a90dca01374}{%
+           family={Iles},
+           familyi={I\bibinitperiod},
+           given={Gail\bibnamedelima N},
+           giveni={G\bibinitperiod\bibinitdelim N\bibinitperiod}}}%
+        {{hash=7c3573ef6d1965c5bacac557a5d64902}{%
+           family={Auld},
+           familyi={A\bibinitperiod},
+           given={Matthew},
+           giveni={M\bibinitperiod}}}%
+        {{hash=9325247405298602db6c448df184c361}{%
+           family={Moshovelis},
+           familyi={M\bibinitperiod},
+           given={Liam},
+           giveni={L\bibinitperiod}}}%
+        {{hash=a82afa43cd6bb6e70de2f9d47c288ebc}{%
+           family={Palatsides},
+           familyi={P\bibinitperiod},
+           given={Michael},
+           giveni={M\bibinitperiod}}}%
+        {{hash=c71e30a596608ba78953ef356e53fb74}{%
+           family={Ng},
+           familyi={N\bibinitperiod},
+           given={Ming\bibnamedelimb Xin\bibnamedelima Jeannie},
+           giveni={M\bibinitperiod\bibinitdelim X\bibinitperiod\bibinitdelim J\bibinitperiod}}}%
+        {{hash=c9fe7f0cdfcad01a91a4a1bcf10bfac7}{%
+           family={Currie},
+           familyi={C\bibinitperiod},
+           given={Julie},
+           giveni={J\bibinitperiod}}}%
+        {{hash=1c2e72d444ef71f6f01e4b49a84be44d}{%
+           family={Carter},
+           familyi={C\bibinitperiod},
+           given={Brett},
+           giveni={B\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Engineers Australia}%
+      }
+      \strng{namehash}{6e1a7f1f9c1e91332c7f854b1c5674c7}
+      \strng{fullhash}{1254169d39102b7ca5984f3aa238faef}
+      \strng{bibnamehash}{6e1a7f1f9c1e91332c7f854b1c5674c7}
+      \strng{authorbibnamehash}{6e1a7f1f9c1e91332c7f854b1c5674c7}
+      \strng{authornamehash}{6e1a7f1f9c1e91332c7f854b1c5674c7}
+      \strng{authorfullhash}{1254169d39102b7ca5984f3aa238faef}
+      \field{sortinit}{6}
+      \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{AIAC 2021: 19th Australian International Aerospace Congress}
+      \field{title}{Electromagnetic Shielding for the Protection of Crew in the Space Radiation Environment}
+      \field{year}{2021}
+      \verb{urlraw}
+      \verb https://search.informit.org/doi/10.3316/informit.626583889907067
+      \endverb
+      \verb{url}
+      \verb https://search.informit.org/doi/10.3316/informit.626583889907067
+      \endverb
+    \endentry
+    \entry{Ng2025}{article}{}
+      \name{author}{10}{}{%
+        {{hash=c71e30a596608ba78953ef356e53fb74}{%
+           family={Ng},
+           familyi={N\bibinitperiod},
+           given={Ming\bibnamedelimb Xin\bibnamedelima Jeannie},
+           giveni={M\bibinitperiod\bibinitdelim X\bibinitperiod\bibinitdelim J\bibinitperiod}}}%
+        {{hash=3839f4b7d409e56cb84c99197f1e7502}{%
+           family={Moshovelis},
+           familyi={M\bibinitperiod},
+           given={Liam\bibnamedelima D},
+           giveni={L\bibinitperiod\bibinitdelim D\bibinitperiod}}}%
+        {{hash=14d72ac895ae1249e1191be3d4ab8096}{%
+           family={Cox},
+           familyi={C\bibinitperiod},
+           given={Samuel\bibnamedelimb W\bibnamedelima S},
+           giveni={S\bibinitperiod\bibinitdelim W\bibinitperiod\bibinitdelim S\bibinitperiod}}}%
+        {{hash=629ebac104654770f464d8f62aafb5ef}{%
+           family={Welch},
+           familyi={W\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+        {{hash=a6517b00d1eb3e12d8f25c11d19b9e29}{%
+           family={Mcclusky},
+           familyi={M\bibinitperiod},
+           given={Andrew},
+           giveni={A\bibinitperiod}}}%
+        {{hash=7a4c03cf32bc4de39369ee3e5a9a1b32}{%
+           family={Pastuovic},
+           familyi={P\bibinitperiod},
+           given={Zeljko},
+           giveni={Z\bibinitperiod}}}%
+        {{hash=75d33a0562a01aaf05d1d48f1e00a59b}{%
+           family={Peracchi},
+           familyi={P\bibinitperiod},
+           given={Stefania},
+           giveni={S\bibinitperiod}}}%
+        {{hash=f0163d182b79cac9e82a239dd4d278f3}{%
+           family={Drury},
+           familyi={D\bibinitperiod},
+           given={Ryan},
+           giveni={R\bibinitperiod}}}%
+        {{hash=1c2e72d444ef71f6f01e4b49a84be44d}{%
+           family={Carter},
+           familyi={C\bibinitperiod},
+           given={Brett},
+           giveni={B\bibinitperiod}}}%
+        {{hash=8698d9f80f9273c7b9827a90dca01374}{%
+           family={Iles},
+           familyi={I\bibinitperiod},
+           given={Gail\bibnamedelima N},
+           giveni={G\bibinitperiod\bibinitdelim N\bibinitperiod}}}%
+      }
+      \strng{namehash}{60f0f395b2f56589fc12854d7dcc8756}
+      \strng{fullhash}{1806632f0e0fcc6b0e9926561957639b}
+      \strng{bibnamehash}{60f0f395b2f56589fc12854d7dcc8756}
+      \strng{authorbibnamehash}{60f0f395b2f56589fc12854d7dcc8756}
+      \strng{authornamehash}{60f0f395b2f56589fc12854d7dcc8756}
+      \strng{authorfullhash}{1806632f0e0fcc6b0e9926561957639b}
+      \field{sortinit}{6}
+      \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Advances in Space Research xx}
+      \field{title}{RADICALS: an electromagnetic shield to protect spacecraft and astronauts in a space radiation environment}
+      \field{year}{2025}
+      \verb{doi}
+      \verb 10.1016/j.jasr.xxxx.xx.xxx
+      \endverb
+      \verb{urlraw}
+      \verb https://dx.doi.org/10.1016/j.jasr.xxxx.xx.xxx0273-1177/www.sciencedirect.comwww.elsevier.com/locate/asr
+      \endverb
+      \verb{url}
+      \verb https://dx.doi.org/10.1016/j.jasr.xxxx.xx.xxx0273-1177/www.sciencedirect.comwww.elsevier.com/locate/asr
+      \endverb
+      \keyw{Artemis Program,Electromagnetic shielding,Human spaceflight,Ionising radiation,Prototype}
+    \endentry
+    \entry{LiamM}{article}{}
+      \name{author}{3}{}{%
+        {{hash=3839f4b7d409e56cb84c99197f1e7502}{%
+           family={Moshovelis},
+           familyi={M\bibinitperiod},
+           given={Liam\bibnamedelima D.},
+           giveni={L\bibinitperiod\bibinitdelim D\bibinitperiod}}}%
+        {{hash=8698d9f80f9273c7b9827a90dca01374}{%
+           family={Iles},
+           familyi={I\bibinitperiod},
+           given={Gail\bibnamedelima N.},
+           giveni={G\bibinitperiod\bibinitdelim N\bibinitperiod}}}%
+        {{hash=f241980562de0db0d86a356b23ecb74c}{%
+           family={Franich},
+           familyi={F\bibinitperiod},
+           given={Rick\bibnamedelima D.},
+           giveni={R\bibinitperiod\bibinitdelim D\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Radiation Research Society}%
+      }
+      \strng{namehash}{9bbc118efd1343034b2173b870e0508c}
+      \strng{fullhash}{4ce59aed49ad1e371e47f4e890810451}
+      \strng{bibnamehash}{4ce59aed49ad1e371e47f4e890810451}
+      \strng{authorbibnamehash}{4ce59aed49ad1e371e47f4e890810451}
+      \strng{authornamehash}{9bbc118efd1343034b2173b870e0508c}
+      \strng{authorfullhash}{4ce59aed49ad1e371e47f4e890810451}
+      \field{sortinit}{6}
+      \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Radiation Research}
+      \field{number}{5}
+      \field{title}{{A Data-Driven Variance Reduction Technique for Efficiently Modelling Astronaut Radiation Doses in Spacecraft in High-Energy Isotropic Radiation Fields}}
+      \field{volume}{200}
+      \field{year}{2023}
+      \field{pages}{421\bibrangedash 430}
+      \range{pages}{10}
+      \verb{doi}
+      \verb 10.1667/RADE-23-00027.1
+      \endverb
+      \verb{urlraw}
+      \verb https://doi.org/10.1667/RADE-23-00027.1
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.1667/RADE-23-00027.1
+      \endverb
+    \endentry
+    \entry{frazier2018tutorialbayesianoptimization}{misc}{}
+      \name{author}{1}{}{%
+        {{hash=f59904428dedd78a02ae194a44057c63}{%
+           family={Frazier},
+           familyi={F\bibinitperiod},
+           given={Peter\bibnamedelima I.},
+           giveni={P\bibinitperiod\bibinitdelim I\bibinitperiod}}}%
+      }
+      \strng{namehash}{f59904428dedd78a02ae194a44057c63}
+      \strng{fullhash}{f59904428dedd78a02ae194a44057c63}
+      \strng{bibnamehash}{f59904428dedd78a02ae194a44057c63}
+      \strng{authorbibnamehash}{f59904428dedd78a02ae194a44057c63}
+      \strng{authornamehash}{f59904428dedd78a02ae194a44057c63}
+      \strng{authorfullhash}{f59904428dedd78a02ae194a44057c63}
+      \field{sortinit}{7}
+      \field{sortinithash}{108d0be1b1bee9773a1173443802c0a3}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{A Tutorial on Bayesian Optimization}
+      \field{year}{2018}
+      \verb{urlraw}
+      \verb https://arxiv.org/abs/1807.02811
+      \endverb
+      \verb{url}
+      \verb https://arxiv.org/abs/1807.02811
+      \endverb
+    \endentry
+    \entry{boconvergence2024}{misc}{}
+      \name{author}{4}{}{%
+        {{hash=011cbbe8f1b162c6a11e7c3edde6ccae}{%
+           family={Wu},
+           familyi={W\bibinitperiod},
+           given={Kaiwen},
+           giveni={K\bibinitperiod}}}%
+        {{hash=3ed6f15be90879ef35c5857b0351c54b}{%
+           family={Kim},
+           familyi={K\bibinitperiod},
+           given={Kyurae},
+           giveni={K\bibinitperiod}}}%
+        {{hash=eaf84e3fe4f887967dc3d793d28b9e94}{%
+           family={Garnett},
+           familyi={G\bibinitperiod},
+           given={Roman},
+           giveni={R\bibinitperiod}}}%
+        {{hash=f3a89257f5247ef5afff322c1746fe13}{%
+           family={Gardner},
+           familyi={G\bibinitperiod},
+           given={Jacob\bibnamedelima R.},
+           giveni={J\bibinitperiod\bibinitdelim R\bibinitperiod}}}%
+      }
+      \strng{namehash}{31c0d7230ebc68b0cf9adf98853bc7d6}
+      \strng{fullhash}{c733fd50c7025f03c6862e5c857aeece}
+      \strng{bibnamehash}{c733fd50c7025f03c6862e5c857aeece}
+      \strng{authorbibnamehash}{c733fd50c7025f03c6862e5c857aeece}
+      \strng{authornamehash}{31c0d7230ebc68b0cf9adf98853bc7d6}
+      \strng{authorfullhash}{c733fd50c7025f03c6862e5c857aeece}
+      \field{sortinit}{8}
+      \field{sortinithash}{a231b008ebf0ecbe0b4d96dcc159445f}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{The Behavior and Convergence of Local Bayesian Optimization}
+      \field{year}{2024}
+      \verb{urlraw}
+      \verb https://arxiv.org/abs/2305.15572
+      \endverb
+      \verb{url}
+      \verb https://arxiv.org/abs/2305.15572
+      \endverb
+    \endentry
+    \entry{borisalgorithm}{article}{}
+      \name{author}{2}{}{%
+        {{hash=249015b2db28fa344edb8c527fc8f31f}{%
+           family={Zafar},
+           familyi={Z\bibinitperiod},
+           given={Abdullah},
+           giveni={A\bibinitperiod}}}%
+        {{hash=0c88f17505394e16dd553c20cc52fabf}{%
+           family={Khan},
+           familyi={K\bibinitperiod},
+           given={Majid},
+           giveni={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{f91630fac46c75746732b205048211da}
+      \strng{fullhash}{f91630fac46c75746732b205048211da}
+      \strng{bibnamehash}{f91630fac46c75746732b205048211da}
+      \strng{authorbibnamehash}{f91630fac46c75746732b205048211da}
+      \strng{authornamehash}{f91630fac46c75746732b205048211da}
+      \strng{authorfullhash}{f91630fac46c75746732b205048211da}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Chinese Physics B}
+      \field{month}{04}
+      \field{title}{Energy behavior of Boris algorithm}
+      \field{volume}{30}
+      \field{year}{2021}
+      \verb{doi}
+      \verb 10.1088/1674-1056/abd161
+      \endverb
+    \endentry
+    \entry{rasmussen_2005}{book}{}
+      \name{author}{2}{}{%
+        {{hash=58d90ed7b7348c7a5a9b4a2a8f46df7b}{%
+           family={Rasmussen},
+           familyi={R\bibinitperiod},
+           given={Carl\bibnamedelima Edward},
+           giveni={C\bibinitperiod\bibinitdelim E\bibinitperiod}}}%
+        {{hash=d34fdfcbfcb5412397b946351370db22}{%
+           family={Williams},
+           familyi={W\bibinitperiod},
+           given={Christopher\bibnamedelimb K.\bibnamedelimi I.},
+           giveni={C\bibinitperiod\bibinitdelim K\bibinitperiod\bibinitdelim I\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {The MIT Press}%
+      }
+      \strng{namehash}{f0ccf4a09a3a6a91719405724e3ae5da}
+      \strng{fullhash}{f0ccf4a09a3a6a91719405724e3ae5da}
+      \strng{bibnamehash}{f0ccf4a09a3a6a91719405724e3ae5da}
+      \strng{authorbibnamehash}{f0ccf4a09a3a6a91719405724e3ae5da}
+      \strng{authornamehash}{f0ccf4a09a3a6a91719405724e3ae5da}
+      \strng{authorfullhash}{f0ccf4a09a3a6a91719405724e3ae5da}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{isbn}{9780262256834}
+      \field{title}{Gaussian Processes for Machine Learning}
+      \field{year}{2005}
+      \verb{doi}
+      \verb https://doi.org/10.7551/mitpress/3206.001.0001
+      \endverb
+      \verb{urlraw}
+      \verb https://direct.mit.edu/books/oa-monograph/2320/Gaussian-Processes-for-Machine-Learning
+      \endverb
+      \verb{url}
+      \verb https://direct.mit.edu/books/oa-monograph/2320/Gaussian-Processes-for-Machine-Learning
+      \endverb
+    \endentry
+    \entry{garnett_bayesoptbook_2023}{book}{}
+      \name{author}{1}{}{%
+        {{hash=eaf84e3fe4f887967dc3d793d28b9e94}{%
+           family={Garnett},
+           familyi={G\bibinitperiod},
+           given={Roman},
+           giveni={R\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Cambridge University Press}%
+      }
+      \strng{namehash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{fullhash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{bibnamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{authorbibnamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{authornamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{authorfullhash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{{Bayesian Optimization}}
+      \field{year}{2023}
+      \verb{urlraw}
+      \verb https://bayesoptbook.com/
+      \endverb
+      \verb{url}
+      \verb https://bayesoptbook.com/
+      \endverb
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+

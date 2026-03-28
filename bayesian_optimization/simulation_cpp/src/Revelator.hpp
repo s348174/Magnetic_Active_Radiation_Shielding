@@ -10,14 +10,11 @@ using namespace Eigen;
 
 struct Revelator {
     double R; // Revelator radius
+    double mollifier_area; // Area for normalization
 
-    // Static variables for precomputation
-    static inline double mollifier_area;
-    static inline bool precomputed = false;
-
-    static void precomputeArea() {
-        // Precomputes area of mollifier (uses radial function)
-        if(precomputed) return;
+    Revelator(double R){
+        R = R;
+        // Precompute mollifier area
         const int N = 500;
         int numPoints = 2 * N + 1;
         double dr = R / N; // Integration step
@@ -38,20 +35,15 @@ struct Revelator {
             y(i) = r * r * exp(1 / (1 - (r / R) * (r / R)));
         }
         mollifier_area = 4 * PI * (weights * y).sum();
-        precomputed = true;
-    }
-
-    Revelator(double R){
-        R = R;
     }
 
     double mollifier(Vector3d& X){
         r = X.norm() / R;
-        return exp(1 / (1 - r * r));
+        if (r > 1) return 0;
+        else return exp(1 / (1 - r * r));
     }
 
     double revelatorProbability(Vector3d& X) {
-        precomputeArea(); // Precomputed mollifier Area
-        return mollifier(X)/area;
+        return mollifier(X) / mollifier_area;
     }
 };

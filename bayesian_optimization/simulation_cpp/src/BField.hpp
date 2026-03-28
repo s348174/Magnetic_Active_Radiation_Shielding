@@ -10,7 +10,7 @@ using namespace std;
 using namespace Eigen;
 
 struct BField {
-    double n; // Number of coils
+    double k; // Number of coils
     vector<Vector3d, n> centers; // Coils centers
     vector<Vector3d, n> normals; // Coils normals
     double R; // Coils radius
@@ -42,8 +42,8 @@ struct BField {
         precomputed = true;
     }
 
-    BField(double n_in, vector<Vector3d>& centers_in, vector<Vector3d>& normals_in, double R_in, double I_in) {
-        n = n_in;
+    BField(double k_in, vector<Vector3d>& centers_in, vector<Vector3d>& normals_in, double R_in, double I_in) {
+        k = n_in;
         centers = centers_in;
         normals = normals_in;
         R = R_in;
@@ -86,7 +86,7 @@ struct BField {
     Vector3d totalBField(const Vector3d& X) {
         // This methods just sums up the field over all coils
         Vector3d totalB;
-        for (int i; i < n; ++i) {
+        for (int i; i < k; ++i) {
             Quaterniond q = rotationFromZ(normals(i)); // Compute rotation
             X_local = q.conjugate * (X - centers(i)); // Rotate and recenter
             B_local = coilBField(X_local); // Compute field in frame of reference
