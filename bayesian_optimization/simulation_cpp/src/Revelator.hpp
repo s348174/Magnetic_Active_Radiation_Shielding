@@ -4,6 +4,7 @@
 #include <Eigen/Eigen>
 #include <math.h>
 #include <cmath>
+#include <iostream>
 
 using namespace std;
 using namespace Eigen;
@@ -12,12 +13,12 @@ struct Revelator {
     double R; // Revelator radius
     double mollifier_area; // Area for normalization
 
-    Revelator(double R){
-        R = R;
+    Revelator(double R_in){
+        R = R_in;
         // Precompute mollifier area
         const int N = 500;
         int numPoints = 2 * N + 1;
-        double dr = R / N; // Integration step
+        double dr = R / numPoints; // Integration step
         VectorXd rVec(numPoints);
         for (int i = 0; i < numPoints; ++i)
             rVec(i) = i * dr;
@@ -32,18 +33,25 @@ struct Revelator {
         double r;
         for (size_t i = 0; i < rVec.size(); ++i) {
             r = rVec(i);
-            y(i) = r * r * exp(1 / (1 - (r / R) * (r / R)));
+            if (r < R)
+                y(i) = r * r * exp(1 / ((r / R) * (r / R) - 1));
+            else
+                y(i) = 0;
         }
-        mollifier_area = 4 * PI * (weights * y).sum();
+        mollifier_area = 4 * PI * (dr / 3) * (weights * y).sum();
+        cout << "Mollifier area: " << mollifier_area;
     }
 
-    double mollifier(Vector3d& X){
-        double r = X.norm() / R;
-        if (r > 1) return 0;
-        else return exp(1 / (1 - r * r));
+    double mollifier(double& r){
+        double rho = r / R;
+        if (rho > 1) return 0;
+        else return exp(1 / (rho * rho - 1));
     }
 
     double revelatorProbability(Vector3d& X) {
-        return mollifier(X) / mollifier_area;
+        double r = X.norm();
+        // mollifier_area already includes r² factor from 3D volume integration
+        // Do not multiply by r² again - it's already in the normalization
+        return mollifier(r) / mollifier_area;
     }
 };

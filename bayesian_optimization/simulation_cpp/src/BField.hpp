@@ -42,7 +42,7 @@ struct BField {
         precomputed = true;
     }
 
-    BField(double k_in, vector<Vector3d>& centers_in, vector<Vector3d>& normals_in, double R_in, double I_in) {
+    BField(double k_in, vector<Vector3d> centers_in, vector<Vector3d> normals_in, double R_in, double I_in) {
         k = k_in;
         centers = centers_in;
         normals = normals_in;

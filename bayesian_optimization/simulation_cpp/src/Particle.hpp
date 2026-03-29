@@ -23,7 +23,7 @@ struct Particle {
     double T_max; // Max time for simulation
     double dt; // Time step
     Trajectory tj; // Trajectory
-    double hit_prob = 0; // Hit probability
+    double hit_prob; // Hit probability
     const double dt_min = 1e-10;    // Min step size
     const double dt_max = 1e-4;     // Max step size
 
@@ -49,6 +49,9 @@ struct Particle {
         // double gamma = 1.0 / sqrt(1.0 - min(v2 / (c_light*c_light), 0.999999999999)); // Avoid v >= c
         // p_t = gamma * m * v_t;
         // tj.p.push_back(p_t);
+
+        // Set hit prob to 0
+        hit_prob = 0;
     }
 
     ~Particle() {} // Class destructor
@@ -72,18 +75,24 @@ struct Particle {
         // Boris integrator simplified (no E field)
         Vector3d t = (q * B / m) * (0.5 * dt);
         Vector3d v_prime = v_t + v_t.cross(t);
-        v_t = v_t + (2.0 / (1.0 + t.squaredNorm())) * (v_prime.cross(t));
+        Vector3d v_next = v_t + (2.0 / (1.0 + t.squaredNorm())) * (v_prime.cross(t));
 
-        // Compute probability to be detected at this time step with Simpson
-        Vector3d X_next = X_t + v_t * dt; // Next position
+        // Compute probability to be detected at this time step
+        Vector3d X_next = X_t + dt * (v_t + v_next) / 2; // Next position
         Vector3d X_mean = (X_t + X_next) / 2; // Mean position
-        // double ds = (X_next - X_t).norm(); // Displacement
-        hit_prob += (revelator.revelatorProbability(X_t) +
-                     revelator.revelatorProbability(X_mean) * 4 +
-                     revelator.revelatorProbability(X_next)) / 6 * dt;
+        double ds = (X_next - X_t).norm(); // Displacement
+        // Simpson's rule quadrature along the path
+        double probability_increment = ds * (revelator.revelatorProbability(X_t) +
+                          revelator.revelatorProbability(X_mean) * 4 +
+                          revelator.revelatorProbability(X_next)) / 6;
+        
+        // Clamp increment to prevent overflow and ensure physical validity
+        // (probability should not exceed 1)
+        hit_prob += fmin(probability_increment, 1.0 - hit_prob);
 
-        // Update position
+        // Update position and speed
         X_t = X_next;
+        v_t = v_next;
 
         // Update trajectory
         // a_t = q * v_t.cross(B) / m;
