@@ -30,7 +30,7 @@ struct Revelator {
 
         ArrayXd y(numPoints); // Values of function
         double r;
-        for (size_t i = 0; i < rVec.length(); ++i) {
+        for (size_t i = 0; i < rVec.size(); ++i) {
             r = rVec(i);
             y(i) = r * r * exp(1 / (1 - (r / R) * (r / R)));
         }
@@ -38,7 +38,7 @@ struct Revelator {
     }
 
     double mollifier(Vector3d& X){
-        r = X.norm() / R;
+        double r = X.norm() / R;
         if (r > 1) return 0;
         else return exp(1 / (1 - r * r));
     }

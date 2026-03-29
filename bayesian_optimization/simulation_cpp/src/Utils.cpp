@@ -22,6 +22,7 @@
 // For multithreading
 #include <thread>
 #include <mutex>
+#include <functional>
 // For directory creation
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -70,7 +71,7 @@ vector<double> sampleMbSpeed(const double m, const int N, const double T)
 
 bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
                 const double& m, const double& q, const int& N, const double& T,
-                double& dt, unsigned long& seed) {
+                double& dt, unsigned long& seed, double& expectedDose) {
     // Monte Carlo simulation
     // Sample speeds from Maxwell Boltzman
     vector<double> v_samples = sampleMbSpeed(m, N, T);
@@ -124,20 +125,22 @@ bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
             part.updatePosition(field, revelator);
             t += part.dt;
         }
+        // Update probablity estimation of hits
         totHitP += v_samples[i] * part.hit_prob;
         double eV = 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e19;
-        // expectedEVCounter += eV * totHitP;
+        expectedEVCounter += eV * totHitP;
         outfile << i << "," << scientific << eV
                 << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
                 << scientific << v0(0) << "," << v0(1) << "," << v0(2) << "\n";
     }
-    double expectedDose = totHitP / static_cast<double>(N);
+    // Return the expected dose computed by this simulation/thread.
+    expectedDose = expectedEVCounter / static_cast<double>(N);
 
     // Write summary to file
     outfile << "\nSummary\n";
     outfile << fixed << "Radius," << revelator.R << "m\n";
     outfile << scientific << setprecision(4);
-    outfile << "Current," << revelator.I << "A\n";
+    outfile << "Current," << field.I << "A\n";
     outfile << "Temperature," << T << "K\n";
     outfile << "Mass," << m << "kg\n";
     outfile << "Charge," << q << "C\n";
@@ -172,40 +175,50 @@ double evaluateExpression(const string& expr) {
 }
 
 // Thread worker function
-void runSimulation(BField field, Revelator revelator, string name, double m, double q, int N, double T, double dt, unsigned long seed) {
+void runSimulation(BField field, Revelator revelator, string name, double m, double q, int N, double T, double dt, unsigned long seed, double& totalExpectedDose, mutex& doseMutex) {
     {
         lock_guard<mutex> lock(io_mutex);
         cout << "\n=== Starting simulation for " << name << " ===" << endl;
         cout << "m = " << m << ", q = " << q << endl;
     }
 
-    bool ok = monteCarlo(field, revelator, name, m, q, N, T, dt, seed);
+    double expectedDose = 0.0;
+    bool ok = monteCarlo(field, revelator, name, m, q, N, T, dt, seed, expectedDose);
+
+    if (ok) {
+        lock_guard<mutex> lock(doseMutex);
+        totalExpectedDose += expectedDose;
+    }
 
     {
         lock_guard<mutex> lock(io_mutex);
-        if (ok)
+        if (ok) {
             cout << "Simulation for " << name << " completed.\n";
+            cout << "Expected dose (" << name << ") = " << scientific << expectedDose << "\n";
+        }
         else
             cerr << "Simulation for " << name << " failed.\n";
     }
 }
 
 // Main reader & dispatcher
-void runFromCSV_MT(const string& filename, BField field, Revelator revelator, int N, double T, double dt, unsigned long seed) {
+double runFromCSV_MT(const string& filename, BField field, Revelator revelator, int N, double T, double dt, unsigned long seed) {
     ifstream file(filename);
     if (!file.is_open()) {
         cerr << "Error: Could not open " << filename << endl;
-        return;
+        return -1;
     }
     if (file.peek() == ifstream::traits_type::eof()) {
         cerr << "Error: File is empty!" << endl;
-        return;
+        return -1;
     }
 
     string line;
     getline(file, line); // skip header
 
     vector<thread> threads;
+    double totalExpectedDose = 0.0;
+    mutex doseMutex;
 
     while (getline(file, line)) {
 
@@ -226,7 +239,7 @@ void runFromCSV_MT(const string& filename, BField field, Revelator revelator, in
             double q = evaluateExpression(qStr);
 
             // Launch one thread per simulation
-            threads.emplace_back(runSimulation, field, revelator, name, m, q, N, T, dt, seed);
+            threads.emplace_back(runSimulation, field, revelator, name, m, q, N, T, dt, seed, ref(totalExpectedDose), ref(doseMutex));
         }
         catch (const std::exception& e) {
             lock_guard<mutex> lock(io_mutex);
@@ -241,5 +254,9 @@ void runFromCSV_MT(const string& filename, BField field, Revelator revelator, in
         if (th.joinable()) th.join();
     }
 
+    cout << scientific;
+    cout << "Total expected dose (sum of all threads) = " << totalExpectedDose << "\n";
     cout << "\n All simulations finished.\n";
+
+    return totalExpectedDose;
 }

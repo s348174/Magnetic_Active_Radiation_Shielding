@@ -131,16 +131,16 @@ citestyle=numeric-comp
 	where $\lambda_n(\mathcal{B}_\varepsilon) = \int_{\mathcal{B}_\varepsilon}  \exp\left(-\frac{1}{1 - \|\mathbf{x}/\epsilon\|^2}\right) d\lambda_n$, with $\lambda_n$ as the $n$-dimensional Lebesgue measure, is the volume of the ball. Note: in this setup, the mollifier is also a probability distribution. This may be useful later.
 	
 	% Expected Dose Functional
-	The individual dose $D(\mathbf{B}, \xi)$ received for a single particle is then defined as the line integral along its trajectory $\gamma(s)$:
+	The individual dose $D(\mathbf{B}, \xi)$ received for a single particle is then defined as the line integral along its trajectory $\gamma(s)$ times its kinetic energy:
 	
 	\begin{equation}
-		D(\mathbf{B}, \xi) = \int_\gamma \Phi(\mathbf{x}(t; \mathbf{B}, \xi)) ds = \int_0^T \Phi(\mathbf{x}(t; \mathbf{B}, \xi)) \cdot \|\mathbf{v}(t; \mathbf{B}, \xi)\| dt.
+		D(\mathbf{B}, \xi) = \int_\gamma E(\xi) \Phi(\mathbf{x}(t; \mathbf{B}, \xi)) ds = \int_0^T E(\xi) \Phi(\mathbf{x}(t; \mathbf{B}, \xi)) \cdot \|\mathbf{v}(t; \mathbf{B}, \xi)\| dt.
 	\end{equation}
 	
 	Since Boris integrator should conserve energy \cite{borisalgorithm}, we can eliminate time dependence from the speed norm, as it should be almost constant, thus obtaining:
 	
 	\begin{equation}
-		D(\mathbf{B}, \xi) = \|\mathbf{v}(\xi)\| \int_0^T \Phi(\mathbf{x}(t; \mathbf{B}, \xi)) \ dt.
+		D(\mathbf{B}, \xi) = E(\xi) \|\mathbf{v}(\xi)\| \int_0^T \Phi(\mathbf{x}(t; \mathbf{B}, \xi)) \ dt.
 	\end{equation}
 	
 	This allows us to reduce calls to \verb|Eigen::Vector3d.norm()|. 
@@ -148,10 +148,16 @@ citestyle=numeric-comp
 	To conclude this discussion, the global objective function to be minimized is the expected received dose $\mathcal{J}(\mathbf{\Theta})$, defined by the expectation over the radiation spectrum $P(\xi)$:
 	
 	\begin{equation}
-		\mathcal{J}(\mathbf{\Theta}) = \mathbb{E}_{\xi \sim P} [D(\mathbf{B}, \xi)] = \int_{\Xi} D(\mathbf{B}, \xi) P(\xi) \ d\xi = \int_{\Xi} \|\mathbf{v}(\xi)\|  P(\xi) \int_0^T \Phi(\mathbf{x}(t; \mathbf{B}, \xi)) \ dt \ d\xi.
+		\mathcal{J}(\mathbf{\Theta}) = \mathbb{E}_{\xi \sim P} [D(\mathbf{B}, \xi)] = \int_{\Xi} D(\mathbf{B}, \xi) P(\xi) \ d\xi = \int_{\Xi} E(\xi) \|\mathbf{v}(\xi)\|  P(\xi) \int_0^T \Phi(\mathbf{x}(t; \mathbf{B}, \xi)) \ dt \ d\xi.
 	\end{equation}
 
-	We take the expectation of the dose to try to average out the intrinsic variance of the Monte Carlo simulation. At this point, our observations will hopefully come from a continuous function (maybe even smooth) with some small random noise. 
+	We take the expectation of the dose to try to average out the intrinsic variance of the Monte Carlo simulation. At this point, our observations will hopefully come from a continuous function (maybe even smooth) with some small random noise.
+	
+	Since we simulate very large $N$ (around $1e6$ particles), the expected value might be very low even if we multiply by energies (which are indeed very high). Keep in mind that we also hope $D(\mathbf{B}, \xi)$ to be as low as possible. SO, to avoid issues with the objective function being too flat and the BO struggling to find a minimum, we take the log of our simulation output. At the end, our minimization problem becomes:
+	
+	\begin{equation}
+		\min_{\theta \in \Theta} \log \left( \mathcal{J}(\theta) + \varepsilon \right).
+	\end{equation}
 	
 	The study of robustness of BO under noise will come in the next chapters, but we already have some guarantees in literature, like in \cite{boconvergence2024}, where Gardner et al. provide bounds for local optimization in high dimension under noisy conditions.
 	

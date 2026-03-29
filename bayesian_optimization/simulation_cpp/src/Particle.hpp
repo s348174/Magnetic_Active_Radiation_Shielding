@@ -42,8 +42,8 @@ struct Particle {
         tj.X.push_back(X0);
         v_t = v0;
         tj.v.push_back(v0);
-        a_t << 0, 0, 0;
-        tj.a.push_back(a_t);
+        // a_t << 0, 0, 0;
+        // tj.a.push_back(a_t);
         // Init relativistic momentum p = gamma*m*v
         // double v2 = v_t.squaredNorm();
         // double gamma = 1.0 / sqrt(1.0 - min(v2 / (c_light*c_light), 0.999999999999)); // Avoid v >= c
@@ -76,7 +76,8 @@ struct Particle {
 
         // Compute probability to be detected at this time step with Simpson
         Vector3d X_next = X_t + v_t * dt; // Next position
-        Vector3d (X_mean = X_t + X_next) / 2; // Mean position
+        Vector3d X_mean = (X_t + X_next) / 2; // Mean position
+        // double ds = (X_next - X_t).norm(); // Displacement
         hit_prob += (revelator.revelatorProbability(X_t) +
                      revelator.revelatorProbability(X_mean) * 4 +
                      revelator.revelatorProbability(X_next)) / 6 * dt;
