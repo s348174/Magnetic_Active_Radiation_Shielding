@@ -17,7 +17,8 @@ struct BField {
     double R; // Coils radius
     double I; // Coils current intensity
     double coeff; // Integration coefficient
-    vector<Quaterniond> rotations; // Store rotations of normals w.r.t. z
+    vector<Quaterniond> rotations; // Store quaternions for rotations of normals w.r.t. z
+    vector<Quaterniond> conjugates; // Store rotation conjugates
 
     // Static cached data (initialized once)
     static constexpr int N = 300;
@@ -59,8 +60,11 @@ struct BField {
 
         // Rotate frame of reference
         Vector3d z(0, 0, 1);
-        for (size_t i = 0; i < k; ++i)
-            rotations.push_back(Quaterniond::FromTwoVectors(z, normals[i].normalized()));
+        for (size_t i = 0; i < k; ++i) {
+            Quaterniond q = Quaterniond::FromTwoVectors(z, normals[i].normalized());
+            rotations.push_back(q);
+            conjugates.push_back(q.conjugate());
+        }
     }
 
     Vector3d coilBField(const Vector3d& X) {
@@ -93,8 +97,9 @@ struct BField {
         // This methods just sums up the field over all coils
         Vector3d totalB;
         for (size_t i = 0; i < k; ++i) {
-            Vector3d X_local = rotations[i].conjugate() * (X - centers[i]); // Rotate and recenter
+            Vector3d X_local = conjugates[i] * (X - centers[i]); // Rotate and recenter
             totalB += rotations[i] * coilBField(X_local); // Compute field in frame of reference and add to total field
+            //totalB += coilBField(X);
         }
         return totalB;
     }
