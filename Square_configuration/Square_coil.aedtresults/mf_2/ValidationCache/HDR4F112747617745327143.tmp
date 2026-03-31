@@ -1,0 +1,7 @@
+$begin 'ValidationCache'
+	$begin 'OneValidationResult'
+		Variation='Amp=\'2A\' Turn=\'100\''
+		Status=true
+		FileName='VI4F112747617745327144.tmp'
+	$end 'OneValidationResult'
+$end 'ValidationCache'
