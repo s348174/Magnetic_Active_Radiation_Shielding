@@ -16,7 +16,7 @@ struct Revelator {
     Revelator(double R_in){
         R = R_in;
         // Precompute mollifier area
-        const int N = 500;
+        const int N = 1000;
         int numPoints = 2 * N + 1;
         double dr = R / numPoints; // Integration step
         VectorXd rVec(numPoints);
@@ -30,26 +30,21 @@ struct Revelator {
             if (i % 2 == 0) weights(i) = 2; else weights(i) = 4;
 
         ArrayXd y(numPoints); // Values of function
-        double r;
+        double rho;
         for (size_t i = 0; i < rVec.size(); ++i) {
-            r = rVec(i);
-            if (r < R)
-                y(i) = r * r * exp(1 / ((r / R) * (r / R) - 1));
+            rho = rVec(i) / R;
+            if (rho < 1 - 1e-6)
+                y(i) = exp(1 / (rho * rho - 1));
             else
                 y(i) = 0;
         }
-        mollifier_area = 4 * PI * (dr / 3) * (weights * y).sum();
+        mollifier_area = 2 * (dr / 3) * (weights * y).sum();
         cout << "Mollifier area: " << mollifier_area;
     }
 
-    double mollifier(double& r){
-        double rho = r / R;
-        if (rho > 1) return 0;
-        else return exp(1 / (rho * rho - 1));
-    }
-
     double revelatorProbability(Vector3d& X) {
-        double r = X.norm();
-        return mollifier(r) / 4.440;
+        double rho = X.norm() / R;
+        if (rho < 1 - 1e-6) return exp(1 / (rho * rho - 1)) / mollifier_area;
+        else return 0;
     }
 };
