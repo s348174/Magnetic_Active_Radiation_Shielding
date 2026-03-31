@@ -126,13 +126,9 @@ bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
             t += part.dt;
         }
         // Update probablity estimation of hits
-        totalHitProb += part.hit_prob;
-        // cout << "Hit probability: " << part.hit_prob << endl;
+        totalHitProb += v_samples[i] * part.hit_prob;
         double eV = 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e19;
-        // cout << "Particle energy: " << eV << endl;
         expectedEVCounter += eV * part.hit_prob;
-        // if (expectedEVCounter > 1e-6)
-        //     cout << "Expected eV at current position: " << expectedEVCounter << endl;
         outfile << i << "," << scientific << eV << ","
                 << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
                 << scientific << v0(0) << "," << v0(1) << "," << v0(2) << ","

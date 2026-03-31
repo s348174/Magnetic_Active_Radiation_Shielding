@@ -1,6 +1,7 @@
 #include "Utils.hpp"
 #include <Eigen/Eigen>
 #include <iostream>
+#include <stdexcept>
 #include <Revelator.hpp>
 #include <BField.hpp>
 #include <Utils.hpp>
@@ -14,7 +15,7 @@ int main()
 {
     chrono::steady_clock::time_point t_begin = chrono::steady_clock::now();
     // Simulation arguments
-    double N = 100; // Number of simulated particles
+    double N = 10; // Number of simulated particles
     const double T = 1e7; // K
     double dt = 1e-9; // Initial time step
     unsigned long seed = 40001;
@@ -35,6 +36,7 @@ int main()
     Vector3d z;
     z << 0, 0, 1;
     normals.push_back(z);
+    //try { // Try to run simulation
     BField field(K, centers, normals, R, I);
 
     // Run multithread simulation from CSV input (for particles phyisics data)
@@ -44,5 +46,9 @@ int main()
     double elapsedTime = chrono::duration_cast<chrono::milliseconds>(t_end-t_begin).count();
     cout << "Elapsed simulation time: " << elapsedTime << "ms." << endl;
     cout << "Total expected dose: " << totalExpectedDose << endl;
+    //} catch (const invalid_argument e){
+    //    cerr << "Error: number of coils and number of coils parameters provided do not match!" << endl;
+    //}
+
     return 0;
 }

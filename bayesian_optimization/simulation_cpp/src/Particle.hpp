@@ -22,7 +22,7 @@ struct Particle {
     // Vector3d p_t; // Instant relativistic momentum
     double T_max; // Max time for simulation
     double dt; // Time step
-    Trajectory tj; // Trajectory
+    // Trajectory tj; // Trajectory
     double hit_prob; // Hit probability
     const double dt_min = 1e-10;    // Min step size
     const double dt_max = 1e-4;     // Max step size
@@ -32,16 +32,19 @@ struct Particle {
         q = q_val;
         T_max = T_val;
         dt = dt_val;
+        X_t = X0;
+        v_t = v0;
 
-        int N = round(T_max/dt);
-        tj.X.reserve(N);
-        tj.v.reserve(N);
+        // Set hit prob to 0
+        hit_prob = 0;
+
+        // int N = round(T_max/dt);
+        // tj.X.reserve(N);
+        // tj.v.reserve(N);
         // tj.a.reserve(N);
 
-        X_t = X0;
-        tj.X.push_back(X0);
-        v_t = v0;
-        tj.v.push_back(v0);
+        // tj.X.push_back(X0);
+        // tj.v.push_back(v0);
         // a_t << 0, 0, 0;
         // tj.a.push_back(a_t);
         // Init relativistic momentum p = gamma*m*v
@@ -49,9 +52,6 @@ struct Particle {
         // double gamma = 1.0 / sqrt(1.0 - min(v2 / (c_light*c_light), 0.999999999999)); // Avoid v >= c
         // p_t = gamma * m * v_t;
         // tj.p.push_back(p_t);
-
-        // Set hit prob to 0
-        hit_prob = 0;
     }
 
     ~Particle() {} // Class destructor
@@ -79,17 +79,11 @@ struct Particle {
 
         // Compute probability to be detected at this time step
         Vector3d X_next = X_t + dt * v_t; // Next position
-        Vector3d X_mean = (X_t + X_next) / 2; // Mean position
-        double ds = (X_next - X_t).norm(); // Displacement
-        // Simpson's rule quadrature along the path
-        double probability_increment = ds * (revelator.revelatorProbability(X_t) +
-                          // revelator.revelatorProbability(X_mean) * 4 +
-                          revelator.revelatorProbability(X_next)) / 2;
-        
-        // Clamp increment to prevent overflow and ensure physical validity
-        // (probability should not exceed 1)
-        //hit_prob += fmin(probability_increment, 1.0 - hit_prob);
-        hit_prob += probability_increment;
+        if (X_next.norm() < 1.5 * revelator.R) { // Try to limit calls to revelator function
+            // Simpson's rule quadrature along the path
+            hit_prob += dt * (revelator.revelatorProbability(X_t) +
+                              revelator.revelatorProbability(X_next)) / 2;
+        }
 
         // Update position and speed
         X_t = X_next;
@@ -99,7 +93,7 @@ struct Particle {
         // a_t = q * v_t.cross(B) / m;
         // tj.p.push_back(p_t);
         // tj.a.push_back(a_t);
-        tj.v.push_back(v_t);
-        tj.X.push_back(X_t);
+        // tj.v.push_back(v_t);
+        // tj.X.push_back(X_t);
     }
 };
