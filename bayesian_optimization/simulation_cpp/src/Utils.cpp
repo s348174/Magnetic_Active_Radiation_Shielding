@@ -110,6 +110,8 @@ bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
         Vector3d X0;
         X0 << 4 * revelator.R * sin(phi) * cos(theta), 4 * revelator.R * sin(phi) * sin(theta), 4 * revelator.R * cos(phi);
         // Set target as center of particle detector
+        Vector3d point;
+        point << 1,1,1;
         Vector3d target = -X0;
         Vector3d v0 = v_samples[i] * target / target.norm();
 

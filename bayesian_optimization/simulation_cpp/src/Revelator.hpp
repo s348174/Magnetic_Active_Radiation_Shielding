@@ -50,8 +50,6 @@ struct Revelator {
 
     double revelatorProbability(Vector3d& X) {
         double r = X.norm();
-        // mollifier_area already includes r² factor from 3D volume integration
-        // Do not multiply by r² again - it's already in the normalization
-        return mollifier(r) / mollifier_area;
+        return mollifier(r) / 4.440;
     }
 };

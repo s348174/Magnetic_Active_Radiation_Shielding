@@ -15,9 +15,9 @@ int main()
     chrono::steady_clock::time_point t_begin = chrono::steady_clock::now();
     // Simulation arguments
     double N = 10; // Number of simulated particles
-    const double T = 1e20; // K
+    const double T = 1e7; // K
     double dt = 1e-9; // Initial time step
-    unsigned long seed = 30000;
+    unsigned long seed = 30006;
 
     // Define Revelator
     double rho = 10;

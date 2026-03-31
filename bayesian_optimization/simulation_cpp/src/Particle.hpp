@@ -78,17 +78,18 @@ struct Particle {
         Vector3d v_next = v_t + (2.0 / (1.0 + t.squaredNorm())) * (v_prime.cross(t));
 
         // Compute probability to be detected at this time step
-        Vector3d X_next = X_t + dt * (v_t + v_next) / 2; // Next position
+        Vector3d X_next = X_t + dt * v_t; // Next position
         Vector3d X_mean = (X_t + X_next) / 2; // Mean position
         double ds = (X_next - X_t).norm(); // Displacement
         // Simpson's rule quadrature along the path
         double probability_increment = ds * (revelator.revelatorProbability(X_t) +
-                          revelator.revelatorProbability(X_mean) * 4 +
-                          revelator.revelatorProbability(X_next)) / 6;
+                          // revelator.revelatorProbability(X_mean) * 4 +
+                          revelator.revelatorProbability(X_next)) / 2;
         
         // Clamp increment to prevent overflow and ensure physical validity
         // (probability should not exceed 1)
-        hit_prob += fmin(probability_increment, 1.0 - hit_prob);
+        //hit_prob += fmin(probability_increment, 1.0 - hit_prob);
+        hit_prob += probability_increment;
 
         // Update position and speed
         X_t = X_next;
