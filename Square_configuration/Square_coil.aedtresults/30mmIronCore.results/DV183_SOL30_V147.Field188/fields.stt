@@ -1,0 +1,10 @@
+minimum_dimension 7.00000000000000e-11
+residual -1.00000000000000e+00
+percent_refinement 3.00000000000000e+01
+skip_mesh_check N
+nonlinear_residual 1.00000000000000e-03
+smooth_bh_curve N
+deformation_dependent_object 0
+nonlinear_iteration_number N
+differential_matrix_computation 0
+end

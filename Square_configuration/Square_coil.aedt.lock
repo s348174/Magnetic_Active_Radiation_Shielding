@@ -1,0 +1,32 @@
+$begin 'ConnectionParameters'
+	DesktopProcessID=27476
+	DesktopProcessPath='C:\\Program Files\\ANSYS Inc\\ANSYS Student\\v252\\AnsysEM\\ansysedtsv.exe'
+	LaunchedByWB=false
+	GRPCPort=50051
+	$begin 'DesktopStubBlock'
+		$begin 'CommDetails'
+			TransportType=1
+			IPAddress='192.168.1.217'
+			ListenPort='60806'
+		$end 'CommDetails'
+		$begin 'Marshall'
+			InstanceID=503
+			ProcID=27476
+			InterfaceID=1
+			FactoryIntID='DesktopInterfaceForWBProxyStubFactory'
+		$end 'Marshall'
+	$end 'DesktopStubBlock'
+	$begin 'DesktopBackgroundObjStubBlock'
+		$begin 'CommDetails'
+			TransportType=1
+			IPAddress='192.168.1.217'
+			ListenPort='60806'
+		$end 'CommDetails'
+		$begin 'Marshall'
+			InstanceID=505
+			ProcID=27476
+			InterfaceID=2
+			FactoryIntID='DesktopInterfaceForWBProxyStubFactory'
+		$end 'Marshall'
+	$end 'DesktopBackgroundObjStubBlock'
+$end 'ConnectionParameters'
