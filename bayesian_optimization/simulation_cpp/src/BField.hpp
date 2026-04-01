@@ -95,7 +95,7 @@ struct BField {
 
     Vector3d totalBField(const Vector3d& X) {
         // This methods just sums up the field over all coils
-        Vector3d totalB;
+        Vector3d totalB(0.0, 0.0, 0.0);
         for (size_t i = 0; i < k; ++i) {
             Vector3d X_local = conjugates[i] * (X - centers[i]); // Rotate and recenter
             totalB += rotations[i] * coilBField(X_local); // Compute field in frame of reference and add to total field

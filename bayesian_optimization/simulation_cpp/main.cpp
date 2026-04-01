@@ -1,7 +1,6 @@
 #include "Utils.hpp"
 #include <Eigen/Eigen>
 #include <iostream>
-#include <stdexcept>
 #include <Revelator.hpp>
 #include <BField.hpp>
 #include <Utils.hpp>
@@ -18,7 +17,7 @@ int main()
     double N = 10; // Number of simulated particles
     const double T = 1e7; // K
     double dt = 1e-9; // Initial time step
-    unsigned long seed = 40001;
+    unsigned long seed = 40002;
 
     // Define Revelator
     double rho = 10;
@@ -26,7 +25,7 @@ int main()
 
     // Define B Field generator
     double K = 1;
-    double I = 1e5;
+    double I = 0;
     double R = 15;
     vector<Vector3d> centers;
     Vector3d origin;

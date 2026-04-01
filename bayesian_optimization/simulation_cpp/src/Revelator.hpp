@@ -39,11 +39,12 @@ struct Revelator {
                 y(i) = 0.0;
         }
         mollifier_area = 2 * (dr / 3) * (weights * y).sum();
+        cout << mollifier_area << endl;
     }
 
     double revelatorProbability(Vector3d& X) {
-        double rho = X.norm() / R;
-        if (rho < 1 - 1e-6) return exp(1 / (rho * rho - 1)) / mollifier_area;
+        double rho = X.squaredNorm() / (R * R);
+        if (rho < 1 - 1e-6) return exp(1 / (rho - 1)) / mollifier_area;
         else return 0.0;
     }
 };

@@ -101,8 +101,8 @@ bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
     outfile << setprecision(6);
     outfile << "i,eV,x_0,y_0,z_0,v_x,v_y,v_z,hit_p\n"; // CSV header
 
-    double totalHitProb = 0; // Compute total hit probability
-    double expectedEVCounter = 0; // Counter for how may eV received
+    double totalHitProb = 0.0; // Compute total hit probability
+    double expectedEVCounter = 0.0; // Counter for how may eV received
     for (size_t i = 0; i < N; ++i) {
         // Sample initial position from a sphere of radius 4R
         double theta = azimut(gen);
@@ -110,8 +110,6 @@ bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
         Vector3d X0;
         X0 << 4 * revelator.R * sin(phi) * cos(theta), 4 * revelator.R * sin(phi) * sin(theta), 4 * revelator.R * cos(phi);
         // Set target as center of particle detector
-        Vector3d point;
-        point << 1,1,1;
         Vector3d target = -X0;
         Vector3d v0 = v_samples[i] * target / target.norm();
 
@@ -132,7 +130,7 @@ bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
         outfile << i << "," << scientific << eV << ","
                 << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
                 << scientific << v0(0) << "," << v0(1) << "," << v0(2) << ","
-                << part.hit_prob << "\n";
+                << v_samples[i] * part.hit_prob << "\n";
     }
     // Return the expected dose computed by this simulation/thread.
     expectedDose = expectedEVCounter / static_cast<double>(N);

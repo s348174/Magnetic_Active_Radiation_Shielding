@@ -3,7 +3,6 @@
 #include <Constants.hpp>
 #include <Revelator.hpp>
 #include <Eigen/Eigen>
-#include <vector>
 #include <Trajectory.hpp>
 #include <BField.hpp>
 #include <algorithm>
@@ -36,29 +35,15 @@ struct Particle {
         v_t = v0;
 
         // Set hit prob to 0
-        hit_prob = 0;
-
-        // int N = round(T_max/dt);
-        // tj.X.reserve(N);
-        // tj.v.reserve(N);
-        // tj.a.reserve(N);
-
-        // tj.X.push_back(X0);
-        // tj.v.push_back(v0);
-        // a_t << 0, 0, 0;
-        // tj.a.push_back(a_t);
-        // Init relativistic momentum p = gamma*m*v
-        // double v2 = v_t.squaredNorm();
-        // double gamma = 1.0 / sqrt(1.0 - min(v2 / (c_light*c_light), 0.999999999999)); // Avoid v >= c
-        // p_t = gamma * m * v_t;
-        // tj.p.push_back(p_t);
+        hit_prob = 0.0;
     }
 
     ~Particle() {} // Class destructor
 
     void updatePosition(BField& field, Revelator& revelator){ // Update the trajectory. Returns TRUE if the torus gets hit
         // Compute B field and Lorentz force
-        Vector3d B = field.totalBField(X_t);
+        // Vector3d B = field.totalBField(X_t);
+        Vector3d B(0.0, 0.0, 0.0);
 
         // Adaptive step control
         const double dx_max = revelator.R / 4; // Max displacement per step (m)
@@ -79,21 +64,12 @@ struct Particle {
 
         // Compute probability to be detected at this time step
         Vector3d X_next = X_t + dt * v_t; // Next position
-        if (X_next.norm() < 1.5 * revelator.R) { // Try to limit calls to revelator function
-            // Simpson's rule quadrature along the path
-            hit_prob += dt * (revelator.revelatorProbability(X_t) +
-                              revelator.revelatorProbability(X_next)) / 2;
-        }
+        // Quadrature along the path
+        hit_prob += dt * (revelator.revelatorProbability(X_t) +
+                          revelator.revelatorProbability(X_next)) / 2;
 
         // Update position and speed
         X_t = X_next;
         v_t = v_next;
-
-        // Update trajectory
-        // a_t = q * v_t.cross(B) / m;
-        // tj.p.push_back(p_t);
-        // tj.a.push_back(a_t);
-        // tj.v.push_back(v_t);
-        // tj.X.push_back(X_t);
     }
 };
