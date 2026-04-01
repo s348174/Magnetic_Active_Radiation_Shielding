@@ -5,7 +5,7 @@
 #include <math.h>
 #include <cmath>
 #include <vector>
-//#include <stdexcept>
+#include <stdexcept>
 
 using namespace std;
 using namespace Eigen;
@@ -48,17 +48,26 @@ struct BField {
     }
 
     BField(double k_in, vector<Vector3d> centers_in, vector<Vector3d> normals_in, double R_in, double I_in) {
+        if(k_in != centers.size() || k_in != normals.size()) {
+            throw invalid_argument("Error in generating BField.");
+            return;
+        }
+
         k = k_in;
-        centers = centers_in;
-        normals = normals_in;
-        // if(k != centers.size() || k != normals.size())
-        //     throw invalid_argument("Error in generating BField.");
-        //     return;
+        centers.reserve(k);
+        normals.reserve(k);
+        for (auto& v : centers_in) {
+            centers.push_back(v);
+        }
+        for (auto& v : centers_in) {
+            normals.push_back(v);
+        }
+
         R = R_in;
         I = I_in;
         coeff = mu0 * I * R / (4 * PI);
 
-        // Rotate frame of reference
+        // Precompute rotation of frames of reference
         Vector3d z(0, 0, 1);
         for (size_t i = 0; i < k; ++i) {
             Quaterniond q = Quaterniond::FromTwoVectors(z, normals[i].normalized());

@@ -7,7 +7,7 @@
 #include <Eigen/Eigen>
 // Starndard libraries for math
 #include <vector>
-#include <numeric>
+//#include <numeric>
 #include "Constants.hpp"
 #include <math.h>
 #include <cmath>

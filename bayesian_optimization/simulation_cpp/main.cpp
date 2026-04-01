@@ -3,9 +3,9 @@
 #include <iostream>
 #include <Revelator.hpp>
 #include <BField.hpp>
-#include <Utils.hpp>
 #include <vector>
 #include <chrono>
+#include <stdexcept>
 
 using namespace std;
 using namespace Eigen;
@@ -35,19 +35,19 @@ int main()
     Vector3d z;
     z << 0, 0, 1;
     normals.push_back(z);
-    //try { // Try to run simulation
-    BField field(K, centers, normals, R, I);
+    try { // Try to run simulation
+        BField field(K, centers, normals, R, I);
 
-    // Run multithread simulation from CSV input (for particles phyisics data)
-    double totalExpectedDose = runFromCSV_MT("../simulation_cpp/particles_input.csv", field, revelator, N, T, dt, seed);
+        // Run multithread simulation from CSV input (for particles phyisics data)
+        double totalExpectedDose = runFromCSV_MT("../simulation_cpp/particles_input.csv", field, revelator, N, T, dt, seed);
 
-    chrono::steady_clock::time_point t_end = chrono::steady_clock::now();
-    double elapsedTime = chrono::duration_cast<chrono::milliseconds>(t_end-t_begin).count();
-    cout << "Elapsed simulation time: " << elapsedTime << "ms." << endl;
-    cout << "Total expected dose: " << totalExpectedDose << endl;
-    //} catch (const invalid_argument e){
-    //    cerr << "Error: number of coils and number of coils parameters provided do not match!" << endl;
-    //}
+        chrono::steady_clock::time_point t_end = chrono::steady_clock::now();
+        double elapsedTime = chrono::duration_cast<chrono::milliseconds>(t_end-t_begin).count();
+        cout << "Elapsed simulation time: " << elapsedTime << "ms." << endl;
+        cout << "Total expected dose: " << totalExpectedDose << endl;
+    } catch (const invalid_argument e){
+       cerr << "Error: number of coils and number of coils parameters provided do not match!" << endl;
+    }
 
     return 0;
 }
