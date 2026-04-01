@@ -52,13 +52,15 @@ pybind11_add_module(simulator
 
 target_include_directories(simulator
     PRIVATE
-    src  # this folder contains all your .hpp / struct files
+    src  # this folder contains all .hpp files
 )
 
 target_link_libraries(simulator
     PRIVATE
     Eigen3::Eigen
     Threads::Threads
+    pybind11::pybind11
+    Python3::Python
 )
 
 # Force .so output to Release folder
@@ -78,6 +80,8 @@ target_link_libraries(main_exec
     PRIVATE
     Eigen3::Eigen
     Threads::Threads
+    pybind11::pybind11
+    Python3::Python
 )
 
 target_include_directories(main_exec PRIVATE src)

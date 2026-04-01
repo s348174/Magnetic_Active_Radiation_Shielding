@@ -99,9 +99,8 @@ bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
     }
 
     outfile << setprecision(6);
-    outfile << "i,eV,x_0,y_0,z_0,v_x,v_y,v_z,hit_p\n"; // CSV header
+    outfile << "i,eV,x_0,y_0,z_0,v_x,v_y,v_z,hit_p,exp_eV\n"; // CSV header
 
-    double totalHitProb = 0.0; // Compute total hit probability
     double expectedEVCounter = 0.0; // Counter for how may eV received
     for (size_t i = 0; i < N; ++i) {
         // Sample initial position from a sphere of radius 4R
@@ -124,15 +123,16 @@ bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
             t += part.dt;
         }
         // Update probablity estimation of hits
-        totalHitProb += v_samples[i] * part.hit_prob;
+        double partHitProb = v_samples[i] * part.hit_prob;
         double eV = 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e19;
-        expectedEVCounter += eV * part.hit_prob;
+        expectedEVCounter += eV * partHitProb;
+
         outfile << i << "," << scientific << eV << ","
                 << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
                 << scientific << v0(0) << "," << v0(1) << "," << v0(2) << ","
-                << v_samples[i] * part.hit_prob << "\n";
+                << partHitProb << "," << eV * partHitProb << "\n";
     }
-    // Return the expected dose computed by this simulation/thread.
+    // Return the expected dose computed by this thread.
     expectedDose = expectedEVCounter / static_cast<double>(N);
 
     // Write summary to file

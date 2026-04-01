@@ -47,8 +47,8 @@ struct BField {
         precomputed = true;
     }
 
-    BField(double k_in, vector<Vector3d> centers_in, vector<Vector3d> normals_in, double R_in, double I_in) {
-        if(k_in != centers.size() || k_in != normals.size()) {
+    BField(size_t k_in, vector<Vector3d> centers_in, vector<Vector3d> normals_in, double R_in, double I_in) {
+        if(k_in != centers_in.size() || k_in != normals_in.size()) {
             throw invalid_argument("Error in generating BField.");
             return;
         }

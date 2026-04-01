@@ -1,159 +1,81 @@
 # Import C++ bindings
 import sys
-sys.path.append('Release')
+sys.path.append('../Release')
 import simulator
 
 # Import libraries for optimization
 import torch
 from botorch.models import SingleTaskGP
-from botorch.fit import fit_gpytorch_model
+from botorch.fit import fit_gpytorch_mll
 from botorch.acquisition import ExpectedImprovement
 from botorch.optim import optimize_acqf
 from gpytorch.mlls import ExactMarginalLogLikelihood
 
 # Import standard libraries
 import numpy as np
-import pandas as pd
-import matplotlib as plt
-import sklearn as sk
-import time
-import random
+import matplotlib.pyplot as plt
+from scipy.stats import norm
 
-# GPU device setup
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# -------------------------
-# CONFIGURATION
-# -------------------------
-K = 4                      # Number of coils
-DIM = 6 * K                # Centers (3K) + Normals (3K)
-BOUNDS = torch.tensor([
-    [-10.0] * DIM,         # Lower bounds
-    [10.0] * DIM           # Upper bounds
-], dtype=torch.double)
-I = 1e4;                   # Current intensity
-R = 15;                    # Coil radius
-
-SEED = 123
+# PARAMETERS SETUP
+BOUNDS = (2.0, 5.0)
+K = 5 # Number of coils
+I = 1E4 # Current in Amperes
+R_BOUNDS = (0.1, 2.0) # Coil radius bounds in meters
+MAX_ITER = 100
+SEED = 42
+rng = np.random.default_rng(SEED)
 
 
-# -------------------------
-# HELPER: decode parameters
-# -------------------------
-def decode_params(x: torch.Tensor):
+def objective_function(seed, R, centers, normals):
     """
-    Convert flat tensor -> centers + normals
+    Calls the C++ simulator to compute the energy hitting the detector.
+    R: is coils radius
+    centers: list of coil centers
+    normals: list of coil normal vectors
+    Returns: energy hitting the detector (lower is better)
     """
-    x = x.view(-1)
+    # Call the C++ simulator
+    expected_energy = simulator.launch_simulation(seed, K, I, R, centers, normals)
+    return expected_energy
 
-    centers = x[:3*K].reshape(K, 3)
-    normals = x[3*K:].reshape(K, 3)
-
-    # normalize normals
-    normals = normals / normals.norm(dim=1, keepdim=True)
-
-    return centers, normals
-
-
-# -------------------------
-# OBJECTIVE FUNCTION
-# -------------------------
-def objective(x: torch.Tensor):
+def random_coil_configuration(K):
     """
-    x: (batch, DIM)
-    returns: (batch, 1)
+    Generates random coil configuration (centers and normals).
     """
-    results = []
+    centers = np.array([]).reshape(0, 3) # Initialize empty array for centers
+    for i in range(K):
+        center = rng.uniform(BOUNDS[0], BOUNDS[1], size=3) # Random centers in 3D
+        centers = np.append(centers, [center], axis=0) # Append to centers array
+    print("Generated random coil configuration:")
+    print("Centers:\n", centers)
+    normals = np.array([]).reshape(0, 3) # Initialize empty array for normals
+    for i in range(K):
+        normal = rng.normal(0, 1, size=3) # Random normal in 3D
+        normal = normal / np.linalg.norm(normal) # Normalize
+        normals = np.append(normals, [normal], axis=0) # Append to normals array
+    print("Normals:\n", normals)    
+    R = rng.uniform(R_BOUNDS[0], R_BOUNDS[1]) # Random coil radius
+    return R, np.array(centers), np.array(normals)
 
-    for xi in x:
-        centers, normals = decode_params(xi)
+def initialize_bo(n_initial_points=K):
+    """
+    Initializes the Bayesian Optimization process with random samples.
+    Returns initial data (R, centers, normals, energy).
+    """
+    R_samples = []
+    centers_samples = []
+    normals_samples = []
+    energy_samples = []
+    
+    for _ in range(n_initial_points):
+        R, centers, normals = random_coil_configuration(K)
+        energy = objective_function(rng.integers(1e6), R, centers, normals)
+        
+        R_samples.append(R)
+        centers_samples.append(centers)
+        normals_samples.append(normals)
+        energy_samples.append(energy)
+    
+    return np.array(R_samples), np.array(centers_samples), np.array(normals_samples), np.array(energy_samples)
 
-        # convert to numpy
-        centers_np = centers.detach().cpu().numpy()
-        normals_np = normals.detach().cpu().numpy()
-
-        # convert to list of vectors (pybind expects vector<Vector3d>)
-        centers_list = [c for c in centers_np]
-        normals_list = [n for n in normals_np]
-
-        # Monte Carlo seed (important!)
-        seed = np.random.randint(0, 1_000_000)
-
-        exp_val = simulator.launch_simulation(
-            int(seed),
-            K,
-            I,
-            R,
-            centers_list,
-            normals_list
-        )
-
-        results.append(exp_val)
-
-    return torch.tensor(results, dtype=torch.double).unsqueeze(-1)
-
-
-# -------------------------
-# INITIAL DATA
-# -------------------------
-def generate_initial_data(n=8):
-    X = torch.rand(n, DIM, dtype=torch.double)
-    X = BOUNDS[0] + (BOUNDS[1] - BOUNDS[0]) * X
-
-    Y = objective(X)
-
-    return X, Y
-
-
-# -------------------------
-# BO LOOP
-# -------------------------
-def run_bo(n_iter=20):
-
-    X, Y = generate_initial_data()
-
-    for i in range(n_iter):
-        print(f"Iteration {i}")
-
-        # Fit GP
-        model = SingleTaskGP(X, Y)
-        mll = ExactMarginalLogLikelihood(model.likelihood, model)
-        fit_gpytorch_model(mll)
-
-        # Acquisition function
-        best_f = Y.min()   # minimizing dose
-        EI = ExpectedImprovement(model, best_f=best_f)
-
-        # Optimize acquisition
-        candidate, _ = optimize_acqf(
-            EI,
-            bounds=BOUNDS,
-            q=1,
-            num_restarts=10,
-            raw_samples=50,
-        )
-
-        # Evaluate
-        new_Y = objective(candidate)
-
-        # Update dataset
-        X = torch.cat([X, candidate])
-        Y = torch.cat([Y, new_Y])
-
-        print("Best value so far:", Y.min().item())
-
-    return X, Y
-
-
-# -------------------------
-# RUN
-# -------------------------
-if __name__ == "__main__":
-    X, Y = run_bo(15)
-
-    best_idx = torch.argmin(Y)
-    best_x = X[best_idx]
-
-    print("\nBest configuration:")
-    print(best_x)
-    print("Best dose:", Y[best_idx].item())
+initialize_bo()
