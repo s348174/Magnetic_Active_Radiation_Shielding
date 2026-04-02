@@ -108,7 +108,6 @@ struct BField {
         for (size_t i = 0; i < k; ++i) {
             Vector3d X_local = conjugates[i] * (X - centers[i]); // Rotate and recenter
             totalB += rotations[i] * coilBField(X_local); // Compute field in frame of reference and add to total field
-            //totalB += coilBField(X);
         }
         return totalB;
     }

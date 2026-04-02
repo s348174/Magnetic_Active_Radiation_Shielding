@@ -42,8 +42,7 @@ struct Particle {
 
     void updatePosition(BField& field, Revelator& revelator){ // Update the trajectory. Returns TRUE if the torus gets hit
         // Compute B field and Lorentz force
-        // Vector3d B = field.totalBField(X_t);
-        Vector3d B(0.0, 0.0, 0.0);
+        Vector3d B = field.totalBField(X_t);
 
         // Adaptive step control
         const double dx_max = revelator.R / 4; // Max displacement per step (m)

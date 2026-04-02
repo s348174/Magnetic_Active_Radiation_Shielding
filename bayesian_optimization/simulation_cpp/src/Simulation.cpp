@@ -30,7 +30,7 @@ double launch_simulation(unsigned long seed, size_t K, double I, double R, py::a
 {
     // Run main simulation
     // Simulation specifics
-    double N = 1e5; // Number of simulated particles
+    double N = 1e4; // Number of simulated particles
     const double T = 1e7; // K
     double dt = 1e-9; // Initial time step
 
