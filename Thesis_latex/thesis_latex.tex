@@ -18,6 +18,10 @@ citestyle=numeric-comp
 ]{biblatex}
 \addbibresource{ProposalReferences.bib}
 
+% Definition of math components
+\usepackage{amsthm}
+\newtheorem{lemma}{Lemma}
+
 %-----------------------------------------------------%
 
 \begin{document}
@@ -78,7 +82,9 @@ citestyle=numeric-comp
 	
 	\section{Preliminary study on objective function continuity}
 	% Define why it is important
-	As the literature highlights, the only requirement for Bayesian Optimization is for the objective function to be continuous, otherwise the algorithm may not converge \cite{frazier2018tutorialbayesianoptimization}. We suppose now that a parametrization such that $\mathbf{B}(\theta)$ is continuous w.r.t. $\theta \in \Theta$ exists. This is actually obvious, since we can always construct our parametrization to be continuous, by ignoring the physical meaning. Now the theoretical challenge is to make the radiation dose to depend continuously on the magnetic field. We will tackle this problem by dividing it in two pieces.
+	As the literature highlights, the only requirement for Bayesian Optimization is for the objective function to be continuous, otherwise the algorithm may not converge \cite{frazier2018tutorialbayesianoptimization}. We suppose now that a parametrization such that $\mathbf{B}(\theta)$ is continuous w.r.t. $\theta \in \Theta$ exists. This is actually obvious, since we can always construct our parametrization to be continuous, by ignoring the physical meaning. Formally, we can say that if $\mathcal{F}$ is the space of all vector fields $\mathbb{R}^3 \to \mathbb{R}^3$, then $\mathbf{B} \in C^0(\Theta, \mathcal{F})$.
+	
+	Now the theoretical challenge is to make the radiation dose to depend continuously on the magnetic field. We will tackle this problem by dividing it in two pieces.
 	
 	\subsection{Trajectory continuity}
 	% Trajectory Mapping and Lorentz Force
@@ -86,10 +92,10 @@ citestyle=numeric-comp
 	\begin{equation}
 		\begin{cases}
 			\mathbf{x}(0) = \mathbf{x}_0, \ \dot{\mathbf{x}}(0) = \mathbf{v}_0, \\
-			m \frac{d^2\mathbf{x}}{dt^2} = q \left( \frac{d\mathbf{x}}{dt} \times \mathbf{B}(\mathbf{x}) \right),
+			m \frac{d^2\mathbf{x}}{dt^2} = q \left( \frac{d\mathbf{x}}{dt} \times \mathbf{B}_\theta(\mathbf{x}) \right),
 		\end{cases}
 	\end{equation}
-	where $\mathbf{B}$ is a magnetic field in the Banach space $C^1(\Theta, \mathbb{R}^3)$ and $\xi = (\mathbf{x}_0, \mathbf{v}_0) \in \Xi$ represents the initial state of a particle in the probability space of incoming radiation.
+	where $\mathbf{B}\theta$ is a magnetic field in the Banach space $C^0(\Theta, \mathcal{F})$ \footnote{Completeness is ensured by compactness of $\Theta$, which is required by Bayesian Optimization.} and $\xi = (\mathbf{x}_0, \mathbf{v}_0) \in \Xi$ represents the initial state of a particle in the probability space of incoming radiation. For briefness, it will hereon be called $\mathbf{B}$.
 	
 	Let's now rewrite the system as a first order ODE problem. Let $\gamma(t) = (\mathbf{x}(t), \mathbf{v}(t))$ be the trajectory of a particle in the field, then:
 	
@@ -115,11 +121,81 @@ citestyle=numeric-comp
 		\item $\mathbf{B}$ is continuous and Lipschitz by construction;
 		\item $\| \mathbf{v} \|$ is physically bounded by the speed of light;
 	\end{enumerate}  
-	to apply the Picard-Lindelof theorem, which ensures existence and unicity of solution.
+	to apply the Picard-Lindelof theorem, which ensures existence and unicity of solution $\gamma(t)$.
+	
+	% Continuous Dependence via Grönwall's Inequality
+	Now that we know $\gamma(t)$ exists and is unique, we can proceed on proving that it also depends with uniform continuity on $F(\gamma, \mathbf{B}, t)$. Since the speed $\| \mathbf{v} \|$ is bounded by the speed of light $c$ and the magnetic field $\mathbf{B}$ is Lipschitz continuous, the functional $F(\gamma, \mathbf{B}, t)$ is globally Lipschitz in $\gamma$ uniformly with respect to $t$, with Lipschitz constant $L$. Furthermore, $F$ is continuously dependent on the parameter $\mathbf{B}$.
+	
+	Let $\gamma_1(t)$ and $\gamma_2(t)$ be solutions corresponding to two different initial states $\xi_1, \xi_2 \in \Xi$ and two different magnetic fields $\mathbf{B}_1, \mathbf{B}_2 \in C^1(\Theta, \mathbb{R}^3)$. By the integral formulation of the initial value problem, we have:
+	\begin{equation}
+		\gamma_i(t) = \xi_i + \int_0^t F(\gamma_i(s), \mathbf{B}_i, s) \, ds, \quad \text{for } i \in \{1, 2\}.
+	\end{equation}
+	
+	Taking the norm of the difference and applying the triangle inequality yields:
+	\begin{equation}
+		\|\gamma_1(t) - \gamma_2(t)\| \le \|\xi_1 - \xi_2\| + \int_0^t \| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \, ds.
+	\end{equation}
+	
+	By adding and subtracting $F(\gamma_1(s), \mathbf{B}_2, s)$ inside the integral:
+	
+	$$
+		\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| =  \| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_1(s), \mathbf{B}_2, s) + F(\gamma_1(s), \mathbf{B}_2, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \leq
+	$$
+	$$
+		\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_1(s), \mathbf{B}_2, s) \| + \| F(\gamma_1(s), \mathbf{B}_2, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \ .
+	$$
+	
+	Now we exploit the Lipschitz continuity of $F$ with respect to $\gamma$ and its linearity with respect to $\mathbf{B}$:
+	
+	\begin{enumerate}
+		\item $\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_1(s), \mathbf{B}_2, s) \| = \| F(\gamma_1(s), \mathbf{B}_1 - \mathbf{B}_2, s) \| \leq K \| \mathbf{B}_1(\mathbf{x}_1) - \mathbf{B}_2(\mathbf{x}_1) \|_{\infty} ,$
+		\item $\| F(\gamma_1(s), \mathbf{B}_2, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \leq L \|\gamma_1(s) - \gamma_2(s)\| ,$
+	\end{enumerate}
+	where $K = \frac{q c}{m}$ is a constant derived from the physical bounds of the Lorentz force. This provides the bound:
+	\begin{equation}
+		\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \le L \|\gamma_1(s) - \gamma_2(s)\| + K \|\mathbf{B}_1(\mathbf{x}_1) - \mathbf{B}_2(\mathbf{x}_1)\|_\infty,
+	\end{equation}
+	Substituting this back into the integral, we get:
+	\begin{equation} \label{cont_bound_1}
+		\|\gamma_1(t) - \gamma_2(t)\| \le \|\xi_1 - \xi_2\| + K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t + L \int_0^t \|\gamma_1(s) - \gamma_2(s)\| \, ds.
+	\end{equation}
+
+	Let's now introduce a technical lemma that concludes the proof:
+	
+	\begin{lemma}[Gronwall's inequality]
+		Let $I$ be an interval on the real line in the form $[a,b], \ [a, \infty), \ [a, b)$ with $a < b$. Let $\alpha, \beta, u$ be real valued functions defined on $I$. If these conditions are true:
+		\begin{enumerate}
+			\item $u, \beta$ are continuous,
+			\item The negative part of $\alpha$ is integrable on every closed and bounded subinterval of $I$,
+			\item $\beta$ is non-negative and $\alpha$ is non-decreasing,
+			\item $u$ satisfies the integral inequality:
+			$$u(t) \leq \alpha(t) + \int_a^t \beta(s) u(s) \ ds \ t \in I \ ,$$
+		\end{enumerate}
+		then the following bound holds:
+		\begin{equation}
+			u(t) \leq \alpha(t) \exp \left( \int_a^t \beta(s) \ ds \right) \ .
+		\end{equation}
+	\end{lemma}
+
+	To apply the lemma, let:
+	\begin{enumerate}
+		\item $u(t) = \|\gamma_1(t) - \gamma_2(t)\| \ ,$
+		\item $\alpha(t) = \|\xi_1 - \xi_2\| +  K\|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t \ ,$
+		\item $\beta(t) = L$.
+	\end{enumerate}
+
+	Then, condition 1 is clearly satisfied by continuity of the norm for $u$, while $\beta$ is constant. Condition 2 holds because $\alpha(t) \geq 0 \ \forall t \geq 0$, so the negative part of $\alpha$ on any interval $[0, T]$ is 0. We can also see that $\beta(t) = L > 0$ by definition of Lipschitz constant and $\alpha ' (t) = K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty \geq 0$ by definition, thus infering condition 3. Condition 4 is satisfied by equation \eqref{cont_bound_1}.
+	
+	Applying Grönwall's inequality, we obtain the final bound:
+	\begin{equation}
+		\|\gamma_1(t) - \gamma_2(t)\| \le \left( \|\xi_1 - \xi_2\| + K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t \right) e^{Lt}.
+	\end{equation}
+	
+	This result shows that as $\xi_1 \to \xi_2$ and $\mathbf{B}_1 \to \mathbf{B}_2$, the difference between the trajectories $\|\gamma_1(t) - \gamma_2(t)\| \to 0$ uniformly on any compact time interval $[0, T]$. Thus, the trajectory depends with uniform continuity on both the initial conditions and the magnetic field.
 	
 	\subsection{Revelator continuity}
 	% Soft Scoring Kernel Definitions
-	To ensure the continuity of the objective function, we need to avoid using a hit/miss revelator, since step function is non continuous. We define a soft scoring kernel $\Phi: \mathbb{R}^3 \to [0, 1]$. A possible choice for ensuring $C^\infty$ regularity is a Normalized Compact Mollifier with support on the ball $\mathcal{B}_\varepsilon$ of radius $\epsilon$:
+	To ensure the continuity of the objective function, we need to avoid using a hit/miss detector, since step function is non continuous. We define a soft scoring kernel $\Phi: \mathbb{R}^3 \to [0, 1]$. A possible choice for ensuring $C^\infty$ regularity is a Normalized Compact Mollifier with support on the ball $\mathcal{B}_\varepsilon$ of radius $\epsilon$:
 	
 	\begin{equation}
 		\Phi(\mathbf{x}) = 
@@ -160,7 +236,7 @@ citestyle=numeric-comp
 	\end{equation}
 	where $N$ is the total number of simulated particles.
 	
-	Since we simulate very large $N$ (around 1e6 particles), the expected value might be very low even if we multiply by energies (which are indeed very high). Keep in mind that we also hope $D(\mathbf{B}, \xi)$ to be as low as possible. So, to avoid issues with the objective function being too flat and the BO struggling to find a minimum, we take the log of our simulation output. At the end, our minimization problem becomes:
+	Since we simulate very large $N$ (around $1e6$ particles), the expected value might be very low even if we multiply by energies (which are indeed very high). Keep in mind that we also hope $D(\mathbf{B}, \xi)$ to be as low as possible. So, to avoid issues with the objective function being too flat and the BO struggling to find a minimum, we take the log of our simulation output. At the end, our minimization problem becomes:
 	
 	\begin{equation}
 		\min_{\theta \in \Theta} \log \left( \mathcal{J}(\theta) + \varepsilon \right).
