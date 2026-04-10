@@ -21,6 +21,7 @@ citestyle=numeric-comp
 % Definition of math components
 \usepackage{amsthm}
 \newtheorem{lemma}{Lemma}
+\newtheorem{prop}{Proposition}
 
 %-----------------------------------------------------%
 
@@ -95,16 +96,17 @@ citestyle=numeric-comp
 			m \frac{d^2\mathbf{x}}{dt^2} = q \left( \frac{d\mathbf{x}}{dt} \times \mathbf{B}_\theta(\mathbf{x}) \right),
 		\end{cases}
 	\end{equation}
-	where $\mathbf{B}\theta$ is a magnetic field in the Banach space $C^0(\Theta, \mathcal{F})$ \footnote{Completeness is ensured by compactness of $\Theta$, which is required by Bayesian Optimization.} and $\xi = (\mathbf{x}_0, \mathbf{v}_0) \in \Xi$ represents the initial state of a particle in the probability space of incoming radiation. For briefness, it will hereon be called $\mathbf{B}$.
+	where $\mathbf{B}_\theta$ is a magnetic field in the Banach space $C^0(\Theta, \mathcal{F})$ \footnote{Completeness is ensured by compactness of $\Theta$, which is required by Bayesian Optimization.} and $\xi = (\mathbf{x}_0, \mathbf{v}_0) \in \Xi$ represents the initial state of a particle in the probability space of incoming radiation. For briefness, it will hereon be called $\mathbf{B}$.
 	
 	Let's now rewrite the system as a first order ODE problem. Let $\gamma(t) = (\mathbf{x}(t), \mathbf{v}(t))$ be the trajectory of a particle in the field, then:
 	
-	\begin{equation}
+	\begin{equation} \label{ode_first}
 		\begin{cases}
 			\gamma(0) = \xi, \\
-			{d \gamma \over dt} = F(\gamma, \mathbf{B}, t),
+			{d \gamma \over dt} = F(\gamma, \mathbf{B}, t).
 		\end{cases}
 	\end{equation}
+
 	where:
 	
 	\begin{equation}
@@ -114,7 +116,37 @@ citestyle=numeric-comp
 			{q \over m} \left( \mathbf{v}(t) \times \mathbf{B}(\mathbf{x}) \right)
 		\end{pmatrix}
 	\end{equation}
-	is the nonlinear bounded functional representing the Lorentz force.
+
+	is the linear functional representing Lorentz force.
+	
+	We want to prove the following.
+	
+	\begin{prop}
+		Let $\gamma(t)$ be a solution of problem \eqref{ode_first}, then:
+		\begin{enumerate}
+			\item $\gamma(t)$ exists and is unique,
+			\item $\gamma(t)$ depends on $\theta \in \Theta$ with uniform continuity.
+		\end{enumerate}	
+	\end{prop}
+
+	Let's first introduce a technical lemma that will be used in¸ the proof:
+	
+	\begin{lemma}[Gronwall's inequality]
+		Let $I$ be an interval on the real line in the form $[a,b], \ [a, \infty), \ [a, b)$ with $a < b$. Let $\alpha, \beta, u$ be real valued functions defined on $I$. If these conditions are true:
+		\begin{enumerate}
+			\item $u, \beta$ are continuous,
+			\item The negative part of $\alpha$ is integrable on every closed and bounded subinterval of $I$,
+			\item $\beta$ is non-negative and $\alpha$ is non-decreasing,
+			\item $u$ satisfies the integral inequality:
+			$$u(t) \leq \alpha(t) + \int_a^t \beta(s) u(s) \ ds \ t \in I \ ,$$
+		\end{enumerate}
+		then the following bound holds:
+		\begin{equation}
+			u(t) \leq \alpha(t) \exp \left( \int_a^t \beta(s) \ ds \right) \ .
+		\end{equation}
+	\end{lemma}
+
+	\begin{proof}
 	
 	We can exploit the following facts:
 	\begin{enumerate}
@@ -160,24 +192,7 @@ citestyle=numeric-comp
 		\|\gamma_1(t) - \gamma_2(t)\| \le \|\xi_1 - \xi_2\| + K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t + L \int_0^t \|\gamma_1(s) - \gamma_2(s)\| \, ds.
 	\end{equation}
 
-	Let's now introduce a technical lemma that concludes the proof:
-	
-	\begin{lemma}[Gronwall's inequality]
-		Let $I$ be an interval on the real line in the form $[a,b], \ [a, \infty), \ [a, b)$ with $a < b$. Let $\alpha, \beta, u$ be real valued functions defined on $I$. If these conditions are true:
-		\begin{enumerate}
-			\item $u, \beta$ are continuous,
-			\item The negative part of $\alpha$ is integrable on every closed and bounded subinterval of $I$,
-			\item $\beta$ is non-negative and $\alpha$ is non-decreasing,
-			\item $u$ satisfies the integral inequality:
-			$$u(t) \leq \alpha(t) + \int_a^t \beta(s) u(s) \ ds \ t \in I \ ,$$
-		\end{enumerate}
-		then the following bound holds:
-		\begin{equation}
-			u(t) \leq \alpha(t) \exp \left( \int_a^t \beta(s) \ ds \right) \ .
-		\end{equation}
-	\end{lemma}
-
-	To apply the lemma, let:
+	We need now to apply Gronwall's lemma. Let:
 	\begin{enumerate}
 		\item $u(t) = \|\gamma_1(t) - \gamma_2(t)\| \ ,$
 		\item $\alpha(t) = \|\xi_1 - \xi_2\| +  K\|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t \ ,$
@@ -192,6 +207,18 @@ citestyle=numeric-comp
 	\end{equation}
 	
 	This result shows that as $\xi_1 \to \xi_2$ and $\mathbf{B}_1 \to \mathbf{B}_2$, the difference between the trajectories $\|\gamma_1(t) - \gamma_2(t)\| \to 0$ uniformly on any compact time interval $[0, T]$. Thus, the trajectory depends with uniform continuity on both the initial conditions and the magnetic field.
+	
+	Formally, we can define $\|\xi_1 - \xi_2\| < \delta_1$ and $\|\mathbf{B}_1 - \mathbf{B}_2\|_\infty < \delta_2$, with $\delta_1, \delta_2 > 0$, and:
+	
+	$$\varepsilon = (\delta_1 + K \delta t) e^{Lt},$$
+	
+	hence:
+	
+	$$\|\gamma_1(t) - \gamma_2(t)\| \leq (\delta_1 + K \delta t) e^{Lt} = \varepsilon \ .$$
+	
+	It is clear that for any choice of $\varepsilon > 0$ it is possible to find $\delta_1, \delta_2 > 0$ at any given time $t \in [0, T]$, thus concluding the continuity proof.
+	
+	\end{proof}
 	
 	\subsection{Revelator continuity}
 	% Soft Scoring Kernel Definitions
