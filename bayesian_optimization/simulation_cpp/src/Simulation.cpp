@@ -26,12 +26,11 @@ std::vector<Eigen::Vector3d> numpy_to_vector3d(py::array_t<double> np_array)
     return vector_eigen;
 }
 
-double launch_simulation(unsigned long seed, size_t K, double I, double R, py::array_t<double> centers_np, py::array_t<double> normals_np)
+double launch_simulation(unsigned long seed, int N, size_t K, double I, double R, py::array_t<double> centers_np, py::array_t<double> normals_np)
 {
     // Run main simulation
     // Simulation specifics
-    double N = 1e4; // Number of simulated particles
-    const double T = 1e7; // K
+    const double T = 1e8; // K
     double dt = 1e-9; // Initial time step
 
     // Define Revelator

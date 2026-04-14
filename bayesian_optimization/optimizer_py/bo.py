@@ -16,17 +16,26 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 import os
+import csv
+import time
 
 # Set device for PyTorch (use GPU if available)
 device = torch.device("cpu")
 print(f"Using device: {device}")
 
+# SIMULATION AND OPTIMIZATION HYPERPARAMETERS
+INIT = 5 # Number of initial random samples for BO
+MAX_ITER = 1000 # Maximum number of BO iterations
+SEED = 42
+rng = np.random.default_rng(SEED)
+
 # Field parameters (fixed for this optimization)
-K = 3 # Number of coils
+K = 4 # Number of coils
+N = int(1E5) # Number of particles
 I = 1E5 # Current in Amperes
 
 # FIELD HYPERPARAMETERS SETUP
-R_BOUNDS = (0.1, 2.0) # Coil radius bounds in meters
+R_BOUNDS = (0.1, 1.0) # Coil radius bounds in meters
 X_BOUNDS = (1.0, 4.0) # Bound for distance of coil centers from origin in meters
 THETA_BOUNDS = (0, np.pi) # Bounds for azimuthal angles in spherical coordinates
 PHI_BOUNDS = (0, 2*np.pi) # Bounds for polar angles in spherical coordinates
@@ -52,21 +61,16 @@ def normalize(X):
     # Move to numpy to avoid torch issues
     UPPER_np = UPPER.cpu().numpy()
     LOWER_np = LOWER.cpu().numpy()
-    return (X - LOWER_np) / (UPPER_np - LOWER_np)
+    scaled = (X - LOWER_np) / (UPPER_np - LOWER_np)
+    return torch.tensor(scaled, dtype=torch.double).to(device)
 
 def denormalize(X):
     """Scale X from [0, 1] back to original bounds."""
     # Move to numpy to avoid torch issues
     UPPER_np = UPPER.cpu().numpy()
     LOWER_np = LOWER.cpu().numpy()
-    return X * (UPPER_np - LOWER_np) + LOWER_np
-
-# SIMULATION AND OPTIMIZATION HYPERPARAMETERS
-INIT = 3 # Number of initial random samples for BO
-MAX_ITER = 20
-PATIENCE = 5 # Patience for early stopping
-SEED = 42
-rng = np.random.default_rng(SEED)
+    scaled = X * (UPPER_np - LOWER_np) + LOWER_np
+    return torch.tensor(scaled, dtype=torch.double).to(device)
 
 def spherical_to_cartesian(r, theta, phi):
     """
@@ -80,10 +84,13 @@ def spherical_to_cartesian(r, theta, phi):
     Returns:
         xyz:   cartesian coordinates, shape (K, 3)
     """
+    r = np.asarray(r)
+    theta = np.asarray(theta)
+    phi = np.asarray(phi)
     x = r * np.sin(phi) * np.cos(theta)
     y = r * np.sin(phi) * np.sin(theta)
     z = r * np.cos(phi)
-    return np.stack([x, y, z], axis=1)
+    return np.stack([x, y, z], axis=-1)
 
 def objective_function(seed, R, centers, normals):
     """
@@ -97,7 +104,7 @@ def objective_function(seed, R, centers, normals):
     centers_cart = spherical_to_cartesian(centers[:, 0], centers[:, 1], centers[:, 2]) # shape: (K, 3)
     normals_cart = spherical_to_cartesian(np.ones(K), normals[:, 0], normals[:, 1]) # shape: (K, 3) - unit vectors for normals
     # Call the C++ simulator
-    expected_energy = simulator.launch_simulation(seed, K, I, R, centers_cart, normals_cart)
+    expected_energy = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart)
     # Take the log of energy to stabilize optimization and handle wide range of values
     return np.log(expected_energy + 1e-8) # Add small value to avoid log(0)
 
@@ -139,6 +146,10 @@ def initialize_bo(n_initial_points=INIT):
     return np.array(R_samples), np.array(centers_samples), np.array(normals_samples), np.array(energy_samples)
 
 def main():
+    start_clock = time.time()
+
+    ei_array = np.empty(MAX_ITER)
+
     # Step 1: Initialize BO with random samples
     R_init, centers_init, normals_init, energy_init = initialize_bo()
 
@@ -157,8 +168,6 @@ def main():
     fit_gpytorch_mll(mll)
 
     # Step 3: BO loop
-    best_energy = energy_init.min()
-    patience_counter = 0
     for iteration in range(MAX_ITER):
         # 1. Optimize acquisition function to find next point
         ei = LogExpectedImprovement(gp, best_f=torch.tensor(y_train.max(), dtype=torch.double).to(device))
@@ -173,7 +182,13 @@ def main():
             num_restarts=5,
             raw_samples=20,
         )
-        
+
+        # Convergence with EI threshold
+        max_ei = np.exp(ei(candidate).item())
+        ei_array = np.append(ei_array, max_ei)
+        if max_ei < 1e-6: # If expected improvement is very small, we can stop
+            print(f"Convergence reached at iteration {iteration+1} with EI={max_ei:.6f}")
+            break     
         
         # 2. Extract params from candidate and generate random centers and normals
         #candidate = denormalize(candidate.cpu().numpy()) # Denormalize candidate to original scale
@@ -202,22 +217,16 @@ def main():
         
         # 5. Refit GP model with new data
         gp = SingleTaskGP(
-            torch.tensor(X_train, dtype=torch.double).to(device), 
+            torch.tensor(X_train, dtype=torch.double).to(device),
             torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device)) # Unsqueeze for correct shape
         mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
         fit_gpytorch_mll(mll)
-
-        # 6. Early stopping check
-        if best_energy < energy_next + 1e-9:
-            best_energy = energy_next
-            patience_counter += 1
-
-        if patience_counter >= PATIENCE:
-            print(f"Early stopping at iteration {iteration+1} due to no improvement in energy for {PATIENCE} iterations.")
-            break
         
         print(f"Iteration {iteration+1}/{MAX_ITER}, R: {R_next:.4f}, Energy: {np.exp(energy_next):.4f}")
     
+    end_clock = time.time() - start_clock
+    print(f'Elapsed time: {end_clock:.4f} s')
+
     # Step 4: Final results
     best_index = np.argmin(-y_train) # Get index of best energy (negate back)
     best_R = X_train[best_index, 0]
@@ -227,13 +236,22 @@ def main():
     #best_normals = denormalize(best_normals) # Denormalize normals to original scale
     # Create folder if it doesn't exist and print to csv
     os.makedirs("configurations", exist_ok=True)
-    with open(f"configurations/best_configuration_K{K}_{SEED}.csv", "w") as f:
-        f.write(f"R,cX,cY,cZ,nX,nY,nZ\n")
+    with open(f"configurations/best_configuration_K{K}_{SEED}.csv", "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["R", "cX", "cY", "cZ", "nX", "nY", "nZ"])
         for i in range(K):
-            f.write(f"{best_R},")
-            f.write(f"{','.join(map(str, spherical_to_cartesian(best_centers[i, 0], best_centers[i, 1], best_centers[i, 2]).flatten()))},")
-            f.write(f"{','.join(map(str, spherical_to_cartesian(np.ones(1), best_normals[i, 0], best_normals[i, 1]).flatten()))}\n")
+            center_xyz = spherical_to_cartesian(best_centers[i, 0], best_centers[i, 1], best_centers[i, 2])
+            normal_xyz = spherical_to_cartesian(1.0, best_normals[i, 0], best_normals[i, 1])
+            center_xyz = center_xyz[0] if np.ndim(center_xyz) > 1 else center_xyz
+            normal_xyz = normal_xyz[0] if np.ndim(normal_xyz) > 1 else normal_xyz
+            writer.writerow([best_R, center_xyz[0], center_xyz[1], center_xyz[2], normal_xyz[0], normal_xyz[1], normal_xyz[2]])
         print(f"Best configuration saved to configurations/best_configuration_K{K}_{SEED}.csv")
-
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(ei_array, marker='o')
+    plt.title("Expected Improvement over time")
+    plt.xlabel("Iteration")
+    plt.ylabel("Expected Improvement")
+    plt.show()
 
 if __name__ == "__main__":    main()
