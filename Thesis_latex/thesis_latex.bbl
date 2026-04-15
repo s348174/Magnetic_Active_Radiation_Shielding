@@ -707,6 +707,30 @@
       \verb https://bayesoptbook.com/
       \endverb
     \endentry
+    \entry{rembo}{article}{}
+      \name{author}{1}{}{%
+        {{hash=f9eca6f07c2c9f00c40177ab68da8592}{%
+           family={al.},
+           familyi={a\bibinitperiod},
+           given={Wang},
+           giveni={W\bibinitperiod},
+           prefix={et},
+           prefixi={e\bibinitperiod}}}%
+      }
+      \strng{namehash}{f9eca6f07c2c9f00c40177ab68da8592}
+      \strng{fullhash}{f9eca6f07c2c9f00c40177ab68da8592}
+      \strng{bibnamehash}{f9eca6f07c2c9f00c40177ab68da8592}
+      \strng{authorbibnamehash}{f9eca6f07c2c9f00c40177ab68da8592}
+      \strng{authornamehash}{f9eca6f07c2c9f00c40177ab68da8592}
+      \strng{authorfullhash}{f9eca6f07c2c9f00c40177ab68da8592}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Journal of Statistics and Machine Learning}
+      \field{title}{Bayesian Optimization in a Billion Dimensions via Random Embeddings}
+      \field{year}{2016}
+    \endentry
   \enddatalist
 \endrefsection
 \endinput
