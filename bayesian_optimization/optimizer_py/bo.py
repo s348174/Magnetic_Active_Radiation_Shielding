@@ -24,8 +24,8 @@ device = torch.device("cpu")
 print(f"Using device: {device}")
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
-INIT = 5 # Number of initial random samples for BO
-MAX_ITER = 1000 # Maximum number of BO iterations
+INIT = 2 # Number of initial random samples for BO
+MAX_ITER = 5 # Maximum number of BO iterations
 SEED = 42
 rng = np.random.default_rng(SEED)
 
@@ -186,7 +186,7 @@ def main():
         # Convergence with EI threshold
         max_ei = np.exp(ei(candidate).item())
         ei_array = np.append(ei_array, max_ei)
-        if max_ei < 1e-6: # If expected improvement is very small, we can stop
+        if max_ei < 1e-3: # If expected improvement is very small, we can stop
             print(f"Convergence reached at iteration {iteration+1} with EI={max_ei:.6f}")
             break     
         

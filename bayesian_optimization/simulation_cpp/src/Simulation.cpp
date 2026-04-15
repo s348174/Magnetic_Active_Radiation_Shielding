@@ -9,6 +9,7 @@
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
 #include <iostream>
+#include <chrono>
 
 using namespace std;
 using namespace Eigen;
@@ -29,6 +30,7 @@ std::vector<Eigen::Vector3d> numpy_to_vector3d(py::array_t<double> np_array)
 double launch_simulation(unsigned long seed, int N, size_t K, double I, double R, py::array_t<double> centers_np, py::array_t<double> normals_np)
 {
     // Run main simulation
+    chrono::steady_clock::time_point t_begin = chrono::steady_clock::now();
     // Simulation specifics
     const double T = 1e8; // K
     double dt = 1e-9; // Initial time step
@@ -54,6 +56,11 @@ double launch_simulation(unsigned long seed, int N, size_t K, double I, double R
 
         // Run multithread simulation from CSV input (for particles phyisics data)
         totalExpectedDose = runFromCSV_MT("../simulation_cpp/particles_input.csv", field, revelator, N, T, dt, seed);
+
+        chrono::steady_clock::time_point t_end = chrono::steady_clock::now();
+        double elapsedTime = chrono::duration_cast<chrono::milliseconds>(t_end-t_begin).count();
+        cout << "Elapsed simulation time: " << elapsedTime << "ms." << endl;
+        cout << "Total expected dose: " << totalExpectedDose << endl;
     } catch (const invalid_argument e){
         cerr << "Error: number of coils and number of coils parameters provided do not match!" << endl;
     }

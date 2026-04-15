@@ -81,25 +81,25 @@ bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
     uniform_real_distribution<double> polar(0, PI);
 
     // Open file for output
-    string folderout = "../results/seed_" + to_string(seed);
-    try {
-        filesystem::create_directories(folderout); // Creates parent directories if missing
-        cout << "Output directory: " << filesystem::absolute(folderout) << endl;
-    }
-    catch (const std::exception& e) {
-        cerr << "Error creating directory: " << e.what() << endl;
-    }
+    // string folderout = "../results/seed_" + to_string(seed);
+    // try {
+    //     filesystem::create_directories(folderout); // Creates parent directories if missing
+    //     cout << "Output directory: " << filesystem::absolute(folderout) << endl;
+    // }
+    // catch (const std::exception& e) {
+    //     cerr << "Error creating directory: " << e.what() << endl;
+    // }
 
-    ostringstream filename;
-    filename << folderout << "/" << particleName << "_results_" << seed << ".csv";
-    ofstream outfile(filename.str());
-    if (!outfile.is_open()) {
-        cerr << "Error: could not open output file.\n";
-        return false;
-    }
+    // ostringstream filename;
+    // filename << folderout << "/" << particleName << "_results_" << seed << ".csv";
+    // ofstream outfile(filename.str());
+    // if (!outfile.is_open()) {
+    //     cerr << "Error: could not open output file.\n";
+    //     return false;
+    // }
 
-    outfile << setprecision(6);
-    outfile << "i,eV,x_0,y_0,z_0,v_x,v_y,v_z,hit_p,exp_eV\n"; // CSV header
+    // outfile << setprecision(6);
+    // outfile << "i,eV,x_0,y_0,z_0,v_x,v_y,v_z,hit_p,exp_eV\n"; // CSV header
 
     double expectedEVCounter = 0.0; // Counter for how may eV received
     for (size_t i = 0; i < N; ++i) {
@@ -127,28 +127,28 @@ bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
         double eV = 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e19;
         expectedEVCounter += eV * partHitProb;
 
-        outfile << i << "," << scientific << eV << ","
-                << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
-                << scientific << v0(0) << "," << v0(1) << "," << v0(2) << ","
-                << partHitProb << "," << eV * partHitProb << "\n";
+        // outfile << i << "," << scientific << eV << ","
+        //         << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
+        //         << scientific << v0(0) << "," << v0(1) << "," << v0(2) << ","
+        //         << partHitProb << "," << eV * partHitProb << "\n";
     }
     // Return the expected dose computed by this thread.
     expectedDose = expectedEVCounter / static_cast<double>(N);
 
     // Write summary to file
-    outfile << "\nSummary\n";
-    outfile << fixed << "Radius," << revelator.R << "m\n";
-    outfile << scientific << setprecision(4);
-    outfile << "Current," << field.I << "A\n";
-    outfile << "Temperature," << T << "K\n";
-    outfile << "Mass," << m << "kg\n";
-    outfile << "Charge," << q << "C\n";
-    outfile << "Dose expected value," << expectedDose << "\n";
-    outfile << fixed;
-    outfile << "Total," << N << "\n";
-    outfile << "Seed," << seed << "\n";
+    // outfile << "\nSummary\n";
+    // outfile << fixed << "Radius," << revelator.R << "m\n";
+    // outfile << scientific << setprecision(4);
+    // outfile << "Current," << field.I << "A\n";
+    // outfile << "Temperature," << T << "K\n";
+    // outfile << "Mass," << m << "kg\n";
+    // outfile << "Charge," << q << "C\n";
+    // outfile << "Dose expected value," << expectedDose << "\n";
+    // outfile << fixed;
+    // outfile << "Total," << N << "\n";
+    // outfile << "Seed," << seed << "\n";
 
-    outfile.close();
+    // outfile.close();
 
     return true;
 }
