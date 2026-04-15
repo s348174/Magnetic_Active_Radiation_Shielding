@@ -3,7 +3,12 @@
 #include <Eigen/Eigen>
 #include <math.h>
 #include <cmath>
+#include <array>
 #include "Constants.hpp"
+
+#ifdef MARS_USE_CUDA
+#include "TorusCuda.hpp"
+#endif
 
 
 using namespace std;
@@ -53,6 +58,13 @@ struct Torus {
         // Return zero field if point is inside torus
         if (isPointInTorus(X))
             return Vector3d::Zero();
+
+#ifdef MARS_USE_CUDA
+        std::array<double, 3> bCuda;
+        if (mars::computeTorusMagneticFieldCUDA(*this, X(0), X(1), X(2), bCuda)) {
+            return Vector3d(bCuda[0], bCuda[1], bCuda[2]);
+        }
+#endif
 
         // Precompute static variables
         precomputeTables();
