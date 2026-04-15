@@ -25,13 +25,13 @@ print(f"Using device: {device}")
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
 INIT = 2 # Number of initial random samples for BO
-MAX_ITER = 5 # Maximum number of BO iterations
+MAX_ITER = 10 # Maximum number of BO iterations
 SEED = 42
 rng = np.random.default_rng(SEED)
 
 # Field parameters (fixed for this optimization)
-K = 4 # Number of coils
-N = int(1E5) # Number of particles
+K = 2 # Number of coils
+N = int(1E3) # Number of particles
 I = 1E5 # Current in Amperes
 
 # FIELD HYPERPARAMETERS SETUP
@@ -62,6 +62,7 @@ def normalize(X):
     UPPER_np = UPPER.cpu().numpy()
     LOWER_np = LOWER.cpu().numpy()
     scaled = (X - LOWER_np) / (UPPER_np - LOWER_np)
+    scaled = np.clip(scaled, 0.0, 1.0)
     return torch.tensor(scaled, dtype=torch.double).to(device)
 
 def denormalize(X):
@@ -71,6 +72,29 @@ def denormalize(X):
     LOWER_np = LOWER.cpu().numpy()
     scaled = X * (UPPER_np - LOWER_np) + LOWER_np
     return torch.tensor(scaled, dtype=torch.double).to(device)
+
+def pack_configuration(R, centers, normals):
+    """Pack one sample with ordering consistent with LOWER/UPPER tensors."""
+    return np.hstack([
+        [R],
+        centers[:, 0],  # all center radii
+        centers[:, 1],  # all center theta
+        centers[:, 2],  # all center phi
+        normals[:, 0],  # all normal theta
+        normals[:, 1],  # all normal phi
+    ])
+
+def unpack_configuration(x):
+    """Unpack one sample from LOWER/UPPER-consistent ordering."""
+    R = x[0]
+    center_r = x[1:1+K]
+    center_theta = x[1+K:1+2*K]
+    center_phi = x[1+2*K:1+3*K]
+    normal_theta = x[1+3*K:1+4*K]
+    normal_phi = x[1+4*K:1+5*K]
+    centers = np.stack([center_r, center_theta, center_phi], axis=1)
+    normals = np.stack([normal_theta, normal_phi], axis=1)
+    return R, centers, normals
 
 def spherical_to_cartesian(r, theta, phi):
     """
@@ -154,15 +178,16 @@ def main():
     R_init, centers_init, normals_init, energy_init = initialize_bo()
 
     ## Step 2: Fit Gaussian Process model over R, centers and normals
-    X_train = R_init.reshape(-1, 1)
-    X_train = np.hstack((X_train, centers_init.reshape(-1, 3*K)))
-    X_train = np.hstack((X_train, normals_init.reshape(-1, 2*K)))
-    #X_train = normalize(X_train) # Normalize training data to [0, 1]
+    X_train_unnorm = np.array([
+        pack_configuration(R_init[i], centers_init[i], normals_init[i])
+        for i in range(len(R_init))
+    ])
+    X_train = normalize(X_train_unnorm) # Keep X_train normalized throughout
     y_train = -energy_init.flatten() # Negate energy for maximization
 
     # Fit GP model
     gp = SingleTaskGP(
-        torch.tensor(X_train, dtype=torch.double).to(device), 
+        X_train.detach().clone().to(device),
         torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device)) # Unsqueeze for correct shape
     mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
     fit_gpytorch_mll(mll)
@@ -173,11 +198,7 @@ def main():
         ei = LogExpectedImprovement(gp, best_f=torch.tensor(y_train.max(), dtype=torch.double).to(device))
         candidate, _ = optimize_acqf(
             acq_function=ei,
-            #bounds=unit_bounds,
-            bounds=torch.tensor([
-                [R_BOUNDS[0]] + [X_BOUNDS[0]]*K + [THETA_BOUNDS[0]]*K + [PHI_BOUNDS[0]]*K + [THETA_BOUNDS[0]]*K + [PHI_BOUNDS[0]]*K,
-                [R_BOUNDS[1]] + [X_BOUNDS[1]]*K + [THETA_BOUNDS[1]]*K + [PHI_BOUNDS[1]]*K + [THETA_BOUNDS[1]]*K + [PHI_BOUNDS[1]]*K,
-                ], dtype=torch.double, device=device),
+            bounds=unit_bounds,
             q=1,
             num_restarts=5,
             raw_samples=20,
@@ -191,25 +212,15 @@ def main():
             break     
         
         # 2. Extract params from candidate and generate random centers and normals
-        #candidate = denormalize(candidate.cpu().numpy()) # Denormalize candidate to original scale
-        # Extract R
-        R_next = candidate[0, 0].item() # Coil radius
-        # Extract centers in spherical coordinates
-        center_r     = candidate[0, 1      : 1+K  ].detach().numpy()   # radial distance (norm)
-        center_theta = candidate[0, 1+K    : 1+2*K].detach().numpy()   # azimuth
-        center_phi   = candidate[0, 1+2*K  : 1+3*K].detach().numpy()   # polar
-        centers_next = np.stack([center_r, center_theta, center_phi], axis=1) # shape: (K, 3)
-        # Extract normals in spherical coordinates
-        normal_theta = candidate[0, 1+3*K  : 1+4*K].detach().numpy()   # azimuth
-        normal_phi   = candidate[0, 1+4*K  : 1+5*K].detach().numpy()   # polar
-        normals_next = np.stack([normal_theta, normal_phi], axis=1) # shape: (K, 2)
+        candidate_np = candidate.detach().cpu().numpy()
+        candidate_unnorm = denormalize(candidate_np) # Denormalize candidate to original scale
+        R_next, centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
         
         # 3. Evaluate simulation at new point
         energy_next = objective_function(rng.integers(1e6), R_next, centers_next, normals_next)
         
         # 4. Update training data
-        X_train = np.vstack((X_train, np.hstack((R_next, centers_next.flatten(), normals_next.flatten()))))
-        #X_train = normalize(X_train) # Normalize training data to [0, 1]
+        X_train = torch.vstack((X_train, candidate.reshape(1, -1))) # candidate is already normalized
         y_train = np.append(y_train, float(-energy_next)) # Negate energy for maximization
         # Check shapes before fitting GP
         assert X_train.shape[0] == y_train.shape[0], \
@@ -217,7 +228,7 @@ def main():
         
         # 5. Refit GP model with new data
         gp = SingleTaskGP(
-            torch.tensor(X_train, dtype=torch.double).to(device),
+            X_train.detach().clone().to(device),
             torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device)) # Unsqueeze for correct shape
         mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
         fit_gpytorch_mll(mll)
@@ -229,11 +240,9 @@ def main():
 
     # Step 4: Final results
     best_index = np.argmin(-y_train) # Get index of best energy (negate back)
-    best_R = X_train[best_index, 0]
-    best_centers = X_train[best_index, 1:3*K+1].reshape(K, 3)
-    #best_centers = denormalize(best_centers) # Denormalize centers to original scale
-    best_normals = X_train[best_index, 3*K+1:].reshape(K, 2)
-    #best_normals = denormalize(best_normals) # Denormalize normals to original scale
+    best_X_norm = X_train[best_index].detach().cpu().numpy()
+    best_X = denormalize(best_X_norm[np.newaxis, :]).detach().cpu().numpy()[0]
+    best_R, best_centers, best_normals = unpack_configuration(best_X)
     # Create folder if it doesn't exist and print to csv
     os.makedirs("configurations", exist_ok=True)
     with open(f"configurations/best_configuration_K{K}_{SEED}.csv", "w", newline="") as f:
