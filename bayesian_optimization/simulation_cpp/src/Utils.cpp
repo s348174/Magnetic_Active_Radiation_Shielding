@@ -43,7 +43,7 @@ vector<double> sampleMbSpeed(const double m, const int N, const double T)
 {
     // Sampling interval
     const double v_min = 0;
-    const double v_max = 3e9;
+    const double v_max = c_light;
 
     // Define f_max
     double v_mean = sqrt((2*kB*T)/m);
