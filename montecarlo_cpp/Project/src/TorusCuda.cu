@@ -11,6 +11,26 @@
 
 namespace {
 
+__device__ inline double atomicAddCompat(double* address, const double val) {
+#if __CUDA_ARCH__ >= 600
+    return atomicAdd(address, val);
+#else
+    // Emulate atomic add for double using CAS on pre-Pascal architectures.
+    unsigned long long int* addressAsUll = reinterpret_cast<unsigned long long int*>(address);
+    unsigned long long int old = *addressAsUll;
+    unsigned long long int assumed;
+    do {
+        assumed = old;
+        old = atomicCAS(
+            addressAsUll,
+            assumed,
+            __double_as_longlong(val + __longlong_as_double(assumed))
+        );
+    } while (assumed != old);
+    return __longlong_as_double(old);
+#endif
+}
+
 __device__ inline double simpsonWeight(const int i, const int numPoints) {
     if (i == 0 || i == numPoints - 1) {
         return 1.0;
@@ -44,9 +64,9 @@ __global__ void torusFieldKernel(const double x,
     const double fy = z * sinT / denom;
     const double fz = (R - x * cosT - y * sinT) / denom;
 
-    atomicAdd(sumX, w * fx);
-    atomicAdd(sumY, w * fy);
-    atomicAdd(sumZ, w * fz);
+    atomicAddCompat(sumX, w * fx);
+    atomicAddCompat(sumY, w * fy);
+    atomicAddCompat(sumZ, w * fz);
 }
 
 } // namespace
