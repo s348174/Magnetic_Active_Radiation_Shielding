@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
-project(MARS LANGUAGES CXX C VERSION 1.0.0)
+set(CMAKE_CUDA_HOST_COMPILER /usr/bin/gcc-10)
+
+project(MARS LANGUAGES CXX CUDA C VERSION 1.0.0)
 
 # Set C++ Standard
 ################################################################################
@@ -10,6 +12,8 @@ option(MARS_ENABLE_CUDA "Enable CUDA acceleration for magnetic field integration
 if (MARS_ENABLE_CUDA)
     include(CheckLanguage)
     check_language(CUDA)
+    set(CMAKE_CUDA_STANDARD 14)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
     if (CMAKE_CUDA_COMPILER)
         enable_language(CUDA)
         find_package(CUDAToolkit REQUIRED)
@@ -24,7 +28,7 @@ else()
 endif()
 
 # IMPOSE WARNINGS ON DEBUG
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -pedantic-errors")
+#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -pedantic-errors")
 
 # IMPOSE CXX FLAGS FOR WINDOWS
 if (WIN32)
@@ -51,6 +55,13 @@ add_subdirectory(src)
 list(APPEND ${CMAKE_PROJECT_NAME}_SOURCES ${${CMAKE_PROJECT_NAME}_sources})
 list(APPEND ${CMAKE_PROJECT_NAME}_HEADERS ${${CMAKE_PROJECT_NAME}_headers})
 list(APPEND ${CMAKE_PROJECT_NAME}_INCLUDE ${${CMAKE_PROJECT_NAME}_includes})
+
+if (MARS_HAS_CUDA)
+    set_source_files_properties(
+        ${CMAKE_CURRENT_SOURCE_DIR}/TorusCuda.cu
+        PROPERTIES LANGUAGE CUDA
+    )
+endif()
 
 # Create executable
 ################################################################################

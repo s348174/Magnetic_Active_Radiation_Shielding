@@ -5,9 +5,9 @@
 
 #include <cuda_runtime.h>
 
-#include <array>
+//#include <array>
 #include <cmath>
-#include <iostream>
+//#include <iostream>
 
 namespace {
 
@@ -57,16 +57,54 @@ __global__ void torusFieldKernel(const double x,
     const double cosT = cos(theta);
 
     const double base = x * x + y * y + z * z + R * R - 2.0 * R * x * cosT - 2.0 * R * y * sinT;
-    const double denom = base * sqrt(base + 1e-30);
+    const double safe = fmax(base, 1e-30);
+    const double denom = safe * sqrt(safe);
     const double w = simpsonWeight(i, numPoints);
 
     const double fx = z * cosT / denom;
     const double fy = z * sinT / denom;
     const double fz = (R - x * cosT - y * sinT) / denom;
 
-    atomicAddCompat(sumX, w * fx);
-    atomicAddCompat(sumY, w * fy);
-    atomicAddCompat(sumZ, w * fz);
+    __shared__ double sX[256];
+    sX[threadIdx.x] = w * fx;
+    __syncthreads();
+
+    // parallel reduction (simple version)
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride)
+            sX[threadIdx.x] += sX[threadIdx.x + stride];
+        __syncthreads();
+    }
+
+    if (threadIdx.x == 0)
+        atomicAddCompat(sumX, sX[0]);
+
+    __shared__ double sY[256];
+    sY[threadIdx.x] = w * fy;
+    __syncthreads();
+
+    // parallel reduction (simple version)
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride)
+            sY[threadIdx.x] += sY[threadIdx.x + stride];
+        __syncthreads();
+    }
+
+    if (threadIdx.x == 0)
+        atomicAddCompat(sumY, sY[0]);
+    __shared__ double sZ[256];
+    sX[threadIdx.x] = w * fz;
+    __syncthreads();
+
+    // parallel reduction (simple version)
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+        if (threadIdx.x < stride)
+            sZ[threadIdx.x] += sZ[threadIdx.x + stride];
+        __syncthreads();
+    }
+
+    if (threadIdx.x == 0)
+        atomicAddCompat(sumZ, sZ[0]);
 }
 
 } // namespace

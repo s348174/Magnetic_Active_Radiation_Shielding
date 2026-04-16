@@ -13,10 +13,10 @@ int main()
 {
     chrono::steady_clock::time_point t_begin = chrono::steady_clock::now();
     // Simulation arguments
-    double N = 1e4; // Number of simulated particles
+    double N = 1e5; // Number of simulated particles
     const double T = 1e8; // K
     double dt = 1e-9; // Initial time step
-    unsigned long seed = 30000;
+    unsigned long seed = 69;
 
     // Define Torus
     double R = 20;
