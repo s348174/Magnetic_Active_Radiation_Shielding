@@ -114,6 +114,7 @@ struct BField {
 
     Vector3d computeSAM(const Vector3d& X) {
         // Compute magnetic field with SAM algorithm
+        precomputeTablesSAM();
 
         // Conversion to cylindrical coordinates
         const double rho2 = X(0)*X(0) + X(1)*X(1);

@@ -24,34 +24,34 @@ device = torch.device("cpu")
 print(f"Using device: {device}")
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
-INIT = 2 # Number of initial random samples for BO
-MAX_ITER = 10 # Maximum number of BO iterations
+INIT = 10 # Number of initial random samples for BO
+MAX_ITER = 1000 # Maximum number of BO iterations
 SEED = 42
 rng = np.random.default_rng(SEED)
 
 # Field parameters (fixed for this optimization)
-K = 2 # Number of coils
-N = int(1E4) # Number of particles
+K = 5 # Number of coils
+N = int(1E5) # Number of particles
 I = 7.2E5 # Current in Amperes
+R = 1 # Initial coil radius in meters
 
 # FIELD HYPERPARAMETERS SETUP
-R_BOUNDS = (0.1, 1.0) # Coil radius bounds in meters
 X_BOUNDS = (1.0, 4.0) # Bound for distance of coil centers from origin in meters
 THETA_BOUNDS = (0, np.pi) # Bounds for azimuthal angles in spherical coordinates
 PHI_BOUNDS = (0, 2*np.pi) # Bounds for polar angles in spherical coordinates
 
 # Define bounds tensor
 LOWER = torch.tensor(
-    [R_BOUNDS[0]] + [X_BOUNDS[0]]*K + [THETA_BOUNDS[0]]*K + [PHI_BOUNDS[0]]*K + [THETA_BOUNDS[0]]*K + [PHI_BOUNDS[0]]*K,
+    [X_BOUNDS[0]]*K + [THETA_BOUNDS[0]]*K + [PHI_BOUNDS[0]]*K + [THETA_BOUNDS[0]]*K + [PHI_BOUNDS[0]]*K,
     dtype=torch.double
 ).to(device)
 UPPER = torch.tensor(
-    [R_BOUNDS[1]] + [X_BOUNDS[1]]*K + [THETA_BOUNDS[1]]*K + [PHI_BOUNDS[1]]*K + [THETA_BOUNDS[1]]*K + [PHI_BOUNDS[1]]*K,
+    [X_BOUNDS[1]]*K + [THETA_BOUNDS[1]]*K + [PHI_BOUNDS[1]]*K + [THETA_BOUNDS[1]]*K + [PHI_BOUNDS[1]]*K,
     dtype=torch.double
 ).to(device)
 
 # Define unitary bounds
-D = 1 + 5 * K
+D = 5 * K
 unit_bounds = torch.zeros(2, D, dtype=torch.double, device=device)
 unit_bounds[1] = 1.0  # upper bounds all 1
 
@@ -73,10 +73,9 @@ def denormalize(X):
     scaled = X * (UPPER_np - LOWER_np) + LOWER_np
     return torch.tensor(scaled, dtype=torch.double).to(device)
 
-def pack_configuration(R, centers, normals):
+def pack_configuration(centers, normals):
     """Pack one sample with ordering consistent with LOWER/UPPER tensors."""
     return np.hstack([
-        [R],
         centers[:, 0],  # all center radii
         centers[:, 1],  # all center theta
         centers[:, 2],  # all center phi
@@ -86,15 +85,14 @@ def pack_configuration(R, centers, normals):
 
 def unpack_configuration(x):
     """Unpack one sample from LOWER/UPPER-consistent ordering."""
-    R = x[0]
-    center_r = x[1:1+K]
-    center_theta = x[1+K:1+2*K]
-    center_phi = x[1+2*K:1+3*K]
-    normal_theta = x[1+3*K:1+4*K]
-    normal_phi = x[1+4*K:1+5*K]
+    center_r = x[0:K]
+    center_theta = x[K:2*K]
+    center_phi = x[2*K:3*K]
+    normal_theta = x[3*K:4*K]
+    normal_phi = x[4*K:5*K]
     centers = np.stack([center_r, center_theta, center_phi], axis=1)
     normals = np.stack([normal_theta, normal_phi], axis=1)
-    return R, centers, normals
+    return centers, normals
 
 def spherical_to_cartesian(r, theta, phi):
     """
@@ -116,7 +114,7 @@ def spherical_to_cartesian(r, theta, phi):
     z = r * np.cos(phi)
     return np.stack([x, y, z], axis=-1)
 
-def objective_function(seed, R, centers, normals):
+def objective_function(seed, centers, normals):
     """
     Calls the C++ simulator to compute the energy hitting the detector.
     R: is coils radius
@@ -136,7 +134,6 @@ def random_coil_configuration(K):
     """
     Generates random coil configuration in spherical coordinates.
     """
-    R = rng.uniform(R_BOUNDS[0], R_BOUNDS[1]) # Random coil radius
     # --- Centers (sampled in spherical, returned in cartesian) ---
     center_r     = rng.uniform(X_BOUNDS[0],     X_BOUNDS[1],     size=K)
     center_theta = rng.uniform(THETA_BOUNDS[0],  THETA_BOUNDS[1], size=K)
@@ -146,28 +143,26 @@ def random_coil_configuration(K):
     normal_theta = rng.uniform(THETA_BOUNDS[0], THETA_BOUNDS[1], size=K)
     normal_phi   = rng.uniform(PHI_BOUNDS[0],   PHI_BOUNDS[1],   size=K)
     normals = np.column_stack((normal_theta, normal_phi))
-    return R, centers, normals
+    return centers, normals
 
 def initialize_bo(n_initial_points=INIT):
     """
     Initializes the Bayesian Optimization process with random samples.
-    Returns initial data (R, centers, normals, energy).
+    Returns initial data (centers, normals, energy).
     """
-    R_samples = []
     centers_samples = []
     normals_samples = []
     energy_samples = []
     
     for _ in range(n_initial_points):
-        R, centers, normals = random_coil_configuration(K)
-        energy = objective_function(rng.integers(1e6), R, centers, normals)
-        
-        R_samples.append(R)
+        centers, normals = random_coil_configuration(K)
+        energy = objective_function(rng.integers(1e6), centers, normals)
+
         centers_samples.append(centers)
         normals_samples.append(normals)
         energy_samples.append(energy)
     
-    return np.array(R_samples), np.array(centers_samples), np.array(normals_samples), np.array(energy_samples)
+    return np.array(centers_samples), np.array(normals_samples), np.array(energy_samples)
 
 def main():
     start_clock = time.time()
@@ -175,12 +170,12 @@ def main():
     ei_array = np.empty(MAX_ITER)
 
     # Step 1: Initialize BO with random samples
-    R_init, centers_init, normals_init, energy_init = initialize_bo()
+    centers_init, normals_init, energy_init = initialize_bo()
 
-    ## Step 2: Fit Gaussian Process model over R, centers and normals
+    ## Step 2: Fit Gaussian Process model over centers and normals
     X_train_unnorm = np.array([
-        pack_configuration(R_init[i], centers_init[i], normals_init[i])
-        for i in range(len(R_init))
+        pack_configuration(centers_init[i], normals_init[i])
+        for i in range((centers_init).shape[0])
     ])
     X_train = normalize(X_train_unnorm) # Keep X_train normalized throughout
     y_train = -energy_init.flatten() # Negate energy for maximization
@@ -214,10 +209,10 @@ def main():
         # 2. Extract params from candidate and generate random centers and normals
         candidate_np = candidate.detach().cpu().numpy()
         candidate_unnorm = denormalize(candidate_np) # Denormalize candidate to original scale
-        R_next, centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
+        centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
         
         # 3. Evaluate simulation at new point
-        energy_next = objective_function(rng.integers(1e6), R_next, centers_next, normals_next)
+        energy_next = objective_function(rng.integers(1e6), centers_next, normals_next)
         
         # 4. Update training data
         X_train = torch.vstack((X_train, candidate.reshape(1, -1))) # candidate is already normalized
@@ -233,7 +228,7 @@ def main():
         mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
         fit_gpytorch_mll(mll)
         
-        print(f"Iteration {iteration+1}/{MAX_ITER}, R: {R_next:.4f}, Energy: {np.exp(energy_next):.4f}")
+        print(f"Iteration {iteration+1}/{MAX_ITER}, Energy: {np.exp(energy_next):.4f}")
     
     end_clock = time.time() - start_clock
     print(f'Elapsed time: {end_clock:.4f} s')
@@ -242,18 +237,18 @@ def main():
     best_index = np.argmin(-y_train) # Get index of best energy (negate back)
     best_X_norm = X_train[best_index].detach().cpu().numpy()
     best_X = denormalize(best_X_norm[np.newaxis, :]).detach().cpu().numpy()[0]
-    best_R, best_centers, best_normals = unpack_configuration(best_X)
+    best_centers, best_normals = unpack_configuration(best_X)
     # Create folder if it doesn't exist and print to csv
     os.makedirs("configurations", exist_ok=True)
     with open(f"configurations/best_configuration_K{K}_{SEED}.csv", "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["R", "cX", "cY", "cZ", "nX", "nY", "nZ"])
+        writer.writerow(["cX", "cY", "cZ", "nX", "nY", "nZ"])
         for i in range(K):
             center_xyz = spherical_to_cartesian(best_centers[i, 0], best_centers[i, 1], best_centers[i, 2])
             normal_xyz = spherical_to_cartesian(1.0, best_normals[i, 0], best_normals[i, 1])
             center_xyz = center_xyz[0] if np.ndim(center_xyz) > 1 else center_xyz
             normal_xyz = normal_xyz[0] if np.ndim(normal_xyz) > 1 else normal_xyz
-            writer.writerow([best_R, center_xyz[0], center_xyz[1], center_xyz[2], normal_xyz[0], normal_xyz[1], normal_xyz[2]])
+            writer.writerow([center_xyz[0], center_xyz[1], center_xyz[2], normal_xyz[0], normal_xyz[1], normal_xyz[2]])
         print(f"Best configuration saved to configurations/best_configuration_K{K}_{SEED}.csv")
     
     plt.figure(figsize=(10, 6))
