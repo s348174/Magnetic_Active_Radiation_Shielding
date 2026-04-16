@@ -31,8 +31,8 @@ rng = np.random.default_rng(SEED)
 
 # Field parameters (fixed for this optimization)
 K = 2 # Number of coils
-N = int(1E3) # Number of particles
-I = 1E5 # Current in Amperes
+N = int(1E4) # Number of particles
+I = 7.2E5 # Current in Amperes
 
 # FIELD HYPERPARAMETERS SETUP
 R_BOUNDS = (0.1, 1.0) # Coil radius bounds in meters

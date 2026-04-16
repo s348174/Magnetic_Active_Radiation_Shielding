@@ -20,15 +20,19 @@ struct BField {
     vector<Quaterniond> rotations; // Store quaternions for rotations of normals w.r.t. z
     vector<Quaterniond> conjugates; // Store rotation conjugates
 
-    // Static cached data (initialized once)
+    // Static cached data for Biot-Savart (initialized once)
     static constexpr int N = 300;
     static constexpr int numPoints = 2 * N + 1;
     static constexpr double dtheta = PI / N; // Integration step
     static inline ArrayXd sinT, cosT, weights;
-    static inline bool precomputed = false;
+    static inline bool precomputedBS = false;
 
-    static void precomputeTables() {
-        if (precomputed) return;
+    // Static cached data for SAM (initialized once)
+    static inline double C;
+    static inline bool precomputedSAM = false;
+
+    static void precomputeTablesBS() {
+        if (precomputedBS) return;
 
         // Precompute arrays for integration
         VectorXd thetaVec(numPoints);
@@ -44,7 +48,13 @@ struct BField {
         for (int i = 1; i < numPoints - 1; ++i)
             // Assign 2 if i is even, else 4
             if (i % 2 == 0) weights(i) = 2; else weights(i) = 4;
-        precomputed = true;
+        precomputedBS = true;
+    }
+
+    static void precomputeTablesSAM() {
+        if(precomputedSAM) return;
+        C = mu0 / PI;
+        precomputedSAM = true;
     }
 
     BField(size_t k_in, vector<Vector3d> centers_in, vector<Vector3d> normals_in, double R_in, double I_in) {
@@ -76,10 +86,10 @@ struct BField {
         }
     }
 
-    Vector3d coilBField(const Vector3d& X) {
-        // This mehod computes the magnetic field of a single coil in a given point X
+    Vector3d computeBS(const Vector3d& X) {
+        // This mehod computes the magnetic field of a single coil in a given point X with Biot-Savart law
         // Precompute static variables
-        precomputeTables();
+        precomputeTablesBS();
         Vector3d B;
 
         ArrayXd base = (X(0) * X(0) + X(1) * X(1) + X(2) * X(2) + R * R
@@ -102,12 +112,51 @@ struct BField {
         return B;
     }
 
+    Vector3d computeSAM(const Vector3d& X) {
+        // Compute magnetic field with SAM algorithm
+
+        // Conversion to cylindrical coordinates
+        const double rho2 = X(0)*X(0) + X(1)*X(1);
+        const double rho = sqrt(rho2);
+        const double z = X(2);
+        const double z2 = z * z;
+        const double phi = atan(X(1) / X(0));
+        const double R2 = R * R;
+
+        // Constants for integration
+        const double a2 = R2 + rho2 + z2 - 2*R*rho;
+        const double b2 = R2 + rho2 + z2 + 2*R*rho;
+        const double b = sqrt(b2);
+        const double k2 = 1 - (a2 / b2);
+        const double k = sqrt(k2);
+
+        // Compute ellitic integrals
+        const double E = comp_ellint_1(k);
+        const double K = comp_ellint_2(k);
+
+        // Compute field components
+        const double term1_rho = (R2 + rho2 + z2);
+        const double term1_z = (R2 - rho2 + z2);
+        const double denominator = 2.0 * a2 * b;
+
+        double B_rho = C * I * z * (term1_rho * E - a2 * K) / (denominator * rho);
+        double B_z = C * I * (term1_z * E + a2 * K) / denominator;
+        // B_phi is 0
+
+        // Transform back in cartesian
+        Vector3d B;
+        B << B_rho * cos(phi), B_rho * sin(phi), B_z;
+
+        return B;
+    }
+
     Vector3d totalBField(const Vector3d& X) {
         // This methods just sums up the field over all coils
         Vector3d totalB(0.0, 0.0, 0.0);
         for (size_t i = 0; i < k; ++i) {
             Vector3d X_local = conjugates[i] * (X - centers[i]); // Rotate and recenter
-            totalB += rotations[i] * coilBField(X_local); // Compute field in frame of reference and add to total field
+            // totalB += rotations[i] * coilBField(X_local); // Compute field in frame of reference and add to total field
+            totalB += rotations[i] * computeSAM(X_local); // Compute field with SAM algorithm and rotate
         }
         return totalB;
     }
