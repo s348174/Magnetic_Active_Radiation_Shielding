@@ -707,29 +707,59 @@
       \verb https://bayesoptbook.com/
       \endverb
     \endentry
-    \entry{rembo}{article}{}
-      \name{author}{1}{}{%
-        {{hash=f9eca6f07c2c9f00c40177ab68da8592}{%
-           family={al.},
-           familyi={a\bibinitperiod},
-           given={Wang},
-           giveni={W\bibinitperiod},
-           prefix={et},
-           prefixi={e\bibinitperiod}}}%
+    \entry{rembo}{misc}{}
+      \name{author}{5}{}{%
+        {{hash=05bc8d503a2c310ef0976ace7f9d2734}{%
+           family={Wang},
+           familyi={W\bibinitperiod},
+           given={Ziyu},
+           giveni={Z\bibinitperiod}}}%
+        {{hash=528d4af87fd2ecf5fb8a22db913ce088}{%
+           family={Hutter},
+           familyi={H\bibinitperiod},
+           given={Frank},
+           giveni={F\bibinitperiod}}}%
+        {{hash=4ef20846e7a2262bf573dd15a0b4466d}{%
+           family={Zoghi},
+           familyi={Z\bibinitperiod},
+           given={Masrour},
+           giveni={M\bibinitperiod}}}%
+        {{hash=569edd646af5cdcdcea0ea9b2f82b9a6}{%
+           family={Matheson},
+           familyi={M\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+        {{hash=cf269f9a5106a41ad53847a68a27db1c}{%
+           family={Freitas},
+           familyi={F\bibinitperiod},
+           given={Nando},
+           giveni={N\bibinitperiod},
+           prefix={de},
+           prefixi={d\bibinitperiod}}}%
       }
-      \strng{namehash}{f9eca6f07c2c9f00c40177ab68da8592}
-      \strng{fullhash}{f9eca6f07c2c9f00c40177ab68da8592}
-      \strng{bibnamehash}{f9eca6f07c2c9f00c40177ab68da8592}
-      \strng{authorbibnamehash}{f9eca6f07c2c9f00c40177ab68da8592}
-      \strng{authornamehash}{f9eca6f07c2c9f00c40177ab68da8592}
-      \strng{authorfullhash}{f9eca6f07c2c9f00c40177ab68da8592}
+      \strng{namehash}{ce0f3d71b18ee7367558a7b6d6e6973e}
+      \strng{fullhash}{caa3f38b09a900a51868d41356d8b5ec}
+      \strng{bibnamehash}{caa3f38b09a900a51868d41356d8b5ec}
+      \strng{authorbibnamehash}{caa3f38b09a900a51868d41356d8b5ec}
+      \strng{authornamehash}{ce0f3d71b18ee7367558a7b6d6e6973e}
+      \strng{authorfullhash}{caa3f38b09a900a51868d41356d8b5ec}
       \field{sortinit}{1}
       \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
-      \field{journaltitle}{Journal of Statistics and Machine Learning}
+      \field{eprintclass}{stat.ML}
+      \field{eprinttype}{arXiv}
       \field{title}{Bayesian Optimization in a Billion Dimensions via Random Embeddings}
       \field{year}{2016}
+      \verb{eprint}
+      \verb 1301.1942
+      \endverb
+      \verb{urlraw}
+      \verb https://arxiv.org/abs/1301.1942
+      \endverb
+      \verb{url}
+      \verb https://arxiv.org/abs/1301.1942
+      \endverb
     \endentry
   \enddatalist
 \endrefsection
