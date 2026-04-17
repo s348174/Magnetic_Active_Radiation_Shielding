@@ -32,7 +32,7 @@ double launch_simulation(unsigned long seed, int N, size_t K, double I, double R
     // Run main simulation
     chrono::steady_clock::time_point t_begin = chrono::steady_clock::now();
     // Simulation specifics
-    const double T = 1e8; // K
+    const double T = 1e9; // K
     double dt = 1e-9; // Initial time step
 
     // Define Revelator
@@ -58,8 +58,8 @@ double launch_simulation(unsigned long seed, int N, size_t K, double I, double R
         totalExpectedDose = runFromCSV_MT("../simulation_cpp/particles_input.csv", field, revelator, N, T, dt, seed);
 
         chrono::steady_clock::time_point t_end = chrono::steady_clock::now();
-        double elapsedTime = chrono::duration_cast<chrono::milliseconds>(t_end-t_begin).count();
-        cout << "Elapsed simulation time: " << elapsedTime << "ms." << endl;
+        double elapsedTime = chrono::duration_cast<chrono::seconds>(t_end-t_begin).count();
+        cout << "Elapsed simulation time: " << elapsedTime << "s." << endl;
         cout << "Total expected dose: " << totalExpectedDose << endl;
     } catch (const invalid_argument e){
         cerr << "Error: number of coils and number of coils parameters provided do not match!" << endl;
