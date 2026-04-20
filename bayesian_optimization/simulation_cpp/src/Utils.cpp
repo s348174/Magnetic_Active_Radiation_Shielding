@@ -26,7 +26,7 @@
 // For directory creation
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <filesystem>
+//#include <filesystem>
 
 using namespace std;
 using namespace Eigen;
@@ -234,8 +234,8 @@ double runFromCSV_MT(const string& filename, BField field, Revelator revelator, 
         qStr = trim(qStr);
 
         try {
-            double m = evaluateExpression(mStr);
-            double q = evaluateExpression(qStr);
+            double m = amu * evaluateExpression(mStr);
+            double q = e_q * evaluateExpression(qStr);
 
             // Launch one thread per simulation
             threads.emplace_back(runSimulation, field, revelator, name, m, q, N, T, dt, seed, ref(totalExpectedDose), ref(doseMutex));
