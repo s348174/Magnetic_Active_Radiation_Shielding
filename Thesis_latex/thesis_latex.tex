@@ -7,10 +7,10 @@
 \usepackage{amssymb}
 \usepackage{hyperref}
 \geometry{a4paper,
-left=2cm,
-right=2cm,
-top=2cm,
-bottom=2cm,
+	left=2cm,
+	right=2cm,
+	top=2cm,
+	bottom=2cm,
 }
 \usepackage[
 backend=biber,
@@ -107,7 +107,7 @@ citestyle=numeric-comp
 			{d \gamma \over dt} = F(\gamma, \mathbf{B}, t).
 		\end{cases}
 	\end{equation}
-
+	
 	where:
 	
 	\begin{equation}
@@ -117,7 +117,7 @@ citestyle=numeric-comp
 			{q \over m} \left( \mathbf{v}(t) \times \mathbf{B}(\mathbf{x}) \right)
 		\end{pmatrix}
 	\end{equation}
-
+	
 	is the linear functional representing Lorentz force.
 	
 	We want to prove the following.
@@ -129,7 +129,7 @@ citestyle=numeric-comp
 			\item $\gamma(t)$ depends on $\theta \in \Theta$ with uniform continuity.
 		\end{enumerate}	
 	\end{prop}
-
+	
 	Let's first introduce a technical lemma that will be used in¸ the proof:
 	
 	\begin{lemma}[Gronwall's inequality]
@@ -146,79 +146,79 @@ citestyle=numeric-comp
 			u(t) \leq \alpha(t) \exp \left( \int_a^t \beta(s) \ ds \right) \ .
 		\end{equation}
 	\end{lemma}
-
+	
 	\begin{proof}
-	
-	We can exploit the following facts:
-	\begin{enumerate}
-		\item $\mathbf{B}$ is continuous and Lipschitz by construction;
-		\item $\| \mathbf{v} \|$ is physically bounded by the speed of light;
-	\end{enumerate}  
-	to apply the Picard-Lindelof theorem, which ensures existence and unicity of solution $\gamma(t)$.
-	
-	% Continuous Dependence via Grönwall's Inequality
-	Now that we know $\gamma(t)$ exists and is unique, we can proceed on proving that it also depends with uniform continuity on $F(\gamma, \mathbf{B}, t)$. Since the speed $\| \mathbf{v} \|$ is bounded by the speed of light $c$ and the magnetic field $\mathbf{B}$ is Lipschitz continuous, the functional $F(\gamma, \mathbf{B}, t)$ is globally Lipschitz in $\gamma$ uniformly with respect to $t$, with Lipschitz constant $L$. Furthermore, $F$ is continuously dependent on the parameter $\mathbf{B}$.
-	
-	Let $\gamma_1(t)$ and $\gamma_2(t)$ be solutions corresponding to two different initial states $\xi_1, \xi_2 \in \Xi$ and two different magnetic fields $\mathbf{B}_1, \mathbf{B}_2$. By the integral formulation of the initial value problem, we have:
-	\begin{equation}
-		\gamma_i(t) = \xi_i + \int_0^t F(\gamma_i(s), \mathbf{B}_i, s) \, ds, \quad \text{for } i \in \{1, 2\}.
-	\end{equation}
-	
-	Taking the norm of the difference and applying the triangle inequality yields:
-	\begin{equation}
-		\|\gamma_1(t) - \gamma_2(t)\| \le \|\xi_1 - \xi_2\| + \int_0^t \| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \, ds.
-	\end{equation}
-	
-	By adding and subtracting $F(\gamma_1(s), \mathbf{B}_2, s)$ inside the integral:
-	
-	$$
+		
+		We can exploit the following facts:
+		\begin{enumerate}
+			\item $\mathbf{B}$ is continuous and Lipschitz by construction;
+			\item $\| \mathbf{v} \|$ is physically bounded by the speed of light;
+		\end{enumerate}  
+		to apply the Picard-Lindelof theorem, which ensures existence and unicity of solution $\gamma(t)$.
+		
+		% Continuous Dependence via Grönwall's Inequality
+		Now that we know $\gamma(t)$ exists and is unique, we can proceed on proving that it also depends with uniform continuity on $F(\gamma, \mathbf{B}, t)$. Since the speed $\| \mathbf{v} \|$ is bounded by the speed of light $c$ and the magnetic field $\mathbf{B}$ is Lipschitz continuous, the functional $F(\gamma, \mathbf{B}, t)$ is globally Lipschitz in $\gamma$ uniformly with respect to $t$, with Lipschitz constant $L$. Furthermore, $F$ is continuously dependent on the parameter $\mathbf{B}$.
+		
+		Let $\gamma_1(t)$ and $\gamma_2(t)$ be solutions corresponding to two different initial states $\xi_1, \xi_2 \in \Xi$ and two different magnetic fields $\mathbf{B}_1, \mathbf{B}_2$. By the integral formulation of the initial value problem, we have:
+		\begin{equation}
+			\gamma_i(t) = \xi_i + \int_0^t F(\gamma_i(s), \mathbf{B}_i, s) \, ds, \quad \text{for } i \in \{1, 2\}.
+		\end{equation}
+		
+		Taking the norm of the difference and applying the triangle inequality yields:
+		\begin{equation}
+			\|\gamma_1(t) - \gamma_2(t)\| \le \|\xi_1 - \xi_2\| + \int_0^t \| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \, ds.
+		\end{equation}
+		
+		By adding and subtracting $F(\gamma_1(s), \mathbf{B}_2, s)$ inside the integral:
+		
+		$$
 		\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| =  \| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_1(s), \mathbf{B}_2, s) + F(\gamma_1(s), \mathbf{B}_2, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \leq
-	$$
-	$$
+		$$
+		$$
 		\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_1(s), \mathbf{B}_2, s) \| + \| F(\gamma_1(s), \mathbf{B}_2, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \ .
-	$$
-	
-	Now we exploit the Lipschitz continuity of $F$ with respect to $\gamma$ and its linearity with respect to $\mathbf{B}$:
-	
-	\begin{enumerate}
-		\item $\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_1(s), \mathbf{B}_2, s) \| = \| F(\gamma_1(s), \mathbf{B}_1 - \mathbf{B}_2, s) \| \leq K \| \mathbf{B}_1(\mathbf{x}_1) - \mathbf{B}_2(\mathbf{x}_1) \|_{\infty} ,$
-		\item $\| F(\gamma_1(s), \mathbf{B}_2, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \leq L \|\gamma_1(s) - \gamma_2(s)\| ,$
-	\end{enumerate}
-	where $K = \frac{q c}{m}$ is a constant derived from the physical bounds of the Lorentz force. This provides the bound:
-	\begin{equation}
-		\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \le L \|\gamma_1(s) - \gamma_2(s)\| + K \|\mathbf{B}_1(\mathbf{x}_1) - \mathbf{B}_2(\mathbf{x}_1)\|_\infty,
-	\end{equation}
-	Substituting this back into the integral, we get:
-	\begin{equation} \label{cont_bound_1}
-		\|\gamma_1(t) - \gamma_2(t)\| \le \|\xi_1 - \xi_2\| + K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t + L \int_0^t \|\gamma_1(s) - \gamma_2(s)\| \, ds.
-	\end{equation}
-
-	We need now to apply Gronwall's lemma. Let:
-	\begin{enumerate}
-		\item $u(t) = \|\gamma_1(t) - \gamma_2(t)\| \ ,$
-		\item $\alpha(t) = \|\xi_1 - \xi_2\| +  K\|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t \ ,$
-		\item $\beta(t) = L$.
-	\end{enumerate}
-
-	Then, condition 1 is clearly satisfied by continuity of the norm for $u$, while $\beta$ is constant. Condition 2 holds because $\alpha(t) \geq 0 \ \forall t \geq 0$, so the negative part of $\alpha$ on any interval $[0, T]$ is 0. We can also see that $\beta(t) = L > 0$ by definition of Lipschitz constant and $\alpha ' (t) = K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty \geq 0$ by definition, thus infering condition 3. Condition 4 is satisfied by equation \eqref{cont_bound_1}.
-	
-	Applying Grönwall's inequality, we obtain the final bound:
-	\begin{equation}
-		\|\gamma_1(t) - \gamma_2(t)\| \le \left( \|\xi_1 - \xi_2\| + K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t \right) e^{Lt}.
-	\end{equation}
-	
-	This result shows that as $\xi_1 \to \xi_2$ and $\mathbf{B}_1 \to \mathbf{B}_2$, the difference between the trajectories $\|\gamma_1(t) - \gamma_2(t)\| \to 0$ uniformly on any compact time interval $[0, T]$. Thus, the trajectory depends with uniform continuity on both the initial conditions and the magnetic field.
-	
-	Formally, we can define $\|\xi_1 - \xi_2\| < \delta_1$ and $\|\mathbf{B}_1 - \mathbf{B}_2\|_\infty < \delta_2$, with $\delta_1, \delta_2 > 0$, and:
-	
-	$$\varepsilon = (\delta_1 + K \delta t) e^{Lt},$$
-	
-	hence:
-	
-	$$\|\gamma_1(t) - \gamma_2(t)\| \leq (\delta_1 + K \delta t) e^{Lt} = \varepsilon \ .$$
-	
-	It is clear that for any choice of $\varepsilon > 0$ it is possible to find $\delta_1, \delta_2 > 0$ at any given time $t \in [0, T]$, thus concluding the continuity proof.
-	
+		$$
+		
+		Now we exploit the Lipschitz continuity of $F$ with respect to $\gamma$ and its linearity with respect to $\mathbf{B}$:
+		
+		\begin{enumerate}
+			\item $\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_1(s), \mathbf{B}_2, s) \| = \| F(\gamma_1(s), \mathbf{B}_1 - \mathbf{B}_2, s) \| \leq K \| \mathbf{B}_1(\mathbf{x}_1) - \mathbf{B}_2(\mathbf{x}_1) \|_{\infty} ,$
+			\item $\| F(\gamma_1(s), \mathbf{B}_2, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \leq L \|\gamma_1(s) - \gamma_2(s)\| ,$
+		\end{enumerate}
+		where $K = \frac{q c}{m}$ is a constant derived from the physical bounds of the Lorentz force. This provides the bound:
+		\begin{equation}
+			\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \le L \|\gamma_1(s) - \gamma_2(s)\| + K \|\mathbf{B}_1(\mathbf{x}_1) - \mathbf{B}_2(\mathbf{x}_1)\|_\infty,
+		\end{equation}
+		Substituting this back into the integral, we get:
+		\begin{equation} \label{cont_bound_1}
+			\|\gamma_1(t) - \gamma_2(t)\| \le \|\xi_1 - \xi_2\| + K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t + L \int_0^t \|\gamma_1(s) - \gamma_2(s)\| \, ds.
+		\end{equation}
+		
+		We need now to apply Gronwall's lemma. Let:
+		\begin{enumerate}
+			\item $u(t) = \|\gamma_1(t) - \gamma_2(t)\| \ ,$
+			\item $\alpha(t) = \|\xi_1 - \xi_2\| +  K\|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t \ ,$
+			\item $\beta(t) = L$.
+		\end{enumerate}
+		
+		Then, condition 1 is clearly satisfied by continuity of the norm for $u$, while $\beta$ is constant. Condition 2 holds because $\alpha(t) \geq 0 \ \forall t \geq 0$, so the negative part of $\alpha$ on any interval $[0, T]$ is 0. We can also see that $\beta(t) = L > 0$ by definition of Lipschitz constant and $\alpha ' (t) = K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty \geq 0$ by definition, thus infering condition 3. Condition 4 is satisfied by equation \eqref{cont_bound_1}.
+		
+		Applying Grönwall's inequality, we obtain the final bound:
+		\begin{equation}
+			\|\gamma_1(t) - \gamma_2(t)\| \le \left( \|\xi_1 - \xi_2\| + K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t \right) e^{Lt}.
+		\end{equation}
+		
+		This result shows that as $\xi_1 \to \xi_2$ and $\mathbf{B}_1 \to \mathbf{B}_2$, the difference between the trajectories $\|\gamma_1(t) - \gamma_2(t)\| \to 0$ uniformly on any compact time interval $[0, T]$. Thus, the trajectory depends with uniform continuity on both the initial conditions and the magnetic field.
+		
+		Formally, we can define $\|\xi_1 - \xi_2\| < \delta_1$ and $\|\mathbf{B}_1 - \mathbf{B}_2\|_\infty < \delta_2$, with $\delta_1, \delta_2 > 0$, and:
+		
+		$$\varepsilon = (\delta_1 + K \delta t) e^{Lt},$$
+		
+		hence:
+		
+		$$\|\gamma_1(t) - \gamma_2(t)\| \leq (\delta_1 + K \delta t) e^{Lt} = \varepsilon \ .$$
+		
+		It is clear that for any choice of $\varepsilon > 0$ it is possible to find $\delta_1, \delta_2 > 0$ at any given time $t \in [0, T]$, thus concluding the continuity proof.
+		
 	\end{proof}
 	
 	\subsection{Revelator continuity}
@@ -254,7 +254,7 @@ citestyle=numeric-comp
 	\begin{equation}
 		\mathcal{J}(\mathbf{\Theta}) = \mathbb{E}_{\xi \sim P} [D(\mathbf{B}, \xi)] = \int_{\Xi} D(\mathbf{B}, \xi) P(\xi) \ d\xi = \int_{\Xi} E(\xi) \|\mathbf{v}(\xi)\|  P(\xi) \int_0^T \Phi(\mathbf{x}(t; \mathbf{B}, \xi)) \ dt \ d\xi.
 	\end{equation}
-
+	
 	We take the expectation of the dose to try to average out the intrinsic variance of the Monte Carlo simulation. At this point, our observations will hopefully come from a continuous function (maybe even smooth) with some small random noise.
 	
 	It is possible to transform the integral over $\Xi$ to get a more explicit version:
@@ -271,18 +271,6 @@ citestyle=numeric-comp
 	\end{equation}
 	
 	The study of robustness of BO under noise will come in the next chapters, but we already have some guarantees in literature, like in \cite{boconvergence2024}, where Gardner et al. provide bounds for local optimization in high dimension under noisy conditions.
-	
-	
-	\section{Remaining questions}
-	There are still a few more question to address for this application of BO:
-	\begin{enumerate}
-		\item What are the guarantees of convergence under noisy conditions (crucial if the Monte Carlo simulation has high variance)?
-		\item How do this problem's convergence rate and regret bound scale with dimension?
-		\item What is the most useful parametrization, both from a mathematical and a physical perspective?
-	\end{enumerate}
-	
-	
-	Additional references include: \cite{rasmussen_2005}, \cite{garnett_bayesoptbook_2023}.
 	
 	\section{The field parametrization}
 	\subsection{The coil method}
@@ -302,7 +290,7 @@ citestyle=numeric-comp
 		\item $\alpha \in [0, \pi]$ is azimuthal angle of coil normal versor;
 		\item $\beta \in [0, 2 \pi]$ is polar angle of coil normal versor;
 	\end{enumerate}
-
+	
 	Also, we have a shared parameter $R \geq 0$ which is the radius of each coil. We can clearly see that if we choose finite bounds for $r$ and $R$, compactness of $\Theta$ is ensured. The field components in the frame of reference of the coil come from the following integrals, obtained using Biot-Savart law:
 	
 	$$B(x) = {\mu_0 I R \over 4 \pi} \int_0^{2 \pi} {z \cos(\theta) \over (x^2 + y^2 + z^2 + R^2 -2Rx \cos(\theta) - 2Ry \sin(\theta))^{3/2}} d \theta \ ;$$
@@ -314,6 +302,26 @@ citestyle=numeric-comp
 	The other drawback is that every single coil requires five parameters, thus limiting the array to a maximum size of $\sim 10$, so that the optimization problem has $\sim 50$ dimensions, which should be manageable by BO, according to existing literature.
 	
 	Some techniques have been proposed for dimensionality reduction in BO, like random embeddings in \cite{rembo}, but it comes at the price of losing the physical meaning of the original parameters, thus rendering it useless for this parametrization.
+	
+	\section{Remaining questions}
+	There are still a few more question to address for this application of BO:
+	\begin{enumerate}
+		\item What are the guarantees of convergence under noisy conditions (crucial if the Monte Carlo simulation has high variance)?
+		\item How do this problem's convergence rate and regret bound scale with dimension?
+		\item What is the most useful parametrization, both from a mathematical and a physical perspective?
+	\end{enumerate}
+	
+	\section{Code work}
+	The next steps will be:
+	\begin{enumerate}
+		\item Verify if SAM integrator is faster than Biot Savart,
+		\item Implement MCMC from Oltaris data for accurate particle simulation,
+		\item Experiment with different acquisition functions (current one is Expected Improvement),
+		\item Push the dimensionality of the problem to the limits of BO,
+		\item Experiment with different parametrizations.
+	\end{enumerate}
+	
+	Additional references include: \cite{rasmussen_2005}, \cite{garnett_bayesoptbook_2023}.
 	
 	\clearpage
 	\nocite{*}
