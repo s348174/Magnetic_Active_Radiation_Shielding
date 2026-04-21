@@ -4,6 +4,7 @@
 #include <Eigen/Eigen>
 #include <math.h>
 #include <cmath>
+#include <algorithm>
 #include <vector>
 #include <stdexcept>
 
@@ -69,7 +70,7 @@ struct BField {
         for (auto& v : centers_in) {
             centers.push_back(v);
         }
-        for (auto& v : centers_in) {
+        for (auto& v : normals_in) {
             normals.push_back(v);
         }
 
@@ -117,23 +118,32 @@ struct BField {
         precomputeTablesSAM();
 
         // Conversion to cylindrical coordinates
-        const double rho2 = X(0)*X(0) + X(1)*X(1);
+        const double x = X(0);
+        const double y = X(1);
+        const double rho2 = x * x + y * y;
         const double rho = sqrt(rho2);
         const double z = X(2);
         const double z2 = z * z;
-        const double phi = atan(X(1) / X(0));
         const double R2 = R * R;
+
+        // Axisymmetric closed form on the coil axis avoids 0/0 in B_rho.
+        if (rho < 1e-9) {
+            const double denom_axis = pow(R2 + z2, 1.5);
+            Vector3d B;
+            B << 0.0, 0.0, mu0 * I * R2 / (2.0 * denom_axis);
+            return B;
+        }
 
         // Constants for integration
         const double a2 = R2 + rho2 + z2 - 2*R*rho;
         const double b2 = R2 + rho2 + z2 + 2*R*rho;
         const double b = sqrt(b2);
-        const double k2 = 1 - (a2 / b2);
+        const double k2 = std::max(0.0, std::min(1.0, 1.0 - (a2 / b2)));
         const double k = sqrt(k2);
 
-        // Compute ellitic integrals
-        const double E = comp_ellint_1(k);
-        const double K = comp_ellint_2(k);
+        // Compute complete elliptic integrals (K: first kind, E: second kind)
+        const double K = comp_ellint_1(k);
+        const double E = comp_ellint_2(k);
 
         // Compute field components
         const double term1_rho = (R2 + rho2 + z2);
@@ -146,7 +156,7 @@ struct BField {
 
         // Transform back in cartesian
         Vector3d B;
-        B << B_rho * cos(phi), B_rho * sin(phi), B_z;
+        B << B_rho * (x / rho), B_rho * (y / rho), B_z;
 
         return B;
     }
