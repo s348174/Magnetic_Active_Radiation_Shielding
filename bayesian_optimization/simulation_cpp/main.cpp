@@ -26,7 +26,7 @@ int main()
     // Define B Field generator
     double K = 1;
     double I = 1e6;
-    double R = 5;
+    double R = 2;
     vector<Vector3d> centers;
     Vector3d origin;
     origin << 0, 0, 0;
@@ -45,6 +45,7 @@ int main()
         double elapsedTime = chrono::duration_cast<chrono::milliseconds>(t_end-t_begin).count();
         cout << "Elapsed simulation time: " << elapsedTime << "ms." << endl;
         cout << "Total expected dose: " << totalExpectedDose << endl;
+        cout << "Total dose: " << N * totalExpectedDose << endl;
     } catch (const invalid_argument e){
        cerr << "Error: number of coils and number of coils parameters provided do not match!" << endl;
     }

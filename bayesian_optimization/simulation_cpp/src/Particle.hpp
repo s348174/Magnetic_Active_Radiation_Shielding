@@ -58,11 +58,14 @@ struct Particle {
 
         // Boris integrator simplified (no E field)
         Vector3d t = (q * B / m) * (0.5 * dt);
-        Vector3d v_prime = v_t + v_t.cross(t);
-        Vector3d v_next = v_t + (2.0 / (1.0 + t.squaredNorm())) * (v_prime.cross(t));
+        Vector3d s = 2.0 * t / (1.0 + t.squaredNorm());
+        Vector3d v_minus = v_t;
+        Vector3d v_prime = v_minus + v_minus.cross(t);
+        Vector3d v_plus = v_minus + v_prime.cross(s);
+        Vector3d v_next = v_plus;
 
         // Compute probability to be detected at this time step
-        Vector3d X_next = X_t + dt * v_t; // Next position
+        Vector3d X_next = X_t + dt * v_next; // Next position
         // Quadrature along the path
         hit_prob += dt * (revelator.revelatorProbability(X_t) +
                           revelator.revelatorProbability(X_next)) / 2;
