@@ -26,7 +26,7 @@ int main()
     // Define B Field generator
     double K = 1;
     double I = 1e6;
-    double R = 2;
+    double R = 10;
     vector<Vector3d> centers;
     Vector3d origin;
     origin << 0, 0, 0;
@@ -39,7 +39,7 @@ int main()
         BField field(K, centers, normals, R, I);
 
         // Run multithread simulation from CSV input (for particles phyisics data)
-        double totalExpectedDose = runFromCSV_MT("../simulation_cpp/particles_input.csv", field, revelator, N, T, dt, seed);
+        double totalExpectedDose = runFromCSV_MT("../data/particles_input.csv", field, revelator, N, T, dt, seed);
 
         chrono::steady_clock::time_point t_end = chrono::steady_clock::now();
         double elapsedTime = chrono::duration_cast<chrono::milliseconds>(t_end-t_begin).count();
