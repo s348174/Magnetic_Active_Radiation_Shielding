@@ -147,7 +147,7 @@ struct BField {
 
         // Compute field components
         const double term1_rho = (R2 + rho2 + z2);
-        const double term1_z = (R2 - rho2 + z2);
+        const double term1_z = (R2 - rho2 - z2);
         const double denominator = 2.0 * a2 * b;
 
         double B_rho = C * I * z * (term1_rho * E - a2 * K) / (denominator * rho);

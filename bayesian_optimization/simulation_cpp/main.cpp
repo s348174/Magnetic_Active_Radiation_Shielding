@@ -14,19 +14,19 @@ int main()
 {
     chrono::steady_clock::time_point t_begin = chrono::steady_clock::now();
     // Simulation arguments
-    double N = 10; // Number of simulated particles
-    const double T = 1e7; // K
+    double N = 1e3; // Number of simulated particles
+    const double T = 1e6; // K
     double dt = 1e-9; // Initial time step
     unsigned long seed = 40002;
 
     // Define Revelator
-    double rho = 10;
+    double rho = 2;
     Revelator revelator(rho);
 
     // Define B Field generator
     double K = 1;
-    double I = 0;
-    double R = 15;
+    double I = 1e6;
+    double R = 5;
     vector<Vector3d> centers;
     Vector3d origin;
     origin << 0, 0, 0;
