@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 set(CMAKE_CUDA_HOST_COMPILER /usr/bin/gcc-10)
 
-project(MARS LANGUAGES CXX CUDA C VERSION 1.0.0)
+project(MARS LANGUAGES CXX C VERSION 1.0.0)
 
 # Set C++ Standard
 ################################################################################
