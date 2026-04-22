@@ -127,7 +127,7 @@ def plot_samples(df: pd.DataFrame,
                  particles_to_plot: list[str] | None = None,
                  log_scale: bool = True) -> None:
     """
-    For each selected particle, overlay the original flux spectrum (normalised)
+    For each selected particle, overlay the original flux spectrum (normalized)
     with a histogram of the sampled energies to verify the sampling is correct.
     """
     if particles_to_plot is None:
@@ -148,7 +148,7 @@ def plot_samples(df: pd.DataFrame,
         area  = np.trapezoid(flux, energy)
         flux_norm = flux / area if area > 0 else flux
 
-        ax.plot(energy, flux_norm, label="PDF (flux, normalised)", lw=2)
+        ax.plot(energy, flux_norm, label="PDF (flux, normalized)", lw=2)
         ax.hist(samples[particle], bins=100, density=True,
                 alpha=0.5, label="Samples (histogram)")
 
@@ -177,7 +177,7 @@ def plot_samples(df: pd.DataFrame,
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    DATA_PATH = "../data/log_scaled_flux_data.csv"
+    DATA_PATH = "../data/flux_data_clean.csv"
     N_SAMPLES = 100_000
 
     print(f"Loading data from '{DATA_PATH}' …")
@@ -205,7 +205,7 @@ if __name__ == "__main__":
 
     # Optional: visualise first 6 particles
     print("\nGenerating verification plots …")
-    plot_samples(df, samples, particles_to_plot=particles[:2], log_scale=False)
+    plot_samples(df, samples, particles_to_plot=particles[:2], log_scale=True)
 
     # --- Example: single-particle usage ---
     print("\nExample — 5 proton energy samples:")
