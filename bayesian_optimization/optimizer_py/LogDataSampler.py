@@ -5,19 +5,12 @@ Each particle has a discrete (Energy, Flux) spectrum. This script treats the
 flux as proportional to a probability density function (PDF) and draws random
 energy samples via inverse-CDF sampling on the piecewise-linear interpolation
 of that PDF.
-
-Usage
------
-    python sample_energy_distributions.py
-
-Or import and call `sample_particle` / `sample_all_particles` directly.
 """
 
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
-from csv_scaler import decompress_log_scaled_samples, build_log_scaled_dataset, read_energy_data
 
 # ---------------------------------------------------------------------------
 # Core sampling helpers
@@ -31,15 +24,13 @@ def build_sampler(energy: np.ndarray, flux: np.ndarray) -> callable:
     We integrate it to get the CDF, normalise, then invert it so that uniform
     U(0,1) draws map to energy samples.
 
-    Parameters
-    ----------
+    Parameters:
     energy : 1-D array, shape (N,)
         Sorted energy values (any units, e.g. MeV/nucleon).
     flux   : 1-D array, shape (N,)
         Flux values (must be ≥ 0; treated as unnormalised PDF weights).
 
-    Returns
-    -------
+    Returns:
     sampler : callable
         sampler(n_samples) → np.ndarray of shape (n_samples,)
     """
@@ -77,16 +68,14 @@ def build_sampler(energy: np.ndarray, flux: np.ndarray) -> callable:
 
 def sample_particle(df: pd.DataFrame, particle: str, n_samples: int = 1000) -> np.ndarray:
     """
-    Draw `n_samples` energy values from the distribution of `particle`.
+    Draw n_samples energy values from the distribution of particle.
 
-    Parameters
-    ----------
+    Parameters:
     df        : DataFrame with an 'Energy' column and one column per particle.
     particle  : Column name of the particle (e.g. 'proton', 'Fe56').
     n_samples : Number of samples to draw.
 
-    Returns
-    -------
+    Returns:
     samples : np.ndarray, shape (n_samples,)
     """
     if particle not in df.columns:
@@ -100,11 +89,8 @@ def sample_particle(df: pd.DataFrame, particle: str, n_samples: int = 1000) -> n
 def sample_all_particles(df: pd.DataFrame,
                          n_samples: int = 1000) -> dict[str, np.ndarray]:
     """
-    Draw `n_samples` energy values for every particle in `df`.
-
-    Returns
-    -------
-    dict mapping particle name → np.ndarray of sampled energies
+    Draw n_samples energy values for every particle in df.
+    Returns dict mapping particle name → np.ndarray of sampled energies.
     """
     particles = df.columns[1:].tolist()   # everything except 'Energy'
     results   = {}
@@ -116,7 +102,6 @@ def sample_all_particles(df: pd.DataFrame,
             print(f"  [skip] {particle}: {exc}")
 
     return results
-
 
 # ---------------------------------------------------------------------------
 # Optional visualisation
@@ -171,13 +156,12 @@ def plot_samples(df: pd.DataFrame,
     print("Verification plot saved to sampling_verification.png")
     plt.show()
 
-
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    DATA_PATH = "../data/flux_data_clean.csv"
+    DATA_PATH = "../data/log_scaled_flux_data.csv"
     N_SAMPLES = 100_000
 
     print(f"Loading data from '{DATA_PATH}' …")
@@ -191,9 +175,6 @@ if __name__ == "__main__":
 
     print(f"Sampling {N_SAMPLES:,} energies per particle …")
     samples = sample_all_particles(df, n_samples=N_SAMPLES)
-    #samples = decompress_log_scaled_samples(samples, data)  # Undo log-scaling
-    #print("\nExample — 5 proton energy samples:")
-    #print(samples["proton"][:10])
 
     # Print summary statistics
     print(f"\n{'Particle':<10}  {'Mean E':>12}  {'Median E':>12}  "
@@ -203,10 +184,6 @@ if __name__ == "__main__":
         print(f"{particle:<10}  {np.mean(s):>12.4g}  {np.median(s):>12.4g}  "
               f"{np.percentile(s, 5):>10.4g}  {np.percentile(s, 95):>10.4g}")
 
-    # Optional: visualise first 6 particles
+    # Optional: visualise first 2 particles
     print("\nGenerating verification plots …")
     plot_samples(df, samples, particles_to_plot=particles[:2], log_scale=True)
-
-    # --- Example: single-particle usage ---
-    print("\nExample — 5 proton energy samples:")
-    print(sample_particle(df, "proton", n_samples=5))

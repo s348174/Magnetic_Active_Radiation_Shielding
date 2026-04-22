@@ -13,11 +13,16 @@ from gpytorch.mlls import ExactMarginalLogLikelihood
 
 # Import standard libraries
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 import os
 import csv
 import time
+
+# Import externals functions
+from LogDataSampler import sample_all_particles
+from PlotResults import interactive_plot
 
 # Set device for PyTorch (use GPU if available)
 device = torch.device("cpu")
@@ -54,6 +59,10 @@ UPPER = torch.tensor(
 D = 5 * K
 unit_bounds = torch.zeros(2, D, dtype=torch.double, device=device)
 unit_bounds[1] = 1.0  # upper bounds all 1
+
+# Read initial data from log files
+FILEPATH = "../data/log_scaled_flux_data.csv"
+LOG_DATA = pd.read_csv(FILEPATH)
 
 # Normalization functions to scale parameters to [0, 1] for optimization
 def normalize(X):
@@ -125,6 +134,10 @@ def objective_function(seed, centers, normals):
     # Change coordinates from spherical to cartesian for simulator input
     centers_cart = spherical_to_cartesian(centers[:, 0], centers[:, 1], centers[:, 2]) # shape: (K, 3)
     normals_cart = spherical_to_cartesian(np.ones(K), normals[:, 0], normals[:, 1]) # shape: (K, 3) - unit vectors for normals
+    
+    # Sample particle energies from the log data distribution (for all particles, but we can choose one if needed)
+    samples = sample_all_particles(LOG_DATA, n_samples=N)
+    
     # Call the C++ simulator
     expected_energy = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart)
     # Take the log of energy to stabilize optimization and handle wide range of values
@@ -257,5 +270,8 @@ def main():
     plt.xlabel("Iteration")
     plt.ylabel("Expected Improvement")
     plt.show()
+
+    # Plot the best configuration
+    interactive_plot(result_file=f"configurations/best_configuration_K{K}_{SEED}.csv")
 
 if __name__ == "__main__":    main()
