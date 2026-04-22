@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
-
+from csv_scaler import decompress_log_scaled_samples, build_log_scaled_dataset, read_energy_data
 
 # ---------------------------------------------------------------------------
 # Core sampling helpers
@@ -131,10 +131,10 @@ def plot_samples(df: pd.DataFrame,
     with a histogram of the sampled energies to verify the sampling is correct.
     """
     if particles_to_plot is None:
-        particles_to_plot = list(samples.keys())[:6]   # default: first 6
+        particles_to_plot = list(samples.keys())[:2]
 
     n = len(particles_to_plot)
-    ncols = 3
+    ncols = 2
     nrows = (n + ncols - 1) // ncols
     fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows))
     axes = np.array(axes).flatten()
@@ -144,12 +144,12 @@ def plot_samples(df: pd.DataFrame,
     for ax, particle in zip(axes, particles_to_plot):
         flux = df[particle].values
 
-        # Normalise flux to area = 1 for comparison with histogram density
-        area  = np.trapezoid(flux, energy) if hasattr(np, "trapezoid") else np.trapz(flux, energy)
+        # Normalize flux to area = 1 for comparison with histogram density
+        area  = np.trapezoid(flux, energy)
         flux_norm = flux / area if area > 0 else flux
 
         ax.plot(energy, flux_norm, label="PDF (flux, normalised)", lw=2)
-        ax.hist(samples[particle], bins=50, density=True,
+        ax.hist(samples[particle], bins=100, density=True,
                 alpha=0.5, label="Samples (histogram)")
 
         if log_scale:
@@ -177,17 +177,23 @@ def plot_samples(df: pd.DataFrame,
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    DATA_PATH = "../data/flux_data_clean.csv"
-    N_SAMPLES = 10_000
+    DATA_PATH = "../data/log_scaled_flux_data.csv"
+    N_SAMPLES = 100_000
 
     print(f"Loading data from '{DATA_PATH}' …")
     df = pd.read_csv(DATA_PATH)
+    #energy_steps, data = read_energy_data(DATA_PATH)
+    # Log scaling for sampling stability (especially for low-flux tails)
+    #df = build_log_scaled_dataset(energy_steps, data)
     particles = df.columns[1:].tolist()
     print(f"  {len(particles)} particles, {len(df)} energy bins, "
           f"energy range [{df['Energy'].min():.3g}, {df['Energy'].max():.3g}]\n")
 
     print(f"Sampling {N_SAMPLES:,} energies per particle …")
     samples = sample_all_particles(df, n_samples=N_SAMPLES)
+    #samples = decompress_log_scaled_samples(samples, data)  # Undo log-scaling
+    #print("\nExample — 5 proton energy samples:")
+    #print(samples["proton"][:10])
 
     # Print summary statistics
     print(f"\n{'Particle':<10}  {'Mean E':>12}  {'Median E':>12}  "
@@ -199,7 +205,7 @@ if __name__ == "__main__":
 
     # Optional: visualise first 6 particles
     print("\nGenerating verification plots …")
-    plot_samples(df, samples, particles_to_plot=particles[:6])
+    plot_samples(df, samples, particles_to_plot=particles[:2], log_scale=False)
 
     # --- Example: single-particle usage ---
     print("\nExample — 5 proton energy samples:")
