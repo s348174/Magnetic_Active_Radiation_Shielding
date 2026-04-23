@@ -26,7 +26,7 @@
 // For directory creation
 #include <sys/stat.h>
 #include <sys/types.h>
-//#include <filesystem>
+#include <filesystem>
 
 using namespace std;
 using namespace Eigen;
@@ -100,7 +100,6 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& v_sam
     outfile << fixed << "Radius," << revelator.R << "m\n";
     outfile << scientific << setprecision(4);
     outfile << "Current," << field.I << "A\n";
-    outfile << "Temperature," << T << "K\n";
     outfile << "Mass," << m << "kg\n";
     outfile << "Charge," << q << "C\n";
     outfile << "Dose expected value," << expectedDose << "\n";
