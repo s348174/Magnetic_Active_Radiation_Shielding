@@ -29,9 +29,9 @@ device = torch.device("cpu")
 print(f"Using device: {device}")
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
-INIT = 1 # Number of initial random samples for BO
-MAX_ITER = 5 # Maximum number of BO iterations
-CONVERGENCE_EI_THRESHOLD = 1e-5 # Threshold for expected improvement to declare convergence
+INIT = 10 # Number of initial random samples for BO
+MAX_ITER = 500 # Maximum number of BO iterations
+CONVERGENCE_EI_THRESHOLD = 1e-6 # Threshold for expected improvement to declare convergence
 SEED = 42
 rng = np.random.default_rng(SEED)
 
@@ -39,7 +39,7 @@ rng = np.random.default_rng(SEED)
 K = 10 # Number of coils
 N = int(1E3) # Number of particles
 I = 7.2E4 # Current in Amperes
-R = 0.05 # Initial coil radius in meters
+R = 0.5 # Initial coil radius in meters
 
 # FIELD HYPERPARAMETERS SETUP
 X_BOUNDS = (1.0, 4.0) # Bound for distance of coil centers from origin in meters
