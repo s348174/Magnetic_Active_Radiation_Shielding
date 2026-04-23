@@ -6,6 +6,7 @@
 #include <vector>
 #include <chrono>
 #include <stdexcept>
+#include <unordered_map>
 
 using namespace std;
 using namespace Eigen;
@@ -35,11 +36,12 @@ int main()
     Vector3d z;
     z << 0, 0, 1;
     normals.push_back(z);
+    unordered_map<string, vector<double>> empy_map;
     try { // Try to run simulation
         BField field(K, centers, normals, R, I);
 
         // Run multithread simulation from CSV input (for particles phyisics data)
-        double totalExpectedDose = runFromCSV_MT("../data/particles_input.csv", field, revelator, N, T, dt, seed);
+        double totalExpectedDose = runFromCSV_MT("../data/particles_input.csv", field, revelator, empy_map, N, dt, seed);
 
         chrono::steady_clock::time_point t_end = chrono::steady_clock::now();
         double elapsedTime = chrono::duration_cast<chrono::milliseconds>(t_end-t_begin).count();

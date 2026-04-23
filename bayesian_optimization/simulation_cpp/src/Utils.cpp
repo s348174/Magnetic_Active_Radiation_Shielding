@@ -31,51 +31,11 @@
 using namespace std;
 using namespace Eigen;
 
-double mbPdf(const double v, const double m, const double T)
-{
-    // Maxwell-Boltzman pdf: f(v) ∝ v^2 * exp(-v^2)
-    double f = pow(m / (2 * PI * kB * T), 1.5)
-               * 4 * PI * v * v * exp(- m * v * v / ( 2 * kB * T));
-    return f;
-}
-
-vector<double> sampleMbSpeed(const double m, const int N, const double T)
-{
-    // Sampling interval
-    const double v_min = 0;
-    const double v_max = c_light;
-
-    // Define f_max
-    double v_mean = sqrt((2*kB*T)/m);
-    double f_max = mbPdf(v_mean, m, T);
-
-    // Define a vector of N samples
-    vector<double> v_samples;
-    v_samples.reserve(N);
-
-    // Accept/rejept loop
-    int i = 0;
-    default_random_engine gen;
-    uniform_real_distribution<double> velocity(v_min, v_max);
-    uniform_real_distribution<double> density(0, f_max);
-    while (i < N) {
-        double v_rand = velocity(gen);
-        double y_rand = density(gen);
-        if (y_rand <= mbPdf(v_rand, m, T)) { // Acceptance region
-            v_samples.push_back(v_rand);
-            i++;
-        }
-    }
-    return v_samples;
-}
-
-bool monteCarlo(BField& field, Revelator& revelator, const string& particleName,
-                const double& m, const double& q, const int& N, const double& T,
+bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& v_samples,
+                const string& particleName, const double& m, const double& q, const int& N,
                 double& dt, unsigned long& seed, double& expectedDose) {
     // Monte Carlo simulation
-    // Sample speeds from Maxwell Boltzman
-    vector<double> v_samples = sampleMbSpeed(m, N, T);
-    sort(v_samples.begin(), v_samples.end());
+    //sort(v_samples.begin(), v_samples.end());
     default_random_engine gen;
     uniform_real_distribution<double> azimut(0, 2 * PI);
     uniform_real_distribution<double> polar(0, PI);
@@ -174,7 +134,9 @@ double evaluateExpression(const string& expr) {
 }
 
 // Thread worker function
-void runSimulation(BField field, Revelator revelator, string name, double m, double q, int N, double T, double dt, unsigned long seed, double& totalExpectedDose, mutex& doseMutex) {
+void runSimulation(BField field, Revelator revelator, const vector<double>& v_samples,
+                   string name, double m, double q, int N, double dt, unsigned long seed,
+                   double& totalExpectedDose, mutex& doseMutex) {
     {
         lock_guard<mutex> lock(io_mutex);
         cout << "\n=== Starting simulation for " << name << " ===" << endl;
@@ -182,7 +144,7 @@ void runSimulation(BField field, Revelator revelator, string name, double m, dou
     }
 
     double expectedDose = 0.0;
-    bool ok = monteCarlo(field, revelator, name, m, q, N, T, dt, seed, expectedDose);
+    bool ok = monteCarlo(field, revelator, v_samples, name, m, q, N, dt, seed, expectedDose);
 
     if (ok) {
         lock_guard<mutex> lock(doseMutex);
@@ -201,7 +163,9 @@ void runSimulation(BField field, Revelator revelator, string name, double m, dou
 }
 
 // Main reader & dispatcher
-double runFromCSV_MT(const string& filename, BField field, Revelator revelator, int N, double T, double dt, unsigned long seed) {
+double runFromCSV_MT(const string& filename, BField field, Revelator revelator,
+                     unordered_map<string, vector<double>> samples, int N,
+                     double dt, unsigned long seed) {
     ifstream file(filename);
     if (!file.is_open()) {
         cerr << "Error: Could not open " << filename << endl;
@@ -236,9 +200,10 @@ double runFromCSV_MT(const string& filename, BField field, Revelator revelator, 
         try {
             double m = amu * evaluateExpression(mStr);
             double q = e_q * evaluateExpression(qStr);
+            const vector<double>& v_samples = samples.at(name);
 
             // Launch one thread per simulation
-            threads.emplace_back(runSimulation, field, revelator, name, m, q, N, T, dt, seed, ref(totalExpectedDose), ref(doseMutex));
+            threads.emplace_back(runSimulation, field, revelator, v_samples, name, m, q, N, dt, seed, ref(totalExpectedDose), ref(doseMutex));
         }
         catch (const std::exception& e) {
             lock_guard<mutex> lock(io_mutex);

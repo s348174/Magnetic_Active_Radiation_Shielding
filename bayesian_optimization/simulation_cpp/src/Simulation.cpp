@@ -10,6 +10,8 @@
 #include <pybind11/stl.h>
 #include <iostream>
 #include <chrono>
+#include <unordered_map>
+#include <string>
 
 using namespace std;
 using namespace Eigen;
@@ -27,7 +29,34 @@ std::vector<Eigen::Vector3d> numpy_to_vector3d(py::array_t<double> np_array)
     return vector_eigen;
 }
 
-double launch_simulation(unsigned long seed, int N, size_t K, double I, double R, py::array_t<double> centers_np, py::array_t<double> normals_np)
+std::vector<double> numpy_to_vector(py::array_t<double> np_array)
+{
+    // Copy a NumPy array to std::vector
+    auto r = np_array.unchecked<1>();
+    std::vector<double> vector_cpp;
+    vector_cpp.reserve(r.shape(0));
+    for (ssize_t i = 0; i < r.shape(0); i++) {
+        vector_cpp.push_back(r(i));
+    }
+    return vector_cpp;
+}
+
+std::unordered_map<std::string, std::vector<double>> dict_to_map(py::dict py_dict)
+{
+    // Copy a NumPy dict to std::unordered_map
+    std::unordered_map<string, vector<double>> map_cpp;
+    for (auto item : py_dict) {
+        std::string key = py::cast<std::string>(item.first);
+        // Cast the value to a numpy array
+        std::vector<double> val = numpy_to_vector(py::cast<py::array_t<double>>(item.second));
+        map_cpp[key] = std::move(val);
+    }
+    return map_cpp;
+}
+
+double launch_simulation(unsigned long seed, int N, size_t K, double I, double R,
+                         py::array_t<double> centers_np, py::array_t<double> normals_np,
+                         py::dict samples_np)
 {
     // Run main simulation
     chrono::steady_clock::time_point t_begin = chrono::steady_clock::now();
@@ -49,13 +78,16 @@ double launch_simulation(unsigned long seed, int N, size_t K, double I, double R
     cout << "Size of normals: " << normals.size() << endl;
     cout << "k = " << K << endl;
 
+    // Convert the samples dictionary
+    unordered_map<string, vector<double>> samples = dict_to_map(samples_np);
+
     // Try to run simulation
     try {
         // Build magnetic field
         BField field(K, centers, normals, R, I);
 
         // Run multithread simulation from CSV input (for particles phyisics data)
-        totalExpectedDose = runFromCSV_MT("../simulation_cpp/particles_input.csv", field, revelator, N, T, dt, seed);
+        totalExpectedDose = runFromCSV_MT("../data/particles_input.csv", field, revelator, samples, N, dt, seed);
 
         chrono::steady_clock::time_point t_end = chrono::steady_clock::now();
         double elapsedTime = chrono::duration_cast<chrono::seconds>(t_end-t_begin).count();
