@@ -71,11 +71,11 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& energ
         X0 << 4 * revelator.R * sin(phi) * cos(theta), 4 * revelator.R * sin(phi) * sin(theta), 4 * revelator.R * cos(phi);
         // Set target as center of particle detector
         const Vector3d target = -X0;
-        const double v_abs = sqrt(energy_samples * conversionEV);
+        const double v_abs = sqrt(energy_samples[i] * conversionEV);
         Vector3d v0 = v_abs * target / target.norm();
 
         // Define particle
-        double T_max = 1.5 * target.norm() / v_samples[i];
+        double T_max = 1.5 * target.norm() / v_abs;
         Particle part(m, q, X0, v0, T_max, dt);
 
         // Start trajectory computation
@@ -85,10 +85,10 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& energ
             t += part.dt;
         }
         // Update probablity estimation of hits
-        double partHitProb = v_samples[i] * part.hit_prob;
+        double partHitProb = v_abs * part.hit_prob;
         expectedEVCounter += energy_samples[i] * partHitProb;
 
-        outfile << i << "," << scientific << eV << ","
+        outfile << i << "," << scientific << energy_samples[i] << ","
                 << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
                 << scientific << v0(0) << "," << v0(1) << "," << v0(2) << ","
                 << partHitProb << "," << energy_samples[i] * partHitProb << "\n";
