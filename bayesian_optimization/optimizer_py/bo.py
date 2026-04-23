@@ -29,8 +29,9 @@ device = torch.device("cpu")
 print(f"Using device: {device}")
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
-INIT = 10 # Number of initial random samples for BO
-MAX_ITER = 1000 # Maximum number of BO iterations
+INIT = 1 # Number of initial random samples for BO
+MAX_ITER = 5 # Maximum number of BO iterations
+CONVERGENCE_EI_THRESHOLD = 1e-4 # Threshold for expected improvement to declare convergence
 SEED = 42
 rng = np.random.default_rng(SEED)
 
@@ -136,10 +137,10 @@ def objective_function(seed, centers, normals):
     normals_cart = spherical_to_cartesian(np.ones(K), normals[:, 0], normals[:, 1]) # shape: (K, 3) - unit vectors for normals
     
     # Sample particle energies from the log data distribution (for all particles, but we can choose one if needed)
-    samples = sample_all_particles(LOG_DATA, n_samples=N)
+    samples_dict = sample_all_particles(LOG_DATA, n_samples=N)
     
     # Call the C++ simulator
-    expected_energy = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart)
+    expected_energy = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict)
     # Take the log of energy to stabilize optimization and handle wide range of values
     return np.log(expected_energy + 1e-8) # Add small value to avoid log(0)
 
@@ -215,7 +216,7 @@ def main():
         # Convergence with EI threshold
         max_ei = np.exp(ei(candidate).item())
         ei_array = np.append(ei_array, max_ei)
-        if max_ei < 1e-3: # If expected improvement is very small, we can stop
+        if max_ei < CONVERGENCE_EI_THRESHOLD: # If expected improvement is very small, we can stop
             print(f"Convergence reached at iteration {iteration+1} with EI={max_ei:.6f}")
             break     
         
