@@ -31,13 +31,13 @@ print(f"Using device: {device}")
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
 INIT = 1 # Number of initial random samples for BO
 MAX_ITER = 5 # Maximum number of BO iterations
-CONVERGENCE_EI_THRESHOLD = 1e-4 # Threshold for expected improvement to declare convergence
+CONVERGENCE_EI_THRESHOLD = 1e-5 # Threshold for expected improvement to declare convergence
 SEED = 42
 rng = np.random.default_rng(SEED)
 
 # Field parameters (fixed for this optimization)
 K = 10 # Number of coils
-N = int(1E5) # Number of particles
+N = int(1E3) # Number of particles
 I = 7.2E4 # Current in Amperes
 R = 0.05 # Initial coil radius in meters
 
@@ -181,7 +181,7 @@ def initialize_bo(n_initial_points=INIT):
 def main():
     start_clock = time.time()
 
-    ei_array = np.empty(MAX_ITER)
+    ei_array = np.empty(0)
 
     # Step 1: Initialize BO with random samples
     centers_init, normals_init, energy_init = initialize_bo()

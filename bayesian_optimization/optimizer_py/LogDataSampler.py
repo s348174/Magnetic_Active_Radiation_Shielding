@@ -186,4 +186,4 @@ if __name__ == "__main__":
 
     # Optional: visualise first 2 particles
     print("\nGenerating verification plots …")
-    plot_samples(df, samples, particles_to_plot=particles[:2], log_scale=True)
+    plot_samples(df, samples, particles_to_plot=particles[:2], log_scale=False)
