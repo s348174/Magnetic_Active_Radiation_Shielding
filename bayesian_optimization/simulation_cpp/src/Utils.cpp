@@ -31,7 +31,7 @@
 using namespace std;
 using namespace Eigen;
 
-bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& v_samples,
+bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& energy_samples,
                 const string& particleName, const double& m, const double& q, const int& N,
                 double& dt, unsigned long& seed, double& expectedDose) {
     // Monte Carlo simulation
@@ -62,6 +62,7 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& v_sam
     outfile << "i,eV,x_0,y_0,z_0,v_x,v_y,v_z,hit_p,exp_eV\n"; // CSV header
 
     double expectedEVCounter = 0.0; // Counter for how may eV received
+    const double conversionEV = 2 * e_q / m;
     for (size_t i = 0; i < N; ++i) {
         // Sample initial position from a sphere of radius 4R
         double theta = azimut(gen);
@@ -69,8 +70,9 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& v_sam
         Vector3d X0;
         X0 << 4 * revelator.R * sin(phi) * cos(theta), 4 * revelator.R * sin(phi) * sin(theta), 4 * revelator.R * cos(phi);
         // Set target as center of particle detector
-        Vector3d target = -X0;
-        Vector3d v0 = v_samples[i] * target / target.norm();
+        const Vector3d target = -X0;
+        const double v_abs = sqrt(energy_samples * conversionEV);
+        Vector3d v0 = v_abs * target / target.norm();
 
         // Define particle
         double T_max = 1.5 * target.norm() / v_samples[i];
@@ -84,13 +86,12 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& v_sam
         }
         // Update probablity estimation of hits
         double partHitProb = v_samples[i] * part.hit_prob;
-        double eV = 0.5 * m * v_samples[i] * v_samples[i] * 1.6022e19;
-        expectedEVCounter += eV * partHitProb;
+        expectedEVCounter += energy_samples[i] * partHitProb;
 
         outfile << i << "," << scientific << eV << ","
                 << fixed << X0(0) << "," << X0(1) << "," << X0(2) << ","
                 << scientific << v0(0) << "," << v0(1) << "," << v0(2) << ","
-                << partHitProb << "," << eV * partHitProb << "\n";
+                << partHitProb << "," << energy_samples[i] * partHitProb << "\n";
     }
     // Return the expected dose computed by this thread.
     expectedDose = expectedEVCounter / static_cast<double>(N);
@@ -133,7 +134,7 @@ double evaluateExpression(const string& expr) {
 }
 
 // Thread worker function
-void runSimulation(BField field, Revelator revelator, const vector<double>& v_samples,
+void runSimulation(BField field, Revelator revelator, const vector<double>& energy_samples,
                    string name, double m, double q, int N, double dt, unsigned long seed,
                    double& totalExpectedDose, mutex& doseMutex) {
     {
@@ -143,7 +144,7 @@ void runSimulation(BField field, Revelator revelator, const vector<double>& v_sa
     }
 
     double expectedDose = 0.0;
-    bool ok = monteCarlo(field, revelator, v_samples, name, m, q, N, dt, seed, expectedDose);
+    bool ok = monteCarlo(field, revelator, energy_samples, name, m, q, N, dt, seed, expectedDose);
 
     if (ok) {
         lock_guard<mutex> lock(doseMutex);
@@ -199,10 +200,10 @@ double runFromCSV_MT(const string& filename, BField field, Revelator revelator,
         try {
             double m = amu * evaluateExpression(mStr);
             double q = e_q * evaluateExpression(qStr);
-            const vector<double>& v_samples = samples.at(name);
+            const vector<double>& energy_samples = samples.at(name);
 
             // Launch one thread per simulation
-            threads.emplace_back(runSimulation, field, revelator, v_samples, name, m, q, N, dt, seed, ref(totalExpectedDose), ref(doseMutex));
+            threads.emplace_back(runSimulation, field, revelator, ref(energy_samples), name, m, q, N, dt, seed, ref(totalExpectedDose), ref(doseMutex));
         }
         catch (const std::exception& e) {
             lock_guard<mutex> lock(io_mutex);
