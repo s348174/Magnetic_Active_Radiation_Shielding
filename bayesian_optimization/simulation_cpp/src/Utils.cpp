@@ -68,7 +68,7 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& energ
         double theta = azimut(gen);
         double phi = polar(gen);
         Vector3d X0;
-        X0 << 4 * revelator.R * sin(phi) * cos(theta), 4 * revelator.R * sin(phi) * sin(theta), 4 * revelator.R * cos(phi);
+        X0 << 50 * sin(phi) * cos(theta), 50 * sin(phi) * sin(theta), 50 * cos(phi);
         // Set target as center of particle detector
         const Vector3d target = -X0;
         const double v_abs = sqrt(energy_samples[i] * conversionEV);

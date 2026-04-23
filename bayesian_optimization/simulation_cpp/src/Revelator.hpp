@@ -4,7 +4,6 @@
 #include <Eigen/Eigen>
 #include <math.h>
 #include <cmath>
-#include <iostream>
 
 using namespace std;
 using namespace Eigen;
