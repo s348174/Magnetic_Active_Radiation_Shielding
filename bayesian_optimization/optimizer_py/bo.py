@@ -7,7 +7,7 @@ import simulator
 import torch
 from botorch.models import SingleTaskGP
 from botorch.fit import fit_gpytorch_mll
-from botorch.acquisition import LogExpectedImprovement
+from botorch.acquisition import LogExpectedImprovement, qLogNoisyExpectedImprovement, qNoisyExpectedImprovement
 from botorch.optim import optimize_acqf
 from gpytorch.mlls import ExactMarginalLogLikelihood
 
@@ -37,7 +37,7 @@ rng = np.random.default_rng(SEED)
 
 # Field parameters (fixed for this optimization)
 K = 10 # Number of coils
-N = int(1e4) # Number of particles
+N = int(1e5) # Number of particles
 I = 7.2E4 # Current in Amperes
 R = 0.5 # Initial coil radius in meters
 
@@ -142,7 +142,7 @@ def objective_function(seed, centers, normals):
     # Call the C++ simulator
     expected_energy = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict)
     # Take the log of energy to stabilize optimization and handle wide range of values
-    return expected_energy
+    return np.log(expected_energy)
 
 def random_coil_configuration(K):
     """
@@ -204,7 +204,11 @@ def main():
     # Step 3: BO loop
     for iteration in range(MAX_ITER):
         # 1. Optimize acquisition function to find next point
-        ei = LogExpectedImprovement(gp, best_f=torch.tensor(y_train.max(), dtype=torch.double).to(device))
+        #ei = LogExpectedImprovement(gp, best_f=torch.tensor(y_train.max(), dtype=torch.double).to(device))
+        ei = qLogNoisyExpectedImprovement(
+            model=gp, 
+            X_baseline=X_train,
+            )
         candidate, _ = optimize_acqf(
             acq_function=ei,
             bounds=unit_bounds,
@@ -216,7 +220,9 @@ def main():
         # Convergence with EI threshold
         max_ei = np.exp(ei(candidate).item())
         ei_array = np.append(ei_array, max_ei)
-        if max_ei < CONVERGENCE_EI_THRESHOLD: # If expected improvement is very small, we can stop
+        best_energy_so_far = np.exp(-y_train.max())
+        if max_ei < CONVERGENCE_EI_THRESHOLD * best_energy_so_far: 
+            # If expected improvement is very small, we can stop
             print(f"Convergence reached at iteration {iteration+1} with EI={max_ei:.6f}")
             break     
         

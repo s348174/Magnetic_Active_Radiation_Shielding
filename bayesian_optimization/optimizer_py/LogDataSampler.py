@@ -16,6 +16,52 @@ import matplotlib.pyplot as plt
 # Core sampling helpers
 # ---------------------------------------------------------------------------
 
+def diagnose_sampling_input(df: pd.DataFrame) -> None:
+    """
+    Validate input CSV content before sampling.
+
+    Raises ValueError with a compact diagnostic report if invalid values are
+    found that can lead to skipped/incomplete sampling.
+    """
+    issues = []
+
+    if "Energy" not in df.columns:
+        raise ValueError("Input data must contain an 'Energy' column.")
+
+    energy = pd.to_numeric(df["Energy"], errors="coerce").to_numpy(dtype=float)
+    if np.isnan(energy).any() or np.isinf(energy).any():
+        bad = int((~np.isfinite(energy)).sum())
+        issues.append(f"Energy has {bad} non-finite values (NaN/Inf)")
+
+    finite_energy = energy[np.isfinite(energy)]
+    if finite_energy.size >= 2 and np.any(np.diff(finite_energy) <= 0):
+        issues.append("Energy is not strictly increasing (after removing non-finite entries)")
+
+    particles = df.columns[1:].tolist()
+    if not particles:
+        issues.append("No particle columns found (columns after 'Energy')")
+
+    for particle in particles:
+        flux = pd.to_numeric(df[particle], errors="coerce").to_numpy(dtype=float)
+        non_finite = int((~np.isfinite(flux)).sum())
+        if non_finite > 0:
+            issues.append(f"{particle}: {non_finite} non-finite flux values (NaN/Inf)")
+            continue
+
+        if np.any(flux < 0):
+            neg = int((flux < 0).sum())
+            issues.append(f"{particle}: {neg} negative flux values")
+
+        if np.all(flux == 0):
+            issues.append(f"{particle}: flux is all zeros")
+
+    if issues:
+        report = "\n  - " + "\n  - ".join(issues)
+        raise ValueError(
+            "Invalid values detected in source CSV before sampling. "
+            "Fix data issues to avoid incomplete sampling:" + report
+        )
+
 def build_sampler(energy: np.ndarray, flux: np.ndarray) -> callable:
     """
     Build an inverse-CDF sampler for a single particle's energy distribution.
@@ -92,6 +138,7 @@ def sample_all_particles(df: pd.DataFrame,
     Draw n_samples energy values for every particle in df.
     Returns dict mapping particle name → np.ndarray of sampled energies.
     """
+    diagnose_sampling_input(df)
     particles = df.columns[1:].tolist()   # everything except 'Energy'
     results   = {}
 
