@@ -37,7 +37,7 @@ rng = np.random.default_rng(SEED)
 
 # Field parameters (fixed for this optimization)
 K = 10 # Number of coils
-N = int(1E3) # Number of particles
+N = int(1e4) # Number of particles
 I = 7.2E4 # Current in Amperes
 R = 0.5 # Initial coil radius in meters
 
@@ -142,7 +142,7 @@ def objective_function(seed, centers, normals):
     # Call the C++ simulator
     expected_energy = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict)
     # Take the log of energy to stabilize optimization and handle wide range of values
-    return np.log(expected_energy + 1e-8) # Add small value to avoid log(0)
+    return expected_energy
 
 def random_coil_configuration(K):
     """
