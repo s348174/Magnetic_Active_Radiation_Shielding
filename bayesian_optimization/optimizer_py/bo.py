@@ -1,5 +1,6 @@
 # Import C++ bindings
 import sys
+from xml.parsers.expat import model
 sys.path.append('../Release')
 import simulator
 
@@ -10,6 +11,7 @@ from botorch.models import SingleTaskGP # Gausian Process model for single-task 
 from botorch.models.transforms.outcome import Standardize # Outcome transform to standardize targets
 from botorch.fit import fit_gpytorch_mll # Model fitting utility
 from botorch.acquisition import LogExpectedImprovement, qLogNoisyExpectedImprovement, PosteriorMean # Acquisition functions for BO
+from botorch.acquisition.acquisition import AcquisitionFunction
 from botorch.optim import optimize_acqf # Optimization utility for acquisition functions
 from botorch.utils.sampling import draw_sobol_samples # Better sampling startegy in high dimensions than random sampling
 # GPyTorch imports
@@ -41,9 +43,9 @@ R = 0.5 # Initial coil radius in meters
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
 INIT = 2*5*K # Number of initial random samples for BO
-MAX_ITER = 500 # Maximum number of BO iterations
-CONVERGENCE_THRESHOLD = 1e-6 # Threshold for convergence
-SEED = 42
+MAX_ITER = 1000 # Maximum number of BO iterations
+CONVERGENCE_THRESHOLD = 1e-3 # Threshold for convergence
+SEED = 67
 rng = np.random.default_rng(SEED)
 
 # FIELD HYPERPARAMETERS SETUP
@@ -65,6 +67,13 @@ UPPER = torch.tensor(
 D = 5 * K
 unit_bounds = torch.zeros(2, D, dtype=torch.double, device=device)
 unit_bounds[1] = 1.0  # upper bounds all 1
+
+# Indices of periodic variables in normalized design x in [0, 1]^D.
+# We map these dimensions to sin/cos pairs to avoid wrap-around discontinuities.
+PERIODIC_IDXS = list(range(2 * K, 3 * K)) + list(range(4 * K, 5 * K))
+
+# Input dimension seen by the GP after feature mapping.
+MAPPED_D = D + len(PERIODIC_IDXS)
 
 # Read initial data from log files
 FILEPATH = "../data/log_scaled_flux_data.csv"
@@ -108,6 +117,41 @@ def unpack_configuration(x):
     centers = np.stack([center_r, center_theta, center_phi], axis=1)
     normals = np.stack([normal_theta, normal_phi], axis=1)
     return centers, normals
+
+def periodic_feature_map(X):
+    """
+    Map periodic components x in [0, 1] to sin/cos pairs.
+    Non-periodic components are kept unchanged.
+
+    Input shape:  (..., D)
+    Output shape: (..., D + len(PERIODIC_IDXS))
+    """
+    if not torch.is_tensor(X):
+        X = torch.tensor(X, dtype=torch.double, device=device)
+    X = X.to(dtype=torch.double, device=device)
+
+    features = []
+    periodic_set = set(PERIODIC_IDXS)
+    for d in range(D):
+        xd = X[..., d:d+1]
+        if d in periodic_set:
+            angle = 2.0 * np.pi * xd
+            features.append(torch.sin(angle))
+            features.append(torch.cos(angle))
+        else:
+            features.append(xd)
+    return torch.cat(features, dim=-1)
+
+class InputMappedAcquisition(AcquisitionFunction):
+    """Evaluate an acquisition on mapped inputs while optimizing in original space."""
+
+    def __init__(self, base_acqf, map_fn):
+        super().__init__(model=base_acqf.model)
+        self.base_acqf = base_acqf
+        self.map_fn = map_fn
+
+    def forward(self, X):
+        return self.base_acqf(self.map_fn(X))
 
 def spherical_to_cartesian(r, theta, phi):
     """
@@ -213,11 +257,12 @@ def main():
     covar_module = ScaleKernel(
         MaternKernel(
             nu=2.5,
-            ard_num_dims=5*K, # In teoria superfluo dato che SingleTaskGP dovrebbe derivarlo da solo
+            ard_num_dims=MAPPED_D, # Must match the feature-mapped input dimension
         )
     )
+    X_train_model = periodic_feature_map(X_train)
     gp = SingleTaskGP(
-        X_train.detach().clone().to(device),
+        X_train_model.detach().clone().to(device),
         torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
         covar_module=covar_module,
         outcome_transform=Standardize(m=1),
@@ -233,10 +278,11 @@ def main():
         #ei = LogExpectedImprovement(gp, best_f=torch.tensor(y_train.max(), dtype=torch.double).to(device))
         ei = qLogNoisyExpectedImprovement(
             model=gp, 
-            X_baseline=X_train,
+            X_baseline=X_train_model,
             )
+        ei_on_original_space = InputMappedAcquisition(ei, periodic_feature_map)
         candidate, _ = optimize_acqf(
-            acq_function=ei,
+            acq_function=ei_on_original_space,
             bounds=unit_bounds,
             q=1,
             num_restarts=60,
@@ -244,7 +290,7 @@ def main():
         )
 
         # Convergence with EI threshold
-        max_ei = ei(candidate).item()
+        max_ei = ei_on_original_space(candidate).item()
         ei_array = np.append(ei_array, np.exp(max_ei))
         """best_energy_so_far = -y_train.max()
         if max_ei < np.log(CONVERGENCE_EI_THRESHOLD) + best_energy_so_far:
@@ -268,16 +314,21 @@ def main():
             f"Shape mismatch: X={X_train.shape}, y={y_train.shape}"
         
         # 5. Refit GP model with new data
+        X_train_model = periodic_feature_map(X_train)
         gp = SingleTaskGP(
-            X_train.detach().clone().to(device),
-            torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device)) # Unsqueeze for correct shape
+            X_train_model.detach().clone().to(device),
+            torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
+            covar_module=covar_module,
+            outcome_transform=Standardize(m=1),
+        )
         mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
         fit_gpytorch_mll(mll)
 
         # 6. Check convergence via best predicted value
         post_mean = PosteriorMean(gp)
+        post_mean_on_original_space = InputMappedAcquisition(post_mean, periodic_feature_map)
         _, current_best_mean = optimize_acqf(
-            acq_function=post_mean,
+            acq_function=post_mean_on_original_space,
             bounds=unit_bounds,
             q=1,
             num_restarts=60,
@@ -287,6 +338,24 @@ def main():
         if len(best_mean_hist) > 2*5*K: # Check convergence only after enough iterations to have a history
             if (abs(best_mean_hist[-1] - best_mean_hist[-10]) < CONVERGENCE_THRESHOLD * abs(best_mean_hist[-10])):
                 print(f"Convergence reached at iteration {iteration} with EI={np.exp(max_ei):.6f} and predicted mean={current_best_mean:.4f}")
+                break
+
+            learned_noise_var = gp.likelihood.noise.item()
+
+            # Use top-5 observed points — more stable than a single noisy incumbent
+            top_k = min(5, X_train.shape[0])
+            top_idx = torch.as_tensor(
+                np.argsort(y_train)[-top_k:],
+                dtype=torch.long,
+                device=device,
+            )
+            eval_X = X_train_model[top_idx]
+
+            posterior = gp.posterior(eval_X)
+            posterior_var = posterior.variance.mean().item()
+
+            if posterior_var < CONVERGENCE_THRESHOLD * max(learned_noise_var, 1e-10):
+                print(f"Convergence reached at iteration {iteration} with EI={np.exp(max_ei):.6f}, predicted mean={current_best_mean:.4f}, and variance={posterior_var:.6f}")
                 break
         
         print(f"Iteration {iteration+1}/{MAX_ITER}, Energy: {np.exp(energy_next):.4f}")

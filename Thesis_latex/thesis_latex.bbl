@@ -606,6 +606,45 @@
       \verb https://arxiv.org/abs/2305.15572
       \endverb
     \endentry
+    \entry{rasmussen_2005}{book}{}
+      \name{author}{2}{}{%
+        {{hash=58d90ed7b7348c7a5a9b4a2a8f46df7b}{%
+           family={Rasmussen},
+           familyi={R\bibinitperiod},
+           given={Carl\bibnamedelima Edward},
+           giveni={C\bibinitperiod\bibinitdelim E\bibinitperiod}}}%
+        {{hash=d34fdfcbfcb5412397b946351370db22}{%
+           family={Williams},
+           familyi={W\bibinitperiod},
+           given={Christopher\bibnamedelimb K.\bibnamedelimi I.},
+           giveni={C\bibinitperiod\bibinitdelim K\bibinitperiod\bibinitdelim I\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {The MIT Press}%
+      }
+      \strng{namehash}{f0ccf4a09a3a6a91719405724e3ae5da}
+      \strng{fullhash}{f0ccf4a09a3a6a91719405724e3ae5da}
+      \strng{bibnamehash}{f0ccf4a09a3a6a91719405724e3ae5da}
+      \strng{authorbibnamehash}{f0ccf4a09a3a6a91719405724e3ae5da}
+      \strng{authornamehash}{f0ccf4a09a3a6a91719405724e3ae5da}
+      \strng{authorfullhash}{f0ccf4a09a3a6a91719405724e3ae5da}
+      \field{sortinit}{9}
+      \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{isbn}{9780262256834}
+      \field{title}{Gaussian Processes for Machine Learning}
+      \field{year}{2005}
+      \verb{doi}
+      \verb https://doi.org/10.7551/mitpress/3206.001.0001
+      \endverb
+      \verb{urlraw}
+      \verb https://direct.mit.edu/books/oa-monograph/2320/Gaussian-Processes-for-Machine-Learning
+      \endverb
+      \verb{url}
+      \verb https://direct.mit.edu/books/oa-monograph/2320/Gaussian-Processes-for-Machine-Learning
+      \endverb
+    \endentry
     \entry{borisalgorithm}{article}{}
       \name{author}{2}{}{%
         {{hash=249015b2db28fa344edb8c527fc8f31f}{%
@@ -636,75 +675,6 @@
       \field{year}{2021}
       \verb{doi}
       \verb 10.1088/1674-1056/abd161
-      \endverb
-    \endentry
-    \entry{rasmussen_2005}{book}{}
-      \name{author}{2}{}{%
-        {{hash=58d90ed7b7348c7a5a9b4a2a8f46df7b}{%
-           family={Rasmussen},
-           familyi={R\bibinitperiod},
-           given={Carl\bibnamedelima Edward},
-           giveni={C\bibinitperiod\bibinitdelim E\bibinitperiod}}}%
-        {{hash=d34fdfcbfcb5412397b946351370db22}{%
-           family={Williams},
-           familyi={W\bibinitperiod},
-           given={Christopher\bibnamedelimb K.\bibnamedelimi I.},
-           giveni={C\bibinitperiod\bibinitdelim K\bibinitperiod\bibinitdelim I\bibinitperiod}}}%
-      }
-      \list{publisher}{1}{%
-        {The MIT Press}%
-      }
-      \strng{namehash}{f0ccf4a09a3a6a91719405724e3ae5da}
-      \strng{fullhash}{f0ccf4a09a3a6a91719405724e3ae5da}
-      \strng{bibnamehash}{f0ccf4a09a3a6a91719405724e3ae5da}
-      \strng{authorbibnamehash}{f0ccf4a09a3a6a91719405724e3ae5da}
-      \strng{authornamehash}{f0ccf4a09a3a6a91719405724e3ae5da}
-      \strng{authorfullhash}{f0ccf4a09a3a6a91719405724e3ae5da}
-      \field{sortinit}{1}
-      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
-      \field{labelnamesource}{author}
-      \field{labeltitlesource}{title}
-      \field{isbn}{9780262256834}
-      \field{title}{Gaussian Processes for Machine Learning}
-      \field{year}{2005}
-      \verb{doi}
-      \verb https://doi.org/10.7551/mitpress/3206.001.0001
-      \endverb
-      \verb{urlraw}
-      \verb https://direct.mit.edu/books/oa-monograph/2320/Gaussian-Processes-for-Machine-Learning
-      \endverb
-      \verb{url}
-      \verb https://direct.mit.edu/books/oa-monograph/2320/Gaussian-Processes-for-Machine-Learning
-      \endverb
-    \endentry
-    \entry{garnett_bayesoptbook_2023}{book}{}
-      \name{author}{1}{}{%
-        {{hash=eaf84e3fe4f887967dc3d793d28b9e94}{%
-           family={Garnett},
-           familyi={G\bibinitperiod},
-           given={Roman},
-           giveni={R\bibinitperiod}}}%
-      }
-      \list{publisher}{1}{%
-        {Cambridge University Press}%
-      }
-      \strng{namehash}{eaf84e3fe4f887967dc3d793d28b9e94}
-      \strng{fullhash}{eaf84e3fe4f887967dc3d793d28b9e94}
-      \strng{bibnamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
-      \strng{authorbibnamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
-      \strng{authornamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
-      \strng{authorfullhash}{eaf84e3fe4f887967dc3d793d28b9e94}
-      \field{sortinit}{1}
-      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
-      \field{labelnamesource}{author}
-      \field{labeltitlesource}{title}
-      \field{title}{{Bayesian Optimization}}
-      \field{year}{2023}
-      \verb{urlraw}
-      \verb https://bayesoptbook.com/
-      \endverb
-      \verb{url}
-      \verb https://bayesoptbook.com/
       \endverb
     \endentry
     \entry{rembo}{misc}{}
@@ -760,6 +730,152 @@
       \verb{url}
       \verb https://arxiv.org/abs/1301.1942
       \endverb
+    \endentry
+    \entry{garnett_bayesoptbook_2023}{book}{}
+      \name{author}{1}{}{%
+        {{hash=eaf84e3fe4f887967dc3d793d28b9e94}{%
+           family={Garnett},
+           familyi={G\bibinitperiod},
+           given={Roman},
+           giveni={R\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Cambridge University Press}%
+      }
+      \strng{namehash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{fullhash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{bibnamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{authorbibnamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{authornamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{authorfullhash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{{Bayesian Optimization}}
+      \field{year}{2023}
+      \verb{urlraw}
+      \verb https://bayesoptbook.com/
+      \endverb
+      \verb{url}
+      \verb https://bayesoptbook.com/
+      \endverb
+    \endentry
+    \entry{Smith2020ArtemisProgram}{inproceedings}{}
+      \name{author}{7}{}{%
+        {{hash=cf140248ca169b21b46c547c87c74971}{%
+           family={Smith},
+           familyi={S\bibinitperiod},
+           given={Marshall},
+           giveni={M\bibinitperiod}}}%
+        {{hash=f55e9d2a13cdfc5b9c3b2ad2ac2d5b88}{%
+           family={Craig},
+           familyi={C\bibinitperiod},
+           given={Douglas},
+           giveni={D\bibinitperiod}}}%
+        {{hash=fcaffa22ae59a8bee58d18fb2b9884b2}{%
+           family={Herrmann},
+           familyi={H\bibinitperiod},
+           given={Nicole},
+           giveni={N\bibinitperiod}}}%
+        {{hash=eda2b9993a1f3f832a2086353c989371}{%
+           family={Mahoney},
+           familyi={M\bibinitperiod},
+           given={Erin},
+           giveni={E\bibinitperiod}}}%
+        {{hash=10afd315aa7ea148f0ff1e09f8e9331c}{%
+           family={Krezel},
+           familyi={K\bibinitperiod},
+           given={Jonathan},
+           giveni={J\bibinitperiod}}}%
+        {{hash=a5885ee4a87c627edf143f8425662fb7}{%
+           family={McIntyre},
+           familyi={M\bibinitperiod},
+           given={Nate},
+           giveni={N\bibinitperiod}}}%
+        {{hash=7ab6a592d22c933530a19782db14b0e3}{%
+           family={Goodliff},
+           familyi={G\bibinitperiod},
+           given={Kandyce},
+           giveni={K\bibinitperiod}}}%
+      }
+      \strng{namehash}{0e85ded56ef308aea29cd1cda3581275}
+      \strng{fullhash}{6d1a8dc3bcfcd01f49e975083e9260b6}
+      \strng{bibnamehash}{0e85ded56ef308aea29cd1cda3581275}
+      \strng{authorbibnamehash}{0e85ded56ef308aea29cd1cda3581275}
+      \strng{authornamehash}{0e85ded56ef308aea29cd1cda3581275}
+      \strng{authorfullhash}{6d1a8dc3bcfcd01f49e975083e9260b6}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{2020 IEEE Aerospace Conference}
+      \field{title}{The Artemis Program: An Overview of NASA's Activities to Return Humans to the Moon}
+      \field{year}{2020}
+      \true{nocite}
+      \field{pages}{1\bibrangedash 10}
+      \range{pages}{10}
+      \verb{doi}
+      \verb 10.1109/AERO47225.2020.9172323
+      \endverb
+      \keyw{Personal protective equipment;Mars;South Pole;Moon;NASA;Logic gates;Aerospace electronics;Space exploration;Deep-space communications;Logistics}
+    \endentry
+    \entry{solenoid_efficient_algo}{article}{}
+      \name{author}{5}{}{%
+        {{hash=4dc298c97b61288f6bd458ab10818108}{%
+           family={Granum},
+           familyi={G\bibinitperiod},
+           given={Peter},
+           giveni={P\bibinitperiod}}}%
+        {{hash=d1962ce5827170a99f500cea4a24ab00}{%
+           family={Madsen},
+           familyi={M\bibinitperiod},
+           given={Magnus\bibnamedelima Linnet},
+           giveni={M\bibinitperiod\bibinitdelim L\bibinitperiod}}}%
+        {{hash=51dcd486f4e7a6264038702be69fb934}{%
+           family={McKenna},
+           familyi={M\bibinitperiod},
+           given={Joseph\bibnamedelimb Tiarnan\bibnamedelima Kerr},
+           giveni={J\bibinitperiod\bibinitdelim T\bibinitperiod\bibinitdelim K\bibinitperiod}}}%
+        {{hash=45c471dba00a54f1841e98e429f5c43c}{%
+           family={Hodgkinson},
+           familyi={H\bibinitperiod},
+           given={Danielle\bibnamedelima Louise},
+           giveni={D\bibinitperiod\bibinitdelim L\bibinitperiod}}}%
+        {{hash=e44076fa4232d642ff97baf253e297c6}{%
+           family={Fajans},
+           familyi={F\bibinitperiod},
+           given={Joel},
+           giveni={J\bibinitperiod}}}%
+      }
+      \strng{namehash}{c0379fbf921252b6131f7f7c0ccf358f}
+      \strng{fullhash}{69f93da4795b5b65a236537d1851bad3}
+      \strng{bibnamehash}{69f93da4795b5b65a236537d1851bad3}
+      \strng{authorbibnamehash}{69f93da4795b5b65a236537d1851bad3}
+      \strng{authornamehash}{c0379fbf921252b6131f7f7c0ccf358f}
+      \strng{authorfullhash}{69f93da4795b5b65a236537d1851bad3}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{issn}{0168-9002}
+      \field{journaltitle}{Nuclear Instruments and Methods in Physics Research Section A: Accelerators, Spectrometers, Detectors and Associated Equipment}
+      \field{title}{Efficient calculations of magnetic fields of solenoids for simulations}
+      \field{volume}{1034}
+      \field{year}{2022}
+      \true{nocite}
+      \field{pages}{166706}
+      \range{pages}{1}
+      \verb{doi}
+      \verb https://doi.org/10.1016/j.nima.2022.166706
+      \endverb
+      \verb{urlraw}
+      \verb https://www.sciencedirect.com/science/article/pii/S0168900222002455
+      \endverb
+      \verb{url}
+      \verb https://www.sciencedirect.com/science/article/pii/S0168900222002455
+      \endverb
+      \keyw{Magnets,Solenoids,Simulations,Magnetic fields,Efficiency,Field models}
     \endentry
   \enddatalist
 \endrefsection

@@ -23,8 +23,13 @@ citestyle=numeric-comp
 \usepackage{amsthm}
 \newtheorem{lemma}{Lemma}
 \newtheorem{prop}{Proposition}
+\newtheorem{defn}{Definition}
+\newtheorem{obs}{Observation}
 
 %-----------------------------------------------------%
+
+\usepackage{imakeidx}
+\makeindex
 
 \begin{document}
 	
@@ -37,6 +42,7 @@ citestyle=numeric-comp
 	% HOW is this reserach going to be different to what's already been done, what previous research has been done if any, where are the gaps and how will this research fill it?
 	% How will it be done/ how will the research questions be answered?
 	
+	\section*{Introduction}
 	The problem of radiation shielding is of paramount importance in crewed space missions: the limitations of damages to the astronauts' healths puts limits on the duration of a crewed mission. At this time, NASA duration for ISS missions is 6 months \cite{Kahn2014}. This cap makes unfeasible at the current stage the possibility of planning crewed mission to explore other solar system planets. 
 	
 	There are two types of radiation shielding: passive and active. Passive shielding operates by placing some shielding material that absorbs radiation by particle interaction. This is the type of shielding that the most research has been conducted about.
@@ -81,6 +87,31 @@ citestyle=numeric-comp
 	The RMIT Space Physics group has already developed simulators for this task that run on the particle physics software GEANT4, that can be used for the task.
 	
 	A theoretical study on convergence guarantees and robustness under noise will be conducted in parallel, with the help of italian supervisors \cite{boconvergence2024}.
+	
+	\newpage
+	\tableofcontents
+	\newpage
+	
+	\section{The Bayesian framework: preliminary statistics concepts}
+	
+	\section{Gaussian Processes theory}
+	\begin{defn}[Random Process]
+		A \textit{random process}, or \textit{stochastic process}, is a collection of random variables $(X_t)_{t \in T}$ on the same probability space, and indexed by elements $t$ of a set $T$. If the set $T$ is a continuous interval, then the process is \textit{time-continuous}.
+	\end{defn}
+	
+	\begin{defn}[Gaussian Process]
+		A continuous time random process $(X_t)_{t \in T}$ is called a \textit{Gaussian process} if for every finite subset $T_0 \subset T$ (i.e.: for any finite collection of indexes $\{t_1, ..., t_n \}$), the random vector:
+		$$(X_t)_{t \in T_0}$$
+		has normal distribution. We indicate the process as:
+		$$X(t) = \mathcal{GP}(m(\cdot), k(\cdot, \cdot)),$$
+		where $m(\cdot)$ is the mean function and $k(\cdot, \cdot)$ is the covariance function.
+	\end{defn}
+	
+	\begin{obs}
+		A Gaussian process is completely specified by its mean and covariance function \cite{rasmussen_2005}.
+	\end{obs}
+	
+	\section{Bayesian Optimization}
 	
 	\section{Preliminary study on objective function continuity}
 	% Define why it is important
@@ -303,6 +334,14 @@ citestyle=numeric-comp
 	
 	Some techniques have been proposed for dimensionality reduction in BO, like random embeddings in \cite{rembo}, but it comes at the price of losing the physical meaning of the original parameters, thus rendering it useless for this parametrization.
 	
+	\section{Code implementation}
+	\subsection{The Python optimizer}
+	\subsubsection{The BoTorch library}
+	\subsection{The C++ Monte Carlo simulation}
+	\subsubsection{The sampler}
+	\subsubsection{The SAM algorithm}
+	\subsubsection{The Boris algorithm}
+	
 	\section{Remaining questions}
 	There are still a few more question to address for this application of BO:
 	\begin{enumerate}
@@ -315,7 +354,7 @@ citestyle=numeric-comp
 	The next steps will be:
 	\begin{enumerate}
 		\item Verify if SAM integrator is faster than Biot Savart,
-		\item Implement MCMC from Oltaris data for accurate particle simulation,
+		\item Implement sampling from Oltaris data for accurate particle simulation,
 		\item Experiment with different acquisition functions (current one is Expected Improvement),
 		\item Push the dimensionality of the problem to the limits of BO,
 		\item Experiment with different parametrizations.
