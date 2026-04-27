@@ -5,11 +5,16 @@ import simulator
 
 # Import libraries for optimization
 import torch
-from botorch.models import SingleTaskGP
-from botorch.fit import fit_gpytorch_mll
-from botorch.acquisition import LogExpectedImprovement, qLogNoisyExpectedImprovement, qNoisyExpectedImprovement
-from botorch.optim import optimize_acqf
-from gpytorch.mlls import ExactMarginalLogLikelihood
+# BoTorch imports
+from botorch.models import SingleTaskGP # Gausian Process model for single-task regression
+from botorch.models.transforms.outcome import Standardize # Outcome transform to standardize targets
+from botorch.fit import fit_gpytorch_mll # Model fitting utility
+from botorch.acquisition import LogExpectedImprovement, qLogNoisyExpectedImprovement, PosteriorMean # Acquisition functions for BO
+from botorch.optim import optimize_acqf # Optimization utility for acquisition functions
+from botorch.utils.sampling import draw_sobol_samples # Better sampling startegy in high dimensions than random sampling
+# GPyTorch imports
+from gpytorch.mlls import ExactMarginalLogLikelihood # Marginal log likelihood for GP fitting
+from gpytorch.kernels import MaternKernel, ScaleKernel # Kernels for GP (Matern with ARD + scaling)
 
 # Import standard libraries
 import numpy as np
@@ -28,18 +33,18 @@ from PlotResults import interactive_plot
 device = torch.device("cpu")
 print(f"Using device: {device}")
 
-# SIMULATION AND OPTIMIZATION HYPERPARAMETERS
-INIT = 10 # Number of initial random samples for BO
-MAX_ITER = 500 # Maximum number of BO iterations
-CONVERGENCE_EI_THRESHOLD = 1e-6 # Threshold for expected improvement to declare convergence
-SEED = 42
-rng = np.random.default_rng(SEED)
-
 # Field parameters (fixed for this optimization)
-K = 10 # Number of coils
-N = int(1e5) # Number of particles
+K = 4 # Number of coils
+N = int(1e3) # Number of particles
 I = 7.2E4 # Current in Amperes
 R = 0.5 # Initial coil radius in meters
+
+# SIMULATION AND OPTIMIZATION HYPERPARAMETERS
+INIT = 2*5*K # Number of initial random samples for BO
+MAX_ITER = 500 # Maximum number of BO iterations
+CONVERGENCE_THRESHOLD = 1e-6 # Threshold for convergence
+SEED = 42
+rng = np.random.default_rng(SEED)
 
 # FIELD HYPERPARAMETERS SETUP
 X_BOUNDS = (1.0, 4.0) # Bound for distance of coil centers from origin in meters
@@ -144,7 +149,7 @@ def objective_function(seed, centers, normals):
     # Take the log of energy to stabilize optimization and handle wide range of values
     return np.log(expected_energy)
 
-def random_coil_configuration(K):
+def random_coil_configuration():
     """
     Generates random coil configuration in spherical coordinates.
     """
@@ -159,7 +164,7 @@ def random_coil_configuration(K):
     normals = np.column_stack((normal_theta, normal_phi))
     return centers, normals
 
-def initialize_bo(n_initial_points=INIT):
+def initialize_random_bo(n_initial_points=INIT):
     """
     Initializes the Bayesian Optimization process with random samples.
     Returns initial data (centers, normals, energy).
@@ -169,7 +174,7 @@ def initialize_bo(n_initial_points=INIT):
     energy_samples = []
     
     for _ in range(n_initial_points):
-        centers, normals = random_coil_configuration(K)
+        centers, normals = random_coil_configuration()
         energy = objective_function(rng.integers(1e6), centers, normals)
 
         centers_samples.append(centers)
@@ -184,23 +189,44 @@ def main():
     ei_array = np.empty(0)
 
     # Step 1: Initialize BO with random samples
-    centers_init, normals_init, energy_init = initialize_bo()
+    #centers_init, normals_init, energy_init = initialize_random_bo()
+    X_train = draw_sobol_samples(unit_bounds, n=INIT, q=1, seed=SEED).squeeze(1).to(device) # shape: (INIT, D)
+    X_train_unnorm = denormalize(X_train).cpu().numpy() # shape: (INIT, D)
+    centers_init = np.empty((INIT, K, 3))
+    normals_init = np.empty((INIT, K, 2))
+    for i in range(INIT):
+        centers_init[i], normals_init[i] = unpack_configuration(X_train_unnorm[i])
+    energy_init = np.array([
+        objective_function(rng.integers(1e6), centers_init[i], normals_init[i])
+        for i in range(INIT)
+    ]) # shape: (INIT,)
 
     ## Step 2: Fit Gaussian Process model over centers and normals
-    X_train_unnorm = np.array([
+    """X_train_unnorm = np.array([
         pack_configuration(centers_init[i], normals_init[i])
         for i in range((centers_init).shape[0])
-    ])
-    X_train = normalize(X_train_unnorm) # Keep X_train normalized throughout
+    ])"""
+    #X_train = normalize(X_train_unnorm) # Keep X_train normalized throughout
     y_train = -energy_init.flatten() # Negate energy for maximization
 
     # Fit GP model
+    covar_module = ScaleKernel(
+        MaternKernel(
+            nu=2.5,
+            ard_num_dims=5*K, # In teoria superfluo dato che SingleTaskGP dovrebbe derivarlo da solo
+        )
+    )
     gp = SingleTaskGP(
         X_train.detach().clone().to(device),
-        torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device)) # Unsqueeze for correct shape
+        torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
+        covar_module=covar_module,
+        outcome_transform=Standardize(m=1),
+    )
     mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
     fit_gpytorch_mll(mll)
 
+    # Initialize empty list of best means
+    best_mean_hist = []
     # Step 3: BO loop
     for iteration in range(MAX_ITER):
         # 1. Optimize acquisition function to find next point
@@ -213,18 +239,18 @@ def main():
             acq_function=ei,
             bounds=unit_bounds,
             q=1,
-            num_restarts=5,
-            raw_samples=20,
+            num_restarts=60,
+            raw_samples=1024,
         )
 
         # Convergence with EI threshold
-        max_ei = np.exp(ei(candidate).item())
-        ei_array = np.append(ei_array, max_ei)
-        best_energy_so_far = np.exp(-y_train.max())
-        if max_ei < CONVERGENCE_EI_THRESHOLD * best_energy_so_far: 
+        max_ei = ei(candidate).item()
+        ei_array = np.append(ei_array, np.exp(max_ei))
+        """best_energy_so_far = -y_train.max()
+        if max_ei < np.log(CONVERGENCE_EI_THRESHOLD) + best_energy_so_far:
             # If expected improvement is very small, we can stop
-            print(f"Convergence reached at iteration {iteration+1} with EI={max_ei:.6f}")
-            break     
+            print(f"Convergence reached at iteration {iteration+1} with EI={np.exp(max_ei):.6f}")
+            break  """
         
         # 2. Extract params from candidate and generate random centers and normals
         candidate_np = candidate.detach().cpu().numpy()
@@ -247,6 +273,21 @@ def main():
             torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device)) # Unsqueeze for correct shape
         mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
         fit_gpytorch_mll(mll)
+
+        # 6. Check convergence via best predicted value
+        post_mean = PosteriorMean(gp)
+        _, current_best_mean = optimize_acqf(
+            acq_function=post_mean,
+            bounds=unit_bounds,
+            q=1,
+            num_restarts=60,
+            raw_samples=1024,
+            )
+        best_mean_hist.append(current_best_mean)
+        if len(best_mean_hist) > 2*5*K: # Check convergence only after enough iterations to have a history
+            if (abs(best_mean_hist[-1] - best_mean_hist[-10]) < CONVERGENCE_THRESHOLD * abs(best_mean_hist[-10])):
+                print(f"Convergence reached at iteration {iteration} with EI={np.exp(max_ei):.6f} and predicted mean={current_best_mean:.4f}")
+                break
         
         print(f"Iteration {iteration+1}/{MAX_ITER}, Energy: {np.exp(energy_next):.4f}")
     
@@ -276,6 +317,13 @@ def main():
     plt.title("Expected Improvement over time")
     plt.xlabel("Iteration")
     plt.ylabel("Expected Improvement")
+    plt.show()
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(best_mean_hist, marker='o')
+    plt.title("Best Predicted Mean over time")
+    plt.xlabel("Iteration")
+    plt.ylabel("Best Predicted Mean")
     plt.show()
 
     # Plot the best configuration
