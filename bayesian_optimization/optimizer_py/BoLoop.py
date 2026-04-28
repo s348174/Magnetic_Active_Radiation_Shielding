@@ -1,0 +1,202 @@
+# Import libraries for optimization
+import torch
+# BoTorch imports
+from botorch.models import SingleTaskGP # Gausian Process model for single-task regression
+from botorch.models.transforms.outcome import Standardize # Outcome transform to standardize targets
+from botorch.fit import fit_gpytorch_mll # Model fitting utility
+from botorch.acquisition import qLogNoisyExpectedImprovement, PosteriorMean # Acquisition functions for BO
+from botorch.optim import optimize_acqf # Optimization utility for acquisition functions
+
+# GPyTorch imports
+from gpytorch.mlls import ExactMarginalLogLikelihood # Marginal log likelihood for GP fitting
+from gpytorch.kernels import MaternKernel, ScaleKernel # Kernels for GP (Matern with ARD + scaling)
+
+# Import standard libraries
+import numpy as np
+
+# Import externals functions
+from BoUtils import denormalize, unpack_configuration, map_fn, InputMappedAcquisition, sobol_sample, stopping_criterion
+from Objective import objective_function
+from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q
+
+
+def bo_matern_kernel(nu=2.5):
+    # Step 1: Initialize BO with Sobol samples
+    X_train, y_train = sobol_sample()
+
+    ## Step 2: Fit Gaussian Process model over centers and normals
+    covar_module = ScaleKernel(
+        MaternKernel(
+            nu=nu, # Smoothness parameter for Matern kernel (common choice for BO)
+            ard_num_dims=MAPPED_D, # Must match the feature-mapped input dimension
+        )
+    )
+    X_train_model = map_fn(X_train)
+    gp = SingleTaskGP(
+        X_train_model.detach().clone().to(device),
+        torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
+        covar_module=covar_module,
+        outcome_transform=Standardize(m=1),
+    )
+    mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+    fit_gpytorch_mll(mll)
+
+    # Initialize empty list of best means and ei values
+    ei_array = np.empty(0)
+    best_mean_hist = []
+    # Step 3: BO loop
+    for iteration in range(MAX_ITER):
+        # 1. Optimize acquisition function to find next point
+        qLogNEI = qLogNoisyExpectedImprovement(
+            model=gp, 
+            X_baseline=X_train_model,
+            )
+        qLogNEI_on_original_space = InputMappedAcquisition(qLogNEI, map_fn)
+        candidate, _ = optimize_acqf(
+            acq_function=qLogNEI_on_original_space,
+            bounds=unit_bounds,
+            q=Q,
+            num_restarts=60,
+            raw_samples=1024,
+        )
+        
+        # 2. Extract params from candidate and generate random centers and normals
+        candidate_np = candidate.detach().cpu().numpy()
+        candidate_unnorm = denormalize(candidate_np) # Denormalize candidate to original scale
+        centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
+        
+        # 3. Evaluate simulation at new point
+        energy_next = objective_function(rng.integers(1e6), centers_next, normals_next)
+        
+        # 4. Update training data
+        X_train = torch.vstack((X_train, candidate.reshape(1, -1))) # candidate is already normalized
+        y_train = np.append(y_train, float(-energy_next)) # Negate energy for maximization
+        # Check shapes before fitting GP
+        assert X_train.shape[0] == y_train.shape[0], \
+            f"Shape mismatch: X={X_train.shape}, y={y_train.shape}"
+        
+        # 5. Refit GP model with new data
+        X_train_model = map_fn(X_train)
+        gp = SingleTaskGP(
+            X_train_model.detach().clone().to(device),
+            torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
+            covar_module=covar_module,
+            outcome_transform=Standardize(m=1),
+        )
+        mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+        fit_gpytorch_mll(mll)
+
+        # 6. Check convergence via best predicted value
+        max_ei = qLogNEI_on_original_space(candidate).item()
+        ei_array = np.append(ei_array, np.exp(max_ei))
+        post_mean = PosteriorMean(gp)
+        post_mean_on_original_space = InputMappedAcquisition(post_mean, map_fn)
+        _, current_best_mean = optimize_acqf(
+            acq_function=post_mean_on_original_space,
+            bounds=unit_bounds,
+            q=Q,
+            num_restarts=60,
+            raw_samples=1024,
+            )
+        best_mean_hist.append(current_best_mean)
+        learned_noise_var = gp.likelihood.noise.item()
+        # Use top-5 observed points — more stable than a single noisy incumbent
+        top_k = min(5, X_train.shape[0])
+        top_idx = torch.as_tensor(
+            np.argsort(y_train)[-top_k:],
+            dtype=torch.long,
+            device=device,
+        )
+        eval_X = X_train_model[top_idx]
+        posterior = gp.posterior(eval_X)
+        posterior_var = posterior.variance.mean().item()
+        if stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
+            print(f"Convergence reached at iteration {iteration} with EI={np.exp(max_ei):.6f}, predicted mean={current_best_mean:.4f}, and variance={posterior_var:.6f}")
+            break
+        
+        print(f"Iteration {iteration+1}/{MAX_ITER}, Energy: {np.exp(energy_next):.4f}")
+    return X_train.cpu().numpy(), y_train, ei_array, best_mean_hist
+
+def bo_rbf_kernel():
+    # Step 1: Initialize BO with Sobol samples
+    X_train, y_train = sobol_sample()
+
+    # Step 2: Fit GP model
+    gp = SingleTaskGP(
+        X_train.detach().clone().to(device),
+        torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
+    )
+    mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+    fit_gpytorch_mll(mll)
+
+    # Initialize empty list of best means and ei values
+    ei_array = np.empty(0)
+    best_mean_hist = []
+    # Step 3: BO loop
+    for iteration in range(MAX_ITER):
+        # 1. Optimize acquisition function to find next point
+        #ei = LogExpectedImprovement(gp, best_f=torch.tensor(y_train.max(), dtype=torch.double).to(device))
+        qLogNEI = qLogNoisyExpectedImprovement(
+            model=gp, 
+            X_baseline=X_train,
+            )
+        candidate, _ = optimize_acqf(
+            acq_function=qLogNEI,
+            bounds=unit_bounds,
+            q=Q,
+            num_restarts=60,
+            raw_samples=1024,
+        )
+        
+        # 2. Extract params from candidate and generate random centers and normals
+        candidate_np = candidate.detach().cpu().numpy()
+        candidate_unnorm = denormalize(candidate_np) # Denormalize candidate to original scale
+        centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
+        
+        # 3. Evaluate simulation at new point
+        energy_next = objective_function(rng.integers(1e6), centers_next, normals_next)
+        
+        # 4. Update training data
+        X_train = torch.vstack((X_train, candidate.reshape(1, -1))) # candidate is already normalized
+        y_train = np.append(y_train, float(-energy_next)) # Negate energy for maximization
+        # Check shapes before fitting GP
+        assert X_train.shape[0] == y_train.shape[0], \
+            f"Shape mismatch: X={X_train.shape}, y={y_train.shape}"
+        
+        # 5. Refit GP model with new data
+        gp = SingleTaskGP(
+            X_train.detach().clone().to(device),
+            torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
+        )
+        mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+        fit_gpytorch_mll(mll)
+
+        # 6. Check convergence via best predicted value
+        max_ei = qLogNEI(candidate).item()
+        ei_array = np.append(ei_array, np.exp(max_ei))
+        post_mean = PosteriorMean(gp)
+        _, current_best_mean = optimize_acqf(
+            acq_function=post_mean,
+            bounds=unit_bounds,
+            q=Q,
+            num_restarts=60,
+            raw_samples=1024,
+            )
+        best_mean_hist.append(current_best_mean)
+        learned_noise_var = gp.likelihood.noise.item()
+        # Use top-5 observed points — more stable than a single noisy incumbent
+        top_k = min(5, X_train.shape[0])
+        top_idx = torch.as_tensor(
+            np.argsort(y_train)[-top_k:],
+            dtype=torch.long,
+            device=device,
+        )
+        eval_X = X_train[top_idx]
+        posterior = gp.posterior(eval_X)
+        posterior_var = posterior.variance.mean().item()
+        if stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
+            print(f"Convergence reached at iteration {iteration} with EI={np.exp(max_ei):.6f}, predicted mean={current_best_mean:.4f}, and variance={posterior_var:.6f}")
+            break
+
+        print(f"Iteration {iteration+1}/{MAX_ITER}, Energy: {np.exp(energy_next):.4f}")
+    return X_train.cpu().numpy(), y_train, ei_array, best_mean_hist
