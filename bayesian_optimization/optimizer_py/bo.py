@@ -42,9 +42,10 @@ I = 7.2E4 # Current in Amperes
 R = 0.5 # Initial coil radius in meters
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
-INIT = 2*5*K # Number of initial random samples for BO
+D = 5 * K # Input dimension (5 parameters per coil: r, theta, phi for center and theta, phi for normal)
+INIT = 5*D # Number of initial random samples for BO
 MAX_ITER = 1000 # Maximum number of BO iterations
-CONVERGENCE_THRESHOLD = 1e-3 # Threshold for convergence
+CONVERGENCE_THRESHOLD = 1e-6 # Threshold for convergence
 SEED = 67
 rng = np.random.default_rng(SEED)
 
@@ -64,7 +65,6 @@ UPPER = torch.tensor(
 ).to(device)
 
 # Define unitary bounds
-D = 5 * K
 unit_bounds = torch.zeros(2, D, dtype=torch.double, device=device)
 unit_bounds[1] = 1.0  # upper bounds all 1
 
@@ -72,8 +72,16 @@ unit_bounds[1] = 1.0  # upper bounds all 1
 # We map these dimensions to sin/cos pairs to avoid wrap-around discontinuities.
 PERIODIC_IDXS = list(range(2 * K, 3 * K)) + list(range(4 * K, 5 * K))
 
+# Quick toggle to enable/disable periodic feature mapping.
+# Set environment variable `USE_FEATURE_MAPPING=0` or `USE_FEATURE_MAPPING=false` to disable.
+os.environ["USE_FEATURE_MAPPING"] = "1" # Default to enabled for better performance, but can be turned off for testing
+USE_FEATURE_MAPPING = os.getenv("USE_FEATURE_MAPPING", "1").lower() not in ("0", "false", "f", "no")
+
 # Input dimension seen by the GP after feature mapping.
-MAPPED_D = D + len(PERIODIC_IDXS)
+if USE_FEATURE_MAPPING:
+    MAPPED_D = D + len(PERIODIC_IDXS)
+else:
+    MAPPED_D = D
 
 # Read initial data from log files
 FILEPATH = "../data/log_scaled_flux_data.csv"
@@ -142,6 +150,20 @@ def periodic_feature_map(X):
             features.append(xd)
     return torch.cat(features, dim=-1)
 
+
+def identity_map(X):
+    """Return inputs unchanged (but ensure correct dtype/device).
+
+    This is used when feature mapping is disabled so the rest of the
+    code can call `map_fn(X)` uniformly.
+    """
+    if not torch.is_tensor(X):
+        X = torch.tensor(X, dtype=torch.double, device=device)
+    return X.to(dtype=torch.double, device=device)
+
+# Choose mapping function depending on the toggle
+map_fn = periodic_feature_map if USE_FEATURE_MAPPING else identity_map
+
 class InputMappedAcquisition(AcquisitionFunction):
     """Evaluate an acquisition on mapped inputs while optimizing in original space."""
 
@@ -191,7 +213,12 @@ def objective_function(seed, centers, normals):
     # Call the C++ simulator
     expected_energy = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict)
     # Take the log of energy to stabilize optimization and handle wide range of values
-    return np.log(expected_energy)
+    log_energy = np.log(expected_energy)
+    if np.isnan(log_energy) or np.isinf(log_energy):
+        print(f"Warning: Simulator returned invalid energy {expected_energy} for seed {seed}. Retrying with a new seed.")
+        seed = rng.integers(1e6)
+        return objective_function(seed, centers, normals)
+    return log_energy
 
 def random_coil_configuration():
     """
@@ -256,11 +283,11 @@ def main():
     # Fit GP model
     covar_module = ScaleKernel(
         MaternKernel(
-            nu=2.5,
+            nu=2.5, # Smoothness parameter for Matern kernel (common choice for BO)
             ard_num_dims=MAPPED_D, # Must match the feature-mapped input dimension
         )
     )
-    X_train_model = periodic_feature_map(X_train)
+    X_train_model = map_fn(X_train)
     gp = SingleTaskGP(
         X_train_model.detach().clone().to(device),
         torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
@@ -280,7 +307,7 @@ def main():
             model=gp, 
             X_baseline=X_train_model,
             )
-        ei_on_original_space = InputMappedAcquisition(ei, periodic_feature_map)
+        ei_on_original_space = InputMappedAcquisition(ei, map_fn)
         candidate, _ = optimize_acqf(
             acq_function=ei_on_original_space,
             bounds=unit_bounds,
@@ -314,7 +341,7 @@ def main():
             f"Shape mismatch: X={X_train.shape}, y={y_train.shape}"
         
         # 5. Refit GP model with new data
-        X_train_model = periodic_feature_map(X_train)
+        X_train_model = map_fn(X_train)
         gp = SingleTaskGP(
             X_train_model.detach().clone().to(device),
             torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
@@ -326,7 +353,7 @@ def main():
 
         # 6. Check convergence via best predicted value
         post_mean = PosteriorMean(gp)
-        post_mean_on_original_space = InputMappedAcquisition(post_mean, periodic_feature_map)
+        post_mean_on_original_space = InputMappedAcquisition(post_mean, map_fn)
         _, current_best_mean = optimize_acqf(
             acq_function=post_mean_on_original_space,
             bounds=unit_bounds,
@@ -335,8 +362,10 @@ def main():
             raw_samples=1024,
             )
         best_mean_hist.append(current_best_mean)
-        if len(best_mean_hist) > 2*5*K: # Check convergence only after enough iterations to have a history
-            if (abs(best_mean_hist[-1] - best_mean_hist[-10]) < CONVERGENCE_THRESHOLD * abs(best_mean_hist[-10])):
+        if len(best_mean_hist) > 2*D: # Check convergence only after enough iterations to have a history
+            # Compute cumulative difference of last 10 best means and check if it's below threshold relative to the value 10 iterations ago
+            cumulative_difference = sum(abs(best_mean_hist[-i] - best_mean_hist[-i-1]) for i in range(1, 11)) / 10.0
+            if (cumulative_difference < CONVERGENCE_THRESHOLD * abs(best_mean_hist[-10])):
                 print(f"Convergence reached at iteration {iteration} with EI={np.exp(max_ei):.6f} and predicted mean={current_best_mean:.4f}")
                 break
 
