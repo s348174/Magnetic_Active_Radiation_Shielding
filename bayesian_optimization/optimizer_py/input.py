@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import pandas as pd
+import os
 
 # Set device for PyTorch (use GPU if available)
 device = torch.device("cpu")
@@ -13,10 +14,11 @@ I = 7.2E4 # Current in Amperes
 R = 0.5 # Initial coil radius in meters
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
-INIT = 2*5*K # Number of initial random samples for BO
-MAX_ITER = 500 # Maximum number of BO iterations
+D = 5 * K # Input dimension (5 parameters per coil: r, theta, phi for center and theta, phi for normal)
+INIT = 5*D # Number of initial random samples for BO
+MAX_ITER = 1000 # Maximum number of BO iterations
 CONVERGENCE_THRESHOLD = 1e-6 # Threshold for convergence
-SEED = 42
+SEED = 67
 rng = np.random.default_rng(SEED)
 
 # FIELD HYPERPARAMETERS SETUP
@@ -35,9 +37,23 @@ UPPER = torch.tensor(
 ).to(device)
 
 # Define unitary bounds
-D = 5 * K
 unit_bounds = torch.zeros(2, D, dtype=torch.double, device=device)
 unit_bounds[1] = 1.0  # upper bounds all 1
+
+# Indices of periodic variables in normalized design x in [0, 1]^D.
+# We map these dimensions to sin/cos pairs to avoid wrap-around discontinuities.
+PERIODIC_IDXS = list(range(2 * K, 3 * K)) + list(range(4 * K, 5 * K))
+
+# Quick toggle to enable/disable periodic feature mapping.
+# Set environment variable `USE_FEATURE_MAPPING=0` or `USE_FEATURE_MAPPING=false` to disable.
+os.environ["USE_FEATURE_MAPPING"] = "1" # Default to enabled for better performance, but can be turned off for testing
+USE_FEATURE_MAPPING = os.getenv("USE_FEATURE_MAPPING", "1").lower() not in ("0", "false", "f", "no")
+
+# Input dimension seen by the GP after feature mapping.
+if USE_FEATURE_MAPPING:
+    MAPPED_D = D + len(PERIODIC_IDXS)
+else:
+    MAPPED_D = D
 
 # Read initial data from log files
 FILEPATH = "../data/log_scaled_flux_data.csv"

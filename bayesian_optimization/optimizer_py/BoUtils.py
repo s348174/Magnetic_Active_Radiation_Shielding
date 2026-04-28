@@ -4,7 +4,7 @@ import torch
 from botorch.models import SingleTaskGP # Gausian Process model for single-task regression
 from botorch.models.transforms.outcome import Standardize # Outcome transform to standardize targets
 from botorch.fit import fit_gpytorch_mll # Model fitting utility
-from botorch.acquisition import LogExpectedImprovement, qLogNoisyExpectedImprovement, PosteriorMean # Acquisition functions for BO
+from botorch.acquisition import AcquisitionFunction, LogExpectedImprovement, qLogNoisyExpectedImprovement, PosteriorMean # Acquisition functions for BO
 from botorch.optim import optimize_acqf # Optimization utility for acquisition functions
 from botorch.utils.sampling import draw_sobol_samples # Better sampling startegy in high dimensions than random sampling
 # GPyTorch imports
@@ -22,9 +22,8 @@ import csv
 import time
 
 # Import externals functions
-from LogDataSampler import sample_all_particles
 from PlotResults import interactive_plot
-from optimizer_py.input import K, N, I, R, device, LOWER, UPPER, MAX_ITER, CONVERGENCE_THRESHOLD, X_BOUNDS, THETA_BOUNDS, PHI_BOUNDS, INIT, unit_bounds, SEED
+from optimizer_py.input import K, N, I, R, device, LOWER, UPPER, MAX_ITER, CONVERGENCE_THRESHOLD, X_BOUNDS, THETA_BOUNDS, PHI_BOUNDS, INIT, unit_bounds, SEED, D, USE_FEATURE_MAPPING, PERIODIC_IDXS
 from optimizer_py.bo import objective_function
 
 ###################################################################
@@ -90,6 +89,55 @@ def spherical_to_cartesian(r, theta, phi):
     y = r * np.sin(phi) * np.sin(theta)
     z = r * np.cos(phi)
     return np.stack([x, y, z], axis=-1)
+
+def periodic_feature_map(X):
+    """
+    Map periodic components x in [0, 1] to sin/cos pairs.
+    Non-periodic components are kept unchanged.
+
+    Input shape:  (..., D)
+    Output shape: (..., D + len(PERIODIC_IDXS))
+    """
+    if not torch.is_tensor(X):
+        X = torch.tensor(X, dtype=torch.double, device=device)
+    X = X.to(dtype=torch.double, device=device)
+
+    features = []
+    periodic_set = set(PERIODIC_IDXS)
+    for d in range(D):
+        xd = X[..., d:d+1]
+        if d in periodic_set:
+            angle = 2.0 * np.pi * xd
+            features.append(torch.sin(angle))
+            features.append(torch.cos(angle))
+        else:
+            features.append(xd)
+    return torch.cat(features, dim=-1)
+
+
+def identity_map(X):
+    """Return inputs unchanged (but ensure correct dtype/device).
+
+    This is used when feature mapping is disabled so the rest of the
+    code can call `map_fn(X)` uniformly.
+    """
+    if not torch.is_tensor(X):
+        X = torch.tensor(X, dtype=torch.double, device=device)
+    return X.to(dtype=torch.double, device=device)
+
+# Choose mapping function depending on the toggle
+map_fn = periodic_feature_map if USE_FEATURE_MAPPING else identity_map
+
+class InputMappedAcquisition(AcquisitionFunction):
+    """Evaluate an acquisition on mapped inputs while optimizing in original space."""
+
+    def __init__(self, base_acqf, map_fn):
+        super().__init__(model=base_acqf.model)
+        self.base_acqf = base_acqf
+        self.map_fn = map_fn
+
+    def forward(self, X):
+        return self.base_acqf(self.map_fn(X))
 
 ###########################################################
 # RANDOM INITIALIZATION FUNCTIONS

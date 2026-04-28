@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+import random as rng
 import os
 import csv
 import time
@@ -30,170 +31,9 @@ import time
 # Import externals functions
 from LogDataSampler import sample_all_particles
 from PlotResults import interactive_plot
+from BoUtils import spherical_to_cartesian, unpack_configuration, map_fn, denormalize, InputMappedAcquisition
 
-# Set device for PyTorch (use GPU if available)
-device = torch.device("cpu")
-print(f"Using device: {device}")
-
-# Field parameters (fixed for this optimization)
-K = 4 # Number of coils
-N = int(1e3) # Number of particles
-I = 7.2E4 # Current in Amperes
-R = 0.5 # Initial coil radius in meters
-
-# SIMULATION AND OPTIMIZATION HYPERPARAMETERS
-D = 5 * K # Input dimension (5 parameters per coil: r, theta, phi for center and theta, phi for normal)
-INIT = 5*D # Number of initial random samples for BO
-MAX_ITER = 1000 # Maximum number of BO iterations
-CONVERGENCE_THRESHOLD = 1e-6 # Threshold for convergence
-SEED = 67
-rng = np.random.default_rng(SEED)
-
-# FIELD HYPERPARAMETERS SETUP
-X_BOUNDS = (1.0, 4.0) # Bound for distance of coil centers from origin in meters
-THETA_BOUNDS = (0, np.pi) # Bounds for azimuthal angles in spherical coordinates
-PHI_BOUNDS = (0, 2*np.pi) # Bounds for polar angles in spherical coordinates
-
-# Define bounds tensor
-LOWER = torch.tensor(
-    [X_BOUNDS[0]]*K + [THETA_BOUNDS[0]]*K + [PHI_BOUNDS[0]]*K + [THETA_BOUNDS[0]]*K + [PHI_BOUNDS[0]]*K,
-    dtype=torch.double
-).to(device)
-UPPER = torch.tensor(
-    [X_BOUNDS[1]]*K + [THETA_BOUNDS[1]]*K + [PHI_BOUNDS[1]]*K + [THETA_BOUNDS[1]]*K + [PHI_BOUNDS[1]]*K,
-    dtype=torch.double
-).to(device)
-
-# Define unitary bounds
-unit_bounds = torch.zeros(2, D, dtype=torch.double, device=device)
-unit_bounds[1] = 1.0  # upper bounds all 1
-
-# Indices of periodic variables in normalized design x in [0, 1]^D.
-# We map these dimensions to sin/cos pairs to avoid wrap-around discontinuities.
-PERIODIC_IDXS = list(range(2 * K, 3 * K)) + list(range(4 * K, 5 * K))
-
-# Quick toggle to enable/disable periodic feature mapping.
-# Set environment variable `USE_FEATURE_MAPPING=0` or `USE_FEATURE_MAPPING=false` to disable.
-os.environ["USE_FEATURE_MAPPING"] = "1" # Default to enabled for better performance, but can be turned off for testing
-USE_FEATURE_MAPPING = os.getenv("USE_FEATURE_MAPPING", "1").lower() not in ("0", "false", "f", "no")
-
-# Input dimension seen by the GP after feature mapping.
-if USE_FEATURE_MAPPING:
-    MAPPED_D = D + len(PERIODIC_IDXS)
-else:
-    MAPPED_D = D
-
-# Read initial data from log files
-FILEPATH = "../data/log_scaled_flux_data.csv"
-LOG_DATA = pd.read_csv(FILEPATH)
-
-# Normalization functions to scale parameters to [0, 1] for optimization
-def normalize(X):
-    """Scale X from original bounds to [0, 1]."""
-    # Move to numpy to avoid torch issues
-    UPPER_np = UPPER.cpu().numpy()
-    LOWER_np = LOWER.cpu().numpy()
-    scaled = (X - LOWER_np) / (UPPER_np - LOWER_np)
-    scaled = np.clip(scaled, 0.0, 1.0)
-    return torch.tensor(scaled, dtype=torch.double).to(device)
-
-def denormalize(X):
-    """Scale X from [0, 1] back to original bounds."""
-    # Move to numpy to avoid torch issues
-    UPPER_np = UPPER.cpu().numpy()
-    LOWER_np = LOWER.cpu().numpy()
-    scaled = X * (UPPER_np - LOWER_np) + LOWER_np
-    return torch.tensor(scaled, dtype=torch.double).to(device)
-
-def pack_configuration(centers, normals):
-    """Pack one sample with ordering consistent with LOWER/UPPER tensors."""
-    return np.hstack([
-        centers[:, 0],  # all center radii
-        centers[:, 1],  # all center theta
-        centers[:, 2],  # all center phi
-        normals[:, 0],  # all normal theta
-        normals[:, 1],  # all normal phi
-    ])
-
-def unpack_configuration(x):
-    """Unpack one sample from LOWER/UPPER-consistent ordering."""
-    center_r = x[0:K]
-    center_theta = x[K:2*K]
-    center_phi = x[2*K:3*K]
-    normal_theta = x[3*K:4*K]
-    normal_phi = x[4*K:5*K]
-    centers = np.stack([center_r, center_theta, center_phi], axis=1)
-    normals = np.stack([normal_theta, normal_phi], axis=1)
-    return centers, normals
-
-def periodic_feature_map(X):
-    """
-    Map periodic components x in [0, 1] to sin/cos pairs.
-    Non-periodic components are kept unchanged.
-
-    Input shape:  (..., D)
-    Output shape: (..., D + len(PERIODIC_IDXS))
-    """
-    if not torch.is_tensor(X):
-        X = torch.tensor(X, dtype=torch.double, device=device)
-    X = X.to(dtype=torch.double, device=device)
-
-    features = []
-    periodic_set = set(PERIODIC_IDXS)
-    for d in range(D):
-        xd = X[..., d:d+1]
-        if d in periodic_set:
-            angle = 2.0 * np.pi * xd
-            features.append(torch.sin(angle))
-            features.append(torch.cos(angle))
-        else:
-            features.append(xd)
-    return torch.cat(features, dim=-1)
-
-
-def identity_map(X):
-    """Return inputs unchanged (but ensure correct dtype/device).
-
-    This is used when feature mapping is disabled so the rest of the
-    code can call `map_fn(X)` uniformly.
-    """
-    if not torch.is_tensor(X):
-        X = torch.tensor(X, dtype=torch.double, device=device)
-    return X.to(dtype=torch.double, device=device)
-
-# Choose mapping function depending on the toggle
-map_fn = periodic_feature_map if USE_FEATURE_MAPPING else identity_map
-
-class InputMappedAcquisition(AcquisitionFunction):
-    """Evaluate an acquisition on mapped inputs while optimizing in original space."""
-
-    def __init__(self, base_acqf, map_fn):
-        super().__init__(model=base_acqf.model)
-        self.base_acqf = base_acqf
-        self.map_fn = map_fn
-
-    def forward(self, X):
-        return self.base_acqf(self.map_fn(X))
-
-def spherical_to_cartesian(r, theta, phi):
-    """
-    Convert spherical coordinates to cartesian.
-    Convention: theta = azimuth (from X-axis in XY-plane), phi = polar (from Z-axis)
-    
-    Args:
-        r:     radial distance, shape (K,)
-        theta: azimuth angle, shape (K,)
-        phi:   polar angle,   shape (K,)
-    Returns:
-        xyz:   cartesian coordinates, shape (K, 3)
-    """
-    r = np.asarray(r)
-    theta = np.asarray(theta)
-    phi = np.asarray(phi)
-    x = r * np.sin(phi) * np.cos(theta)
-    y = r * np.sin(phi) * np.sin(theta)
-    z = r * np.cos(phi)
-    return np.stack([x, y, z], axis=-1)
+from optimizer_py.input import K, N, I, R, device, MAX_ITER, CONVERGENCE_THRESHOLD, INIT, unit_bounds, SEED, D, LOG_DATA, MAPPED_D
 
 def objective_function(seed, centers, normals):
     """
@@ -219,40 +59,6 @@ def objective_function(seed, centers, normals):
         seed = rng.integers(1e6)
         return objective_function(seed, centers, normals)
     return log_energy
-
-def random_coil_configuration():
-    """
-    Generates random coil configuration in spherical coordinates.
-    """
-    # --- Centers (sampled in spherical, returned in cartesian) ---
-    center_r     = rng.uniform(X_BOUNDS[0],     X_BOUNDS[1],     size=K)
-    center_theta = rng.uniform(THETA_BOUNDS[0],  THETA_BOUNDS[1], size=K)
-    center_phi   = rng.uniform(PHI_BOUNDS[0],    PHI_BOUNDS[1],   size=K)
-    centers = np.column_stack((center_r, center_theta, center_phi))
-    # --- Normals (unit vectors — r=1, sampled in spherical, returned in cartesian) ---
-    normal_theta = rng.uniform(THETA_BOUNDS[0], THETA_BOUNDS[1], size=K)
-    normal_phi   = rng.uniform(PHI_BOUNDS[0],   PHI_BOUNDS[1],   size=K)
-    normals = np.column_stack((normal_theta, normal_phi))
-    return centers, normals
-
-def initialize_random_bo(n_initial_points=INIT):
-    """
-    Initializes the Bayesian Optimization process with random samples.
-    Returns initial data (centers, normals, energy).
-    """
-    centers_samples = []
-    normals_samples = []
-    energy_samples = []
-    
-    for _ in range(n_initial_points):
-        centers, normals = random_coil_configuration()
-        energy = objective_function(rng.integers(1e6), centers, normals)
-
-        centers_samples.append(centers)
-        normals_samples.append(normals)
-        energy_samples.append(energy)
-    
-    return np.array(centers_samples), np.array(normals_samples), np.array(energy_samples)
 
 def main():
     start_clock = time.time()
