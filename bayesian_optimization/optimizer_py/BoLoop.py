@@ -4,20 +4,57 @@ import torch
 from botorch.models import SingleTaskGP # Gausian Process model for single-task regression
 from botorch.models.transforms.outcome import Standardize # Outcome transform to standardize targets
 from botorch.fit import fit_gpytorch_mll # Model fitting utility
-from botorch.acquisition import qLogNoisyExpectedImprovement, PosteriorMean # Acquisition functions for BO
+from botorch.acquisition import qLogNoisyExpectedImprovement, PosteriorMean, qKnowledgeGradient # Acquisition functions for BO
+from botorch.optim.initializers import gen_one_shot_kg_initial_conditions
 from botorch.optim import optimize_acqf # Optimization utility for acquisition functions
 
 # GPyTorch imports
 from gpytorch.mlls import ExactMarginalLogLikelihood # Marginal log likelihood for GP fitting
 from gpytorch.kernels import MaternKernel, ScaleKernel # Kernels for GP (Matern with ARD + scaling)
+from gpytorch.constraints import GreaterThan
 
 # Import standard libraries
 import numpy as np
 
 # Import externals functions
-from BoUtils import denormalize, unpack_configuration, map_fn, InputMappedAcquisition, sobol_sample, stopping_criterion
+from BoUtils import (
+    denormalize,
+    unpack_configuration,
+    map_fn,
+    InputMappedAcquisition,
+    InputMappedModel,
+    sobol_sample,
+    stopping_criterion,
+)
 from Objective import objective_function
 from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q
+
+
+def duplicate_safe_candidate(X_train, candidate, tol=1e-8):
+    """Return True when candidate is already present in X_train."""
+    cand = candidate.detach().clone().to(device).reshape(1, -1)
+    dists = torch.norm(X_train - cand, dim=1)
+    return bool((dists < tol).any())
+
+
+def fit_gp_with_noise_floor(gp, noise_floor=1e-8, retry_noise=1e-6):
+    """Fit a GP while keeping a small positive noise floor for stability."""
+    try:
+        gp.likelihood.noise_covar.register_constraint("raw_noise", GreaterThan(noise_floor))
+    except Exception:
+        pass
+
+    mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+    try:
+        fit_gpytorch_mll(mll)
+    except Exception as e:
+        print(f"Warning: GP fit failed ({e}), retrying with initialized noise")
+        try:
+            gp.likelihood.noise_covar.initialize(noise=retry_noise)
+        except Exception:
+            pass
+        mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+        fit_gpytorch_mll(mll)
 
 
 def bo_matern_kernel(nu=2.5):
@@ -38,8 +75,7 @@ def bo_matern_kernel(nu=2.5):
         covar_module=covar_module,
         outcome_transform=Standardize(m=1),
     )
-    mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
-    fit_gpytorch_mll(mll)
+    fit_gp_with_noise_floor(gp)
 
     # Initialize empty list of best means and ei values
     ei_array = np.empty(0)
@@ -47,18 +83,20 @@ def bo_matern_kernel(nu=2.5):
     # Step 3: BO loop
     for iteration in range(MAX_ITER):
         # 1. Optimize acquisition function to find next point
-        qLogNEI = qLogNoisyExpectedImprovement(
-            model=gp, 
-            X_baseline=X_train_model,
-            )
-        qLogNEI_on_original_space = InputMappedAcquisition(qLogNEI, map_fn)
-        candidate, _ = optimize_acqf(
-            acq_function=qLogNEI_on_original_space,
+        qKG = qKnowledgeGradient(model=InputMappedModel(gp, map_fn), num_fantasies=128) # More fantasies can give better performance but increase runtime
+        candidate, qkg_value = optimize_acqf(
+            acq_function=qKG,
             bounds=unit_bounds,
             q=Q,
             num_restarts=60,
             raw_samples=1024,
+            ic_generator=gen_one_shot_kg_initial_conditions,
         )
+        # Check for duplicates in training data (can happen due to optimization tolerances)
+        cand = candidate.detach().clone().to(device).reshape(1, -1)
+        if duplicate_safe_candidate(X_train, cand):
+            print("Duplicate candidate returned by optimizer — skipping this iteration")
+            continue
         
         # 2. Extract params from candidate and generate random centers and normals
         candidate_np = candidate.detach().cpu().numpy()
@@ -68,8 +106,8 @@ def bo_matern_kernel(nu=2.5):
         # 3. Evaluate simulation at new point
         energy_next = objective_function(rng.integers(1e6), centers_next, normals_next)
         
-        # 4. Update training data
-        X_train = torch.vstack((X_train, candidate.reshape(1, -1))) # candidate is already normalized
+        # 4. Update training data (skip duplicates)
+        X_train = torch.vstack((X_train, cand)) # candidate is already normalized
         y_train = np.append(y_train, float(-energy_next)) # Negate energy for maximization
         # Check shapes before fitting GP
         assert X_train.shape[0] == y_train.shape[0], \
@@ -83,12 +121,11 @@ def bo_matern_kernel(nu=2.5):
             covar_module=covar_module,
             outcome_transform=Standardize(m=1),
         )
-        mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
-        fit_gpytorch_mll(mll)
+        fit_gp_with_noise_floor(gp)
 
         # 6. Check convergence via best predicted value
-        max_ei = qLogNEI_on_original_space(candidate).item()
-        ei_array = np.append(ei_array, np.exp(max_ei))
+        max_ei = qkg_value.item()
+        ei_array = np.append(ei_array, max_ei)
         post_mean = PosteriorMean(gp)
         post_mean_on_original_space = InputMappedAcquisition(post_mean, map_fn)
         _, current_best_mean = optimize_acqf(

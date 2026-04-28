@@ -1,6 +1,7 @@
 # Import libraries for optimization
 import torch
-from botorch.acquisition import AcquisitionFunction
+from botorch.acquisition import AcquisitionFunction, OneShotAcquisitionFunction
+from botorch.models.model import Model
 from botorch.utils.sampling import draw_sobol_samples # Better sampling startegy in high dimensions than random sampling
 
 # Import standard libraries
@@ -104,6 +105,86 @@ class InputMappedAcquisition(AcquisitionFunction):
 
     def forward(self, X):
         return self.base_acqf(self.map_fn(X))
+
+
+class InputMappedOneShotAcquisition(OneShotAcquisitionFunction):
+    """Evaluate a one-shot acquisition on mapped inputs while preserving KG semantics."""
+
+    def __init__(self, base_acqf, map_fn):
+        super().__init__(model=base_acqf.model)
+        self.base_acqf = base_acqf
+        self.map_fn = map_fn
+        self.objective = getattr(base_acqf, "objective", None)
+        self.posterior_transform = getattr(base_acqf, "posterior_transform", None)
+        self.sampler = getattr(base_acqf, "sampler", None)
+        self.inner_sampler = getattr(base_acqf, "inner_sampler", None)
+        self.current_value = getattr(base_acqf, "current_value", None)
+        self.num_fantasies = getattr(base_acqf, "num_fantasies", None)
+        self.X_pending = getattr(base_acqf, "X_pending", None)
+        self.cost_aware_utility = getattr(base_acqf, "cost_aware_utility", None)
+        self.cost_sampler = getattr(base_acqf, "cost_sampler", None)
+        self.project = getattr(base_acqf, "project", None)
+        self.expand = getattr(base_acqf, "expand", None)
+
+    def forward(self, X):
+        return self.base_acqf(self.map_fn(X))
+
+    def get_augmented_q_batch_size(self, q):
+        return self.base_acqf.get_augmented_q_batch_size(q)
+
+    def extract_candidates(self, X_full):
+        return self.base_acqf.extract_candidates(X_full)
+
+
+class InputMappedModel(Model):
+    """Wrap a BoTorch model so it accepts original-space inputs and maps them internally."""
+
+    def __init__(self, base_model, map_fn):
+        super().__init__()
+        self.base_model = base_model
+        self.map_fn = map_fn
+
+    def posterior(self, X, output_indices=None, observation_noise=False, posterior_transform=None):
+        return self.base_model.posterior(
+            self.map_fn(X),
+            output_indices=output_indices,
+            observation_noise=observation_noise,
+            posterior_transform=posterior_transform,
+        )
+
+    def fantasize(self, X, sampler, observation_noise=None, **kwargs):
+        fantasy_model = self.base_model.fantasize(
+            self.map_fn(X),
+            sampler=sampler,
+            observation_noise=observation_noise,
+            **kwargs,
+        )
+        return InputMappedModel(fantasy_model, self.map_fn)
+
+    def condition_on_observations(self, X, Y, **kwargs):
+        conditioned_model = self.base_model.condition_on_observations(
+            self.map_fn(X),
+            Y,
+            **kwargs,
+        )
+        return InputMappedModel(conditioned_model, self.map_fn)
+
+    def transform_inputs(self, X, input_transform=None):
+        return self.map_fn(X)
+
+    @property
+    def batch_shape(self):
+        return self.base_model.batch_shape
+
+    @property
+    def num_outputs(self):
+        return self.base_model.num_outputs
+
+    def subset_output(self, idcs):
+        return InputMappedModel(self.base_model.subset_output(idcs), self.map_fn)
+
+    def __getattr__(self, name):
+        return super().__getattr__(name)
     
 
 # FUNCTIONS FOR BO LOOP
