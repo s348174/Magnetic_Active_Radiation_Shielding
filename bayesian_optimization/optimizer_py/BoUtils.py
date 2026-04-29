@@ -194,7 +194,7 @@ class InputMappedModel(Model):
 ##########################################################
 def sobol_sample():
     # Step 1: Initialize BO with Sobol samples
-    X_train = draw_sobol_samples(unit_bounds, n=INIT, q=Q, seed=SEED).squeeze(1).to(device) # shape: (INIT, D)
+    X_train = draw_sobol_samples(unit_bounds, n=INIT, q=1, seed=SEED).squeeze(1).to(device) # shape: (INIT, D)
     X_train_unnorm = denormalize(X_train).cpu().numpy() # shape: (INIT, D)
     centers_init = np.empty((INIT, K, 3))
     normals_init = np.empty((INIT, K, 2))

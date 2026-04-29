@@ -67,7 +67,7 @@ def bo_matern_kernel(nu=2.5):
             ic_generator=gen_one_shot_kg_initial_conditions,
         )
         # Check for duplicates in training data (can happen due to optimization tolerances)
-        cand = candidate.detach().clone().to(device).reshape(1, -1)
+        cand = candidate[0:1].detach().clone().to(device)  # Take only first from batch
         if duplicate_safe_candidate(X_train, cand):
             print("Duplicate candidate returned by optimizer — skipping this iteration")
             continue
@@ -105,7 +105,7 @@ def bo_matern_kernel(nu=2.5):
         _, current_best_mean = optimize_acqf(
             acq_function=post_mean_on_original_space,
             bounds=unit_bounds,
-            q=Q,
+            q=1,
             num_restarts=60,
             raw_samples=1024,
             )
@@ -169,7 +169,7 @@ def bo_rbf_kernel():
         energy_next = objective_function(rng.integers(1e6), centers_next, normals_next)
         
         # 4. Update training data
-        X_train = torch.vstack((X_train, candidate.reshape(1, -1))) # candidate is already normalized
+        X_train = torch.vstack((X_train, candidate[0:1])) # candidate is already normalized, take only first from batch
         y_train = np.append(y_train, float(-energy_next)) # Negate energy for maximization
         # Check shapes before fitting GP
         assert X_train.shape[0] == y_train.shape[0], \
@@ -190,7 +190,7 @@ def bo_rbf_kernel():
         _, current_best_mean = optimize_acqf(
             acq_function=post_mean,
             bounds=unit_bounds,
-            q=Q,
+            q=1,
             num_restarts=60,
             raw_samples=1024,
             )
