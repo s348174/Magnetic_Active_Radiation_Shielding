@@ -10,18 +10,20 @@ import csv
 import time
 
 # Import externals functions
-from PlotResults import interactive_plot
+from PlotResults import interactive_plot, plot_convergence_metrics
 from BoUtils import unpack_configuration, denormalize
 from BoLoop import bo_matern_kernel, bo_rbf_kernel
 from Objective import spherical_to_cartesian
 
-from input import K, SEED
+from input import K, SEED, device
 
 def main():
+    print(f"Using device: {device}")
     start_clock = time.time()
 
     # Run BO optimization loop
-    X_train, y_train, ei_array, best_mean_hist = bo_matern_kernel(nu=1.5)
+    X_train, y_train, ei_array, best_mean_hist, variance_hist = bo_matern_kernel(nu=1.5)
+    #X_train, y_train, ei_array, best_mean_hist, variance_hist = bo_rbf_kernel()
     
     end_clock = time.time() - start_clock
     print(f'Elapsed time: {end_clock:.4f} s')
@@ -44,19 +46,8 @@ def main():
             writer.writerow([center_xyz[0], center_xyz[1], center_xyz[2], normal_xyz[0], normal_xyz[1], normal_xyz[2]])
         print(f"Best configuration saved to configurations/best_configuration_K{K}_{SEED}.csv")
     
-    plt.figure(figsize=(10, 6))
-    plt.plot(ei_array, marker='o')
-    plt.title("Expected Improvement over time")
-    plt.xlabel("Iteration")
-    plt.ylabel("Expected Improvement")
-    plt.show()
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(best_mean_hist, marker='o')
-    plt.title("Best Predicted Mean over time")
-    plt.xlabel("Iteration")
-    plt.ylabel("Best Predicted Mean")
-    plt.show()
+    # Plot convergence metrics
+    plot_convergence_metrics(ei_array, best_mean_hist, variance_hist)
 
     # Plot the best configuration
     interactive_plot(result_file=f"configurations/best_configuration_K{K}_{SEED}.csv")

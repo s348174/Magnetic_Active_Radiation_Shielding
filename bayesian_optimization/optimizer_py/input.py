@@ -5,7 +5,6 @@ import os
 
 # Set device for PyTorch (use GPU if available)
 device = torch.device("cpu")
-print(f"Using device: {device}")
 
 # Field parameters (fixed for this optimization)
 K = 4 # Number of coils
@@ -15,8 +14,8 @@ R = 0.5 # Initial coil radius in meters
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
 D = 5 * K # Input dimension (5 parameters per coil: r, theta, phi for center and theta, phi for normal)
-INIT = 5 # Number of initial random samples for BO
-MAX_ITER = 5 # Maximum number of BO iterations
+INIT = 5*D # Number of initial random samples for BO
+MAX_ITER = 500 # Maximum number of BO iterations
 CONVERGENCE_THRESHOLD = 1e-6 # Threshold for convergence
 Q = 1 # Batch size: this pipeline optimizes one configuration at a time
 SEED = 67

@@ -3,6 +3,9 @@ import torch
 from botorch.acquisition import AcquisitionFunction, OneShotAcquisitionFunction
 from botorch.models.model import Model
 from botorch.utils.sampling import draw_sobol_samples # Better sampling startegy in high dimensions than random sampling
+from botorch.fit import fit_gpytorch_mll
+from gpytorch.constraints import GreaterThan
+from gpytorch.mlls import ExactMarginalLogLikelihood # Marginal log likelihood for GP fitting
 
 # Import standard libraries
 import numpy as np
@@ -186,8 +189,9 @@ class InputMappedModel(Model):
     def __getattr__(self, name):
         return super().__getattr__(name)
     
-
+##########################################################
 # FUNCTIONS FOR BO LOOP
+##########################################################
 def sobol_sample():
     # Step 1: Initialize BO with Sobol samples
     X_train = draw_sobol_samples(unit_bounds, n=INIT, q=Q, seed=SEED).squeeze(1).to(device) # shape: (INIT, D)
@@ -215,3 +219,29 @@ def stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
             print(f"Convergence reached with posterior variance criterion")
             return True
     return False
+
+def duplicate_safe_candidate(X_train, candidate, tol=1e-8):
+    """Return True when candidate is already present in X_train."""
+    cand = candidate.detach().clone().to(device).reshape(1, -1)
+    dists = torch.norm(X_train - cand, dim=1)
+    return bool((dists < tol).any())
+
+
+def fit_gp_with_noise_floor(gp, noise_floor=1e-8, retry_noise=1e-6):
+    """Fit a GP while keeping a small positive noise floor for stability."""
+    try:
+        gp.likelihood.noise_covar.register_constraint("raw_noise", GreaterThan(noise_floor))
+    except Exception:
+        pass
+
+    mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+    try:
+        fit_gpytorch_mll(mll)
+    except Exception as e:
+        print(f"Warning: GP fit failed ({e}), retrying with initialized noise")
+        try:
+            gp.likelihood.noise_covar.initialize(noise=retry_noise)
+        except Exception:
+            pass
+        mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+        fit_gpytorch_mll(mll)

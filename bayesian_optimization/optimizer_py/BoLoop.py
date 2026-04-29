@@ -11,7 +11,6 @@ from botorch.optim import optimize_acqf # Optimization utility for acquisition f
 # GPyTorch imports
 from gpytorch.mlls import ExactMarginalLogLikelihood # Marginal log likelihood for GP fitting
 from gpytorch.kernels import MaternKernel, ScaleKernel # Kernels for GP (Matern with ARD + scaling)
-from gpytorch.constraints import GreaterThan
 
 # Import standard libraries
 import numpy as np
@@ -25,37 +24,11 @@ from BoUtils import (
     InputMappedModel,
     sobol_sample,
     stopping_criterion,
+    duplicate_safe_candidate,
+    fit_gp_with_noise_floor
 )
 from Objective import objective_function
 from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q
-
-
-def duplicate_safe_candidate(X_train, candidate, tol=1e-8):
-    """Return True when candidate is already present in X_train."""
-    cand = candidate.detach().clone().to(device).reshape(1, -1)
-    dists = torch.norm(X_train - cand, dim=1)
-    return bool((dists < tol).any())
-
-
-def fit_gp_with_noise_floor(gp, noise_floor=1e-8, retry_noise=1e-6):
-    """Fit a GP while keeping a small positive noise floor for stability."""
-    try:
-        gp.likelihood.noise_covar.register_constraint("raw_noise", GreaterThan(noise_floor))
-    except Exception:
-        pass
-
-    mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
-    try:
-        fit_gpytorch_mll(mll)
-    except Exception as e:
-        print(f"Warning: GP fit failed ({e}), retrying with initialized noise")
-        try:
-            gp.likelihood.noise_covar.initialize(noise=retry_noise)
-        except Exception:
-            pass
-        mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
-        fit_gpytorch_mll(mll)
-
 
 def bo_matern_kernel(nu=2.5):
     # Step 1: Initialize BO with Sobol samples
@@ -80,16 +53,17 @@ def bo_matern_kernel(nu=2.5):
     # Initialize empty list of best means and ei values
     ei_array = np.empty(0)
     best_mean_hist = []
+    variance_hist = []
     # Step 3: BO loop
     for iteration in range(MAX_ITER):
         # 1. Optimize acquisition function to find next point
-        qKG = qKnowledgeGradient(model=InputMappedModel(gp, map_fn), num_fantasies=128) # More fantasies can give better performance but increase runtime
+        qKG = qKnowledgeGradient(model=InputMappedModel(gp, map_fn), num_fantasies=2) # More fantasies can give better performance but increase runtime
         candidate, qkg_value = optimize_acqf(
             acq_function=qKG,
             bounds=unit_bounds,
             q=Q,
-            num_restarts=60,
-            raw_samples=1024,
+            num_restarts=40,
+            raw_samples=512,
             ic_generator=gen_one_shot_kg_initial_conditions,
         )
         # Check for duplicates in training data (can happen due to optimization tolerances)
@@ -147,12 +121,12 @@ def bo_matern_kernel(nu=2.5):
         eval_X = X_train_model[top_idx]
         posterior = gp.posterior(eval_X)
         posterior_var = posterior.variance.mean().item()
+        variance_hist.append(posterior_var)
         if stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
             print(f"Convergence reached at iteration {iteration} with EI={np.exp(max_ei):.6f}, predicted mean={current_best_mean:.4f}, and variance={posterior_var:.6f}")
             break
-        
         print(f"Iteration {iteration+1}/{MAX_ITER}, Energy: {np.exp(energy_next):.4f}")
-    return X_train.cpu().numpy(), y_train, ei_array, best_mean_hist
+    return X_train.cpu().numpy(), y_train, ei_array, best_mean_hist, variance_hist
 
 def bo_rbf_kernel():
     # Step 1: Initialize BO with Sobol samples
@@ -169,6 +143,7 @@ def bo_rbf_kernel():
     # Initialize empty list of best means and ei values
     ei_array = np.empty(0)
     best_mean_hist = []
+    variance_hist = []
     # Step 3: BO loop
     for iteration in range(MAX_ITER):
         # 1. Optimize acquisition function to find next point
@@ -231,9 +206,10 @@ def bo_rbf_kernel():
         eval_X = X_train[top_idx]
         posterior = gp.posterior(eval_X)
         posterior_var = posterior.variance.mean().item()
+        variance_hist.append(posterior_var)
         if stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
             print(f"Convergence reached at iteration {iteration} with EI={np.exp(max_ei):.6f}, predicted mean={current_best_mean:.4f}, and variance={posterior_var:.6f}")
             break
 
         print(f"Iteration {iteration+1}/{MAX_ITER}, Energy: {np.exp(energy_next):.4f}")
-    return X_train.cpu().numpy(), y_train, ei_array, best_mean_hist
+    return X_train.cpu().numpy(), y_train, ei_array, best_mean_hist, variance_hist

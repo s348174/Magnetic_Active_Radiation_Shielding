@@ -81,6 +81,27 @@ def interactive_plot(result_file="configurations/best_configuration_K10_42_conve
     plt.show()
     return fig, ax, rotation
 
+def plot_convergence_metrics(ei_array, best_mean_hist, variance_hist):
+    plt.figure(figsize=(10, 6))
+    plt.plot(ei_array, marker='o')
+    plt.title("Expected Improvement over time")
+    plt.xlabel("Iteration")
+    plt.ylabel("Expected Improvement")
+    plt.show()
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(best_mean_hist, marker='o')
+    plt.title("Best Predicted Mean over time")
+    plt.xlabel("Iteration")
+    plt.ylabel("Best Predicted Mean")
+    plt.show()
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(variance_hist, marker='o')
+    plt.title("Predicted Variance over time")
+    plt.xlabel("Iteration")
+    plt.ylabel("Predicted Variance")
+    plt.show()
 
 if __name__ == "__main__":
     interactive_plot()
