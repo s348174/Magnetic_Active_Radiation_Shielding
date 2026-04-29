@@ -8,7 +8,7 @@ device = torch.device("cpu")
 
 # Field parameters (fixed for this optimization)
 K = 4 # Number of coils
-N = int(1e3) # Number of particles
+N = int(1e5) # Number of particles
 I = 7.2E4 # Current in Amperes
 R = 0.5 # Initial coil radius in meters
 

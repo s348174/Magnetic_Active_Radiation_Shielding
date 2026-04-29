@@ -84,9 +84,9 @@ def interactive_plot(result_file="configurations/best_configuration_K10_42_conve
 def plot_convergence_metrics(ei_array, best_mean_hist, variance_hist):
     plt.figure(figsize=(10, 6))
     plt.plot(ei_array, marker='o')
-    plt.title("Expected Improvement over time")
+    plt.title("Acquisition function over time")
     plt.xlabel("Iteration")
-    plt.ylabel("Expected Improvement")
+    plt.ylabel("Acquisition Function Value")
     plt.show()
 
     plt.figure(figsize=(10, 6))
