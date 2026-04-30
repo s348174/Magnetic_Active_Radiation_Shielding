@@ -137,6 +137,11 @@ struct BField {
         // Constants for integration
         const double a2 = R2 + rho2 + z2 - 2*R*rho;
         const double b2 = R2 + rho2 + z2 + 2*R*rho;
+        // The closed-form expression becomes singular at the wire location.
+        // Return a finite fallback there instead of propagating NaNs.
+        if (a2 < 1e-12 || b2 < 1e-12 || !std::isfinite(a2) || !std::isfinite(b2)) {
+            return Vector3d::Zero();
+        }
         const double b = sqrt(b2);
         const double k2 = std::max(0.0, std::min(1.0, 1.0 - (a2 / b2)));
         const double k = sqrt(k2);
@@ -149,6 +154,9 @@ struct BField {
         const double term1_rho = (R2 + rho2 + z2);
         const double term1_z = (R2 - rho2 - z2);
         const double denominator = 2.0 * a2 * b;
+        if (denominator < 1e-12 || !std::isfinite(denominator)) {
+            return Vector3d::Zero();
+        }
 
         double B_rho = C * I * z * (term1_rho * E - a2 * K) / (denominator * rho);
         double B_z = C * I * (term1_z * E + a2 * K) / denominator;
@@ -156,7 +164,8 @@ struct BField {
 
         // Transform back in cartesian
         Vector3d B;
-        B << B_rho * (x / rho), B_rho * (y / rho), B_z;
+        const double rho_safe = std::max(rho, 1e-12);
+        B << B_rho * (x / rho_safe), B_rho * (y / rho_safe), B_z;
 
         return B;
     }

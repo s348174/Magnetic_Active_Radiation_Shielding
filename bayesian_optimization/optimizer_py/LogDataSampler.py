@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
+from input import rng
 
 # ---------------------------------------------------------------------------
 # Core sampling helpers
@@ -106,7 +107,7 @@ def build_sampler(energy: np.ndarray, flux: np.ndarray) -> callable:
                        fill_value=(energy_unique[0], energy_unique[-1]))
 
     def sampler(n_samples: int = 1) -> np.ndarray:
-        u = np.random.uniform(0.0, 1.0, size=n_samples)
+        u = rng.uniform(0.0, 1.0, size=n_samples)
         return inv_cdf(u)
 
     return sampler

@@ -73,10 +73,7 @@ double launch_simulation(unsigned long seed, int N, size_t K, double I, double R
 
     // Convert numpy arrays
     vector<Vector3d> centers = numpy_to_vector3d(centers_np);
-    cout << "Size of centers: " << centers.size() << endl;
     vector<Vector3d> normals = numpy_to_vector3d(normals_np);
-    cout << "Size of normals: " << normals.size() << endl;
-    cout << "k = " << K << endl;
 
     // Convert the samples dictionary
     unordered_map<string, vector<double>> samples = dict_to_map(samples_np);

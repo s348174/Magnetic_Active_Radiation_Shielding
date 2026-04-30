@@ -98,8 +98,7 @@ void runSimulation(BField field, Revelator revelator, const vector<double>& ener
                    double& totalExpectedDose, mutex& doseMutex) {
     {
         lock_guard<mutex> lock(io_mutex);
-        cout << "\n=== Starting simulation for " << name << " ===" << endl;
-        cout << "m = " << m << ", q = " << q << endl;
+        cout << "=== Starting simulation for " << name << " ===" << endl;
     }
 
     double expectedDose = 0.0;
@@ -113,8 +112,7 @@ void runSimulation(BField field, Revelator revelator, const vector<double>& ener
     {
         lock_guard<mutex> lock(io_mutex);
         if (ok) {
-            cout << "Simulation for " << name << " completed.\n";
-            cout << "Expected dose (" << name << ") = " << scientific << expectedDose << "\n";
+            cout << "Simulation for " << name << " completed with Expected dose = " << scientific << expectedDose << "\n";
         }
         else
             cerr << "Simulation for " << name << " failed.\n";

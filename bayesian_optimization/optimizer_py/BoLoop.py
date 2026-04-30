@@ -14,6 +14,7 @@ from gpytorch.kernels import MaternKernel, ScaleKernel # Kernels for GP (Matern 
 
 # Import standard libraries
 import numpy as np
+import warnings
 
 # Import externals functions
 from BoUtils import (
@@ -31,6 +32,7 @@ from Objective import objective_function
 from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q
 
 def bo_matern_kernel(nu=2.5):
+    warnings_counter = 0
     # Step 1: Initialize BO with Sobol samples
     X_train, y_train = sobol_sample()
 
@@ -79,6 +81,12 @@ def bo_matern_kernel(nu=2.5):
         
         # 3. Evaluate simulation at new point
         energy_next = objective_function(rng.integers(1e6), centers_next, normals_next)
+        if np.isnan(energy_next) or np.isinf(energy_next):
+            warnings.warn(f"Non-finite energy from simulator encountered at iteration {iteration+1}. Skipping.")
+            warnings_counter += 1
+            if warnings_counter > MAX_ITER // 3:
+                raise ValueError("Too many non-finite energies encountered.")
+            continue  # Skip this iteration and try again with a new candidate
         
         # 4. Update training data (skip duplicates)
         X_train = torch.vstack((X_train, cand)) # candidate is already normalized
@@ -108,7 +116,7 @@ def bo_matern_kernel(nu=2.5):
             q=1,
             num_restarts=60,
             raw_samples=1024,
-            )
+        )
         best_mean_hist.append(current_best_mean)
         learned_noise_var = gp.likelihood.noise.item()
         # Use top-5 observed points — more stable than a single noisy incumbent
@@ -123,12 +131,14 @@ def bo_matern_kernel(nu=2.5):
         posterior_var = posterior.variance.mean().item()
         variance_hist.append(posterior_var)
         if stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
-            print(f"Convergence reached at iteration {iteration} with EI={np.exp(max_ei):.6f}, predicted mean={current_best_mean:.4f}, and variance={posterior_var:.6f}")
+            print(f"Convergence reached at iteration {iteration+1} with EI={np.exp(max_ei):.6f}, predicted mean={current_best_mean:.4f}, and variance={posterior_var:.6f}")
             break
         print(f"Iteration {iteration+1}/{MAX_ITER}, Energy: {np.exp(energy_next):.4f}")
+    print(f"BO loop completed with {warnings_counter} non-finite energy warnings.")
     return X_train.cpu().numpy(), y_train, ei_array, best_mean_hist, variance_hist
 
 def bo_rbf_kernel():
+    warnings_counter = 0
     # Step 1: Initialize BO with Sobol samples
     X_train, y_train = sobol_sample()
 
@@ -159,6 +169,11 @@ def bo_rbf_kernel():
             num_restarts=60,
             raw_samples=1024,
         )
+        # Check for duplicates in training data (can happen due to optimization tolerances)
+        cand = candidate[0:1].detach().clone().to(device)  # Take only first from batch
+        if duplicate_safe_candidate(X_train, cand):
+            print("Duplicate candidate returned by optimizer — skipping this iteration")
+            continue
         
         # 2. Extract params from candidate and generate random centers and normals
         candidate_np = candidate.detach().cpu().numpy()
@@ -167,6 +182,12 @@ def bo_rbf_kernel():
         
         # 3. Evaluate simulation at new point
         energy_next = objective_function(rng.integers(1e6), centers_next, normals_next)
+        if np.isnan(energy_next) or np.isinf(energy_next):
+            warnings.warn(f"Non-finite energy from simulator encountered at iteration {iteration+1}. Skipping.")
+            warnings_counter += 1
+            if warnings_counter >= MAX_ITER // 3:
+                raise ValueError("Too many non-finite energies encountered.")
+            continue  # Skip this iteration and try again with a new candidate
         
         # 4. Update training data
         X_train = torch.vstack((X_train, candidate[0:1])) # candidate is already normalized, take only first from batch
@@ -208,8 +229,8 @@ def bo_rbf_kernel():
         posterior_var = posterior.variance.mean().item()
         variance_hist.append(posterior_var)
         if stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
-            print(f"Convergence reached at iteration {iteration} with EI={np.exp(max_ei):.6f}, predicted mean={current_best_mean:.4f}, and variance={posterior_var:.6f}")
+            print(f"Convergence reached at iteration {iteration+1} with EI={np.exp(max_ei):.6f}, predicted mean={current_best_mean:.4f}, and variance={posterior_var:.6f}")
             break
-
         print(f"Iteration {iteration+1}/{MAX_ITER}, Energy: {np.exp(energy_next):.4f}")
+    print(f"BO loop completed with {warnings_counter} non-finite energy warnings.")
     return X_train.cpu().numpy(), y_train, ei_array, best_mean_hist, variance_hist

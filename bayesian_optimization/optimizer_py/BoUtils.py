@@ -201,10 +201,15 @@ def sobol_sample():
     for i in range(INIT):
         centers_init[i], normals_init[i] = unpack_configuration(X_train_unnorm[i])
     energy_init = np.array([
+        print(f"Evaluating initial configuration {i+1}/{INIT}..."),
         objective_function(rng.integers(1e6), centers_init[i], normals_init[i])
         for i in range(INIT)
     ]) # shape: (INIT,)
     y_train = -energy_init.flatten() # Negate energy for maximization
+    # Remove any non-finite or nan values that might arise from the simulator
+    finite_mask = np.isfinite(y_train)
+    X_train = X_train[finite_mask]
+    y_train = y_train[finite_mask]
     return X_train, y_train
 
 def stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
