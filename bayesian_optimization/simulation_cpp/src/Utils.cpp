@@ -48,9 +48,9 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& energ
         Vector3d X0;
         X0 << 50 * sin(phi) * cos(theta), 50 * sin(phi) * sin(theta), 50 * cos(phi);
         // Set target as center of particle detector
-        const Vector3d target = -X0;
+        const Vector3d target = - X0;
         const double v_abs = sqrt(energy_samples[i] * conversionEV);
-        Vector3d v0 = v_abs * target / target.norm();
+        Vector3d v0 = v_abs * target.normalized();
 
         // Define particle
         double T_max = 1.5 * target.norm() / v_abs;

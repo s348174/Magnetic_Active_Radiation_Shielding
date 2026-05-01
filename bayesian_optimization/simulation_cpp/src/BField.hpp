@@ -22,7 +22,7 @@ struct BField {
     vector<Quaterniond> conjugates; // Store rotation conjugates
 
     // Static cached data for Biot-Savart (initialized once)
-    static constexpr int N = 300;
+    static constexpr int N = 500;
     static constexpr int numPoints = 2 * N + 1;
     static constexpr double dtheta = PI / N; // Integration step
     static inline ArrayXd sinT, cosT, weights;
@@ -175,8 +175,16 @@ struct BField {
         Vector3d totalB(0.0, 0.0, 0.0);
         for (size_t i = 0; i < k; ++i) {
             Vector3d X_local = conjugates[i] * (X - centers[i]); // Rotate and recenter
-            // totalB += rotations[i] * coilBField(X_local); // Compute field in frame of reference and add to total field
             totalB += rotations[i] * computeSAM(X_local); // Compute field with SAM algorithm and rotate
+        }
+        return totalB;
+    }
+    Vector3d totalBS(const Vector3d& X) {
+        // This methods just sums up the field over all coils
+        Vector3d totalB(0.0, 0.0, 0.0);
+        for (size_t i = 0; i < k; ++i) {
+            Vector3d X_local = conjugates[i] * (X - centers[i]); // Rotate and recenter
+            totalB += rotations[i] * computeBS(X_local); // Compute field with SAM algorithm and rotate
         }
         return totalB;
     }
