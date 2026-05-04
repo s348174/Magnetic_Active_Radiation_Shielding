@@ -170,7 +170,7 @@ double runFromCSV_MT(const string& filename, BField field, Revelator revelator,
         if (th.joinable()) th.join();
     }
 
-    cout << "\n All simulations with seed " << seed << "finished.\n";
+    cout << "\n All simulations with seed " << seed << " finished.\n";
 
     return totalExpectedDose;
 }
