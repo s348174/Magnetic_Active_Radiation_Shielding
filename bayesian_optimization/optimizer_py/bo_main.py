@@ -22,8 +22,8 @@ def main():
     start_clock = time.time()
 
     # Run BO optimization loop
-    #X_train, y_train, ei_array, best_mean_hist, variance_hist = bo_matern_kernel(nu=1.5)
-    X_train, y_train, ei_array, best_mean_hist, variance_hist = bo_rbf_kernel()
+    X_train, y_train, ei_array, best_mean_hist, variance_hist = bo_matern_kernel(nu=2.5)
+    #X_train, y_train, ei_array, best_mean_hist, variance_hist = bo_rbf_kernel()
     
     end_clock = time.time() - start_clock
     print(f'Elapsed time: {end_clock:.4f} s')

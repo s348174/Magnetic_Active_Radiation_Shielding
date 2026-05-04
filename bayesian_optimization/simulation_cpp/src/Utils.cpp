@@ -14,7 +14,7 @@
 #include <random>
 // For i/o and string manipulation
 #include <iostream>
-#include <iomanip>
+//#include <iomanip>
 #include <sstream>
 #include <fstream>
 #include <string>
@@ -96,11 +96,6 @@ double evaluateExpression(const string& expr) {
 void runSimulation(BField field, Revelator revelator, const vector<double>& energy_samples,
                    string name, double m, double q, int N, double dt, unsigned long seed,
                    double& totalExpectedDose, mutex& doseMutex) {
-    {
-        lock_guard<mutex> lock(io_mutex);
-        cout << "=== Starting simulation for " << name << " ===" << endl;
-    }
-
     double expectedDose = 0.0;
     bool ok = monteCarlo(field, revelator, energy_samples, name, m, q, N, dt, seed, expectedDose);
 
@@ -111,11 +106,9 @@ void runSimulation(BField field, Revelator revelator, const vector<double>& ener
 
     {
         lock_guard<mutex> lock(io_mutex);
-        if (ok) {
-            cout << "Simulation for " << name << " completed with Expected dose = " << scientific << expectedDose << "\n";
-        }
-        else
-            cerr << "Simulation for " << name << " failed.\n";
+        if (!ok) {
+            cerr << "Seed " << seed << ". Simulation for " << name << " failed.\n";
+        }           
     }
 }
 
@@ -125,11 +118,11 @@ double runFromCSV_MT(const string& filename, BField field, Revelator revelator,
                      double dt, unsigned long seed) {
     ifstream file(filename);
     if (!file.is_open()) {
-        cerr << "Error: Could not open " << filename << endl;
+        cerr << "Seed " << seed << ". Error: Could not open " << filename << endl;
         return -1;
     }
     if (file.peek() == ifstream::traits_type::eof()) {
-        cerr << "Error: File is empty!" << endl;
+        cerr << "Seed " << seed << ". Error: File is empty!" << endl;
         return -1;
     }
 
@@ -139,6 +132,8 @@ double runFromCSV_MT(const string& filename, BField field, Revelator revelator,
     vector<thread> threads;
     double totalExpectedDose = 0.0;
     mutex doseMutex;
+
+    cout << "Starting simulations with seed " << seed << "..." << endl;
 
     while (getline(file, line)) {
 
@@ -164,7 +159,7 @@ double runFromCSV_MT(const string& filename, BField field, Revelator revelator,
         }
         catch (const std::exception& e) {
             lock_guard<mutex> lock(io_mutex);
-            cerr << "Error parsing line: " << line << "\n" << e.what() << endl;
+            cerr << "Seed " << seed << ". Error parsing line: " << line << "\n" << e.what() << endl;
         }
     }
 
@@ -175,9 +170,7 @@ double runFromCSV_MT(const string& filename, BField field, Revelator revelator,
         if (th.joinable()) th.join();
     }
 
-    cout << scientific;
-    cout << "Total expected dose (sum of all threads) = " << totalExpectedDose << "\n";
-    cout << "\n All simulations finished.\n";
+    cout << "\n All simulations with seed " << seed << "finished.\n";
 
     return totalExpectedDose;
 }

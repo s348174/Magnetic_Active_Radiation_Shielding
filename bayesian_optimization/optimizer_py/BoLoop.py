@@ -1,7 +1,7 @@
 # Import libraries for optimization
 import torch
 # BoTorch imports
-from botorch.models import SingleTaskGP # Gausian Process model for single-task regression
+from botorch.models import SingleTaskGP # Gaussian Process model for single-task regression
 from botorch.models.transforms.outcome import Standardize # Outcome transform to standardize targets
 from botorch.fit import fit_gpytorch_mll # Model fitting utility
 from botorch.acquisition import qLogNoisyExpectedImprovement, PosteriorMean, qKnowledgeGradient # Acquisition functions for BO
@@ -15,6 +15,7 @@ from gpytorch.kernels import MaternKernel, ScaleKernel # Kernels for GP (Matern 
 # Import standard libraries
 import numpy as np
 import warnings
+from joblib import Parallel, delayed
 
 # Import externals functions
 from BoUtils import (
@@ -29,12 +30,13 @@ from BoUtils import (
     fit_gp_with_noise_floor
 )
 from Objective import objective_function
-from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q
+from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q, COPY
 
 def bo_matern_kernel(nu=2.5):
     warnings_counter = 0
     # Step 1: Initialize BO with Sobol samples
-    X_train, y_train = sobol_sample()
+    X_train, y_train, train_yvar = sobol_sample()
+    train_yvar = torch.tensor(train_yvar, dtype=torch.double).unsqueeze(-1).to(device) # Convert to tensor for noise floor fitting
 
     ## Step 2: Fit Gaussian Process model over centers and normals
     covar_module = ScaleKernel(
@@ -49,6 +51,7 @@ def bo_matern_kernel(nu=2.5):
         torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
         covar_module=covar_module,
         outcome_transform=Standardize(m=1),
+        train_Yvar=train_yvar, # Heteroskedastic noise variance from initial evaluations
     )
     fit_gp_with_noise_floor(gp)
 
@@ -79,8 +82,14 @@ def bo_matern_kernel(nu=2.5):
         candidate_unnorm = denormalize(candidate_np) # Denormalize candidate to original scale
         centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
         
-        # 3. Evaluate simulation at new point
-        energy_next = objective_function(rng.integers(1e6), centers_next, normals_next)
+        # 3. Evaluate simulation at new point (parallelized)
+        energies = Parallel(n_jobs=-1)(
+            delayed(objective_function)(rng.integers(1e6), centers_next, normals_next) 
+            for _ in range(COPY)
+        )
+        energy_next = np.mean(energies)
+        var = np.var(energies, ddof=1)/COPY # Variance of the mean estimate, can be used to adaptively adjust noise floor if desired
+        train_yvar = torch.cat((train_yvar, torch.tensor([[var]], dtype=torch.double).to(device)), dim=0) # Append new variance to training noise variances
         if np.isnan(energy_next) or np.isinf(energy_next):
             warnings.warn(f"Non-finite energy from simulator encountered at iteration {iteration+1}. Skipping.")
             warnings_counter += 1
@@ -102,6 +111,7 @@ def bo_matern_kernel(nu=2.5):
             torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
             covar_module=covar_module,
             outcome_transform=Standardize(m=1),
+            train_Yvar=train_yvar,
         )
         fit_gp_with_noise_floor(gp)
 
@@ -140,7 +150,7 @@ def bo_matern_kernel(nu=2.5):
 def bo_rbf_kernel():
     warnings_counter = 0
     # Step 1: Initialize BO with Sobol samples
-    X_train, y_train = sobol_sample()
+    X_train, y_train, _ = sobol_sample()
 
     # Step 2: Fit GP model
     gp = SingleTaskGP(
