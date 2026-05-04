@@ -34,7 +34,7 @@ citestyle=numeric-comp
 \begin{document}
 	
 	\begin{center}
-		\Large Development of a Bayesian Optimization algorithm to explore magnetic field topology for radiation dose reduction in crewed space missions shielding.
+		\Large Development of a Bayesian Optimization algorithm to explore magnetic field topology for radiation dose reduction in crewed space mission shielding.
 	\end{center}
 	
 	% Things needed/points to hit:
@@ -43,7 +43,7 @@ citestyle=numeric-comp
 	% How will it be done/ how will the research questions be answered?
 	
 	\section*{Introduction}
-	The problem of radiation shielding is of paramount importance in crewed space missions: the limitations of damages to the astronauts' healths puts limits on the duration of a crewed mission. At this time, NASA duration for ISS missions is 6 months \cite{Kahn2014}. This cap makes unfeasible at the current stage the possibility of planning crewed mission to explore other solar system planets. 
+	The problem of radiation shielding is of paramount importance in crewed space missions: the limitation of damages to the astronauts' healths puts limits on the duration of a crewed mission. At this time, NASA duration for ISS missions is 6 months \cite{Kahn2014}. This cap makes unfeasible, at the current stage, the possibility of planning crewed mission to explore other Solar System's planets. 
 	
 	There are two types of radiation shielding: passive and active. Passive shielding operates by placing some shielding material that absorbs radiation by particle interaction. This is the type of shielding that the most research has been conducted about.
 	
@@ -95,6 +95,7 @@ citestyle=numeric-comp
 	\section{The Bayesian framework: preliminary statistics concepts}
 	
 	\section{Gaussian Processes theory}
+	\subsection{Basic definitions}
 	\begin{defn}[Random Process]
 		A \textit{random process}, or \textit{stochastic process}, is a collection of random variables $(X_t)_{t \in T}$ on the same probability space, and indexed by elements $t$ of a set $T$. If the set $T$ is a continuous interval, then the process is \textit{time-continuous}.
 	\end{defn}
@@ -103,7 +104,7 @@ citestyle=numeric-comp
 		A continuous time random process $(X_t)_{t \in T}$ is called a \textit{Gaussian process} if for every finite subset $T_0 \subset T$ (i.e.: for any finite collection of indexes $\{t_1, ..., t_n \}$), the random vector:
 		$$(X_t)_{t \in T_0}$$
 		has normal distribution. We indicate the process as:
-		$$X(t) = \mathcal{GP}(m(\cdot), k(\cdot, \cdot)),$$
+		$$X(t) \sim \mathcal{GP}(m(\cdot), k(\cdot, \cdot)),$$
 		where $m(\cdot)$ is the mean function and $k(\cdot, \cdot)$ is the covariance function.
 	\end{defn}
 	
@@ -111,7 +112,63 @@ citestyle=numeric-comp
 		A Gaussian process is completely specified by its mean and covariance function \cite{rasmussen_2005}.
 	\end{obs}
 	
-	\section{Bayesian Optimization}
+	We consider the Gaussian process as a distribution over the function space (the functions are induced by data), so we will write:
+	$$f(\mathbf{x}) \sim \mathcal{GP}(m(\mathbf{x}), k(\mathbf{x}, \mathbf{x'})), \ \forall x \in \mathcal{X}$$
+	where:
+	$$m(\mathbf{x}) = \mathbb{E}[f(\mathbf{x})],$$
+	$$k(\mathbf{x}, \mathbf{x'}) = \mathbb{E}[(f(\mathbf{x}) - m(\mathbf{x}))(f(\mathbf{x'}) - m(\mathbf{x'}))].$$
+	Here the random variable $f(\mathbf{x})$ is the value of the function at point $\mathbf{x}$. In our case, the index space $\mathcal{X}$ is not a time interval, but a subset of $\mathbb{R}^D$, since our data are spatial.
+	
+	\subsection{Prediction with GPs}
+	
+	\subsection{Kernel functions}
+	\subsubsection{Definition and requirements}
+	While in most of applications the mean function is taken to be uniformly 0, the covariance function needs to be well chosen in order because, as we've seen from the prediction section, it encodes our beliefs about the function that we're learning. The covariance function, defines the notion of nearness or similarity for GPs by providing a measure of how much two points are correlated according to their distance. In general, an arbitrary function of $\mathbf{x}, \mathbf{x'}$ will not be a valid covariance function, but it will be subject to some requirements.
+	
+	In general, a function that maps a pair of inputs $\mathbf{x}, \mathbf{x'} \in \mathcal{X}$ to $\mathbb{R}$ is called a \textit{kernel}. The name comes from integral operators theory, where the operator:
+	
+	\begin{equation}
+		(T_k f)(\mathbf{x}) = \int_\mathcal{X} k(\mathbf{x}, \mathbf{x'}) f(\mathbf{x'}) \ d \mu (\mathbf{x'}).
+	\end{equation}
+	
+	A real kernel is \textit{symmetric} if $k(\mathbf{x}, \mathbf{x'}) = k(\mathbf{x'}, \mathbf{x})$. Clearly, covariance functions must be symmetric by definition.
+	
+	A kernel is also \textit{positive semi-definite} if:
+	\begin{equation}
+		\int_\mathcal{X} k(\mathbf{x}, \mathbf{x'}) f(\mathbf{x}) f(\mathbf{x'}) \ d \mu (\mathbf{x}) \ d \mu (\mathbf{x'}) \geq 0 \ \forall f \in L_2(\mathcal{X}, \mu).\
+	\end{equation}
+	Valid covariance functions must be positive semi-definite.	
+	
+	Also, a kernel is \textit{stationarity} if it's a function of $\mathbf{x} - \mathbf{x'}$, thus it's invariant to translations in the input space. Furthermore, if it's a function of $|\mathbf{x} - \mathbf{x'}|$, then it's also \textit{isotropic}, which means it's invariant to all rigid motions.
+	
+	Another property that will be extremely useful in analyzing kernels is the following.
+	\begin{defn}[Mean square continuity]
+		Let $\mathbf{x}_1, \mathbf{x}_2, ...$ be a sequence of points and $\mathbf{x}_\star \in \mathbb{R}^D$ a fixed point such that $|\mathbf{x}_k - \mathbf{x}_\star| \rightarrow 0$ as $k \rightarrow \infty$. Then a process $f(\mathbf{x})$ is said to be \textbf{mean square continuous} at $\mathbf{x}_\star$ if $\mathbb{E}[|f(\mathbf{x}_k) - f (\mathbf{x}_\star) |^2] \rightarrow 0$ as $k \rightarrow \infty$.
+	\end{defn}
+	
+	\begin{prop}
+		A random field is mean square continuous in $\mathbf{x}_\star$ if and only if it's kernel $k(\mathbf{x}, \mathbf{x'})$ is continuous at $\mathbf{x} = \mathbf{x'} = \mathbf{x}_\star$. For a stationary kernel, this reduces to check continuity at $\mathbf{x} = 0$.
+	\end{prop}
+
+	\begin{defn}[Mean square differentiability]
+		The mean square derivative of $f(\mathbf{x})$ in the $i$th direction is defined as:
+		$${\partial f(\mathbf{x}) \over \partial x_i} = \lim_{h \rightarrow 0} {f(\mathbf{x} + h \mathbf{e}_i) - \mathbf{x} \over h},$$
+		when the limit exists.
+	\end{defn}
+
+	We now present a couple of kernel classes that will be of interest throughout this work. For simplicity's sake, in the next sections, we will pose $r = \mathbf{x} - \mathbf{x'}$
+	
+	\subsubsection{The $\gamma$-exponential kernel class}
+	The $\gamma$-exponential class is given by the expression:
+	$$k(r) = exp(-(r/l)^\gamma) for 0 < \gamma \geq 2.$$
+	For $\gamma = 2$, this gives the \textit{Squared Exponential} kernel, one of the most used in literature:
+	$$k_{SE}(r) = exp\left(-{r^\gamma \over 2 l^\gamma}\right),$$
+	where $l$ is the characteristic length scale. This kernel is infinitely differentiable, so the GP with this covariance function has mean squared derivatives of all orders, implying that it's very smooth. This usually mean that this specific kernel is not suitable for modeling physical real world objective functions that are rarely infinitely smooth.
+	
+	\subsubsection{The Matérn kernel class}
+	The Matérn kernel class has the following expression.
+	
+	\section{Bayesian Optimization theory}
 	
 	\section{Preliminary study on objective function continuity}
 	% Define why it is important
@@ -303,7 +360,7 @@ citestyle=numeric-comp
 	
 	The study of robustness of BO under noise will come in the next chapters, but we already have some guarantees in literature, like in \cite{boconvergence2024}, where Gardner et al. provide bounds for local optimization in high dimension under noisy conditions.
 	
-	\section{The field parametrization}
+	\section{The field parametrization problem}
 	\subsection{The coil method}
 	We need now to define the parameters space $\Theta$ that controls the magnetic field. The only requirements for BO to work are:
 	
@@ -336,11 +393,13 @@ citestyle=numeric-comp
 	
 	\section{Code implementation}
 	\subsection{The Python optimizer}
-	\subsubsection{The BoTorch library}
+	\subsubsection{The Sobol initial sampling method}
+	\subsubsection{The BoTorch library functions}
 	\subsection{The C++ Monte Carlo simulation}
-	\subsubsection{The sampler}
+	\subsubsection{Sampling from data with MC}
 	\subsubsection{The SAM algorithm}
 	\subsubsection{The Boris algorithm}
+	\section{Results and Conclusions}
 	
 	\section{Remaining questions}
 	There are still a few more question to address for this application of BO:

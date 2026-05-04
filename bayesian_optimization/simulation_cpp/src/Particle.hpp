@@ -156,9 +156,22 @@ struct Particle {
     }
 
     void updatePositionRK4_BS(BField& field, Revelator& revelator){
-        // Update the trajectory with RK4. Returns TRUE if the torus gets hit
+        // Update the trajectory with RK4.
+
         // Compute B field and Lorentz force
         Vector3d B = field.totalBS(X_t);
+
+        // Adaptive step control
+        const double dx_max = revelator.R / 4; // Max displacement per step (m)
+        double Bmag = B.norm();
+        double vmag = v_t.norm();
+        // Limit by displacement
+        double dt_disp = dx_max / max(vmag, 1e-9);
+        // Limit by 10% of cyclotron (gyration) period (if Bmag > tol): if B is small, we use bigger dt
+        double dt_cycl = (Bmag > 1e-12) ? 0.1 * (2 * M_PI * m) / (abs(q) * Bmag) : dt_max;
+        // Take the smaller of the two
+        double dt_new = min({dt_disp, dt_cycl, dt_max});
+        dt = clamp(dt_new, dt_min, dt_max); // Clamp between max and min to avoid too small or too big dt
 
         // Compute acceleration at current position
         Vector3d a_t = (q / m) * v_t.cross(B);

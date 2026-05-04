@@ -21,7 +21,7 @@ int main()
     cout << "Test 2: Multiple particles with random initial positions and random initial velocities in range [1e6-1e8]" << endl;
     positions.clear();
     speeds.clear();
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 100; ++i) {
         Vector3d pos = Vector3d::Random() * 50; // Random position
         double v0 = 1e6 + (1e8 - 1e6) * (rand() / (double)RAND_MAX); // Random speed norm [1e6-1e8]
         Vector3d direction = -pos.normalized(); // Direction from pos towards origin

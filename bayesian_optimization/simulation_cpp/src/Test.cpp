@@ -52,6 +52,7 @@ void computeMetrics(vector<Vector3d> positions, vector<Vector3d> speeds)
     }
     chrono::steady_clock::time_point bs_end = chrono::steady_clock::now();
     double elapsedTime_base = chrono::duration_cast<chrono::milliseconds>(bs_end-bs_begin).count();
+    cout << "Baseline (RK4-BS) Time: " << elapsedTime_base << " ms" << endl;
 
     chrono::steady_clock::time_point f_begin = chrono::steady_clock::now();
     vector<Vector3d> fast;
@@ -63,20 +64,21 @@ void computeMetrics(vector<Vector3d> positions, vector<Vector3d> speeds)
         // Start trajectory computation
         double t = 0;
         while (t < T_max) {
-            part.updatePositionRK4_BS(field, detector);
+            part.updatePosition(field, detector);
             t += part.dt;
         }
         fast.push_back(part.X_t);
     }
     chrono::steady_clock::time_point f_end = chrono::steady_clock::now();
     double elapsedTime_fast = chrono::duration_cast<chrono::milliseconds>(f_end-f_begin).count();
+    cout << "Fast (Boris-SAM) Time: " << elapsedTime_fast << " ms" << endl;
 
-    double cumErr = 0;
-    double relErr = 0;
+    double fastErr = 0;
+    double fastRel = 0;
     for (size_t i = 0; i < fast.size(); ++i) {
         Vector3d diff = fast[i] - baseline[i];
-        cumErr += diff.norm();
-        relErr += diff.norm() / baseline[i].norm();
+        fastErr += diff.norm();
+        fastRel += diff.norm() / baseline[i].norm();
     }
 
     chrono::steady_clock::time_point boris_begin = chrono::steady_clock::now();
@@ -96,6 +98,7 @@ void computeMetrics(vector<Vector3d> positions, vector<Vector3d> speeds)
     }
     chrono::steady_clock::time_point boris_end = chrono::steady_clock::now();
     double elapsedTime_boris = chrono::duration_cast<chrono::milliseconds>(boris_end-boris_begin).count();
+    cout << "Boris-BS Time: " << elapsedTime_boris << " ms" << endl;
 
     double borisErr = 0;
     double borisRel = 0;
@@ -122,6 +125,7 @@ void computeMetrics(vector<Vector3d> positions, vector<Vector3d> speeds)
     }
     chrono::steady_clock::time_point sam_end = chrono::steady_clock::now();
     double elapsedTime_sam = chrono::duration_cast<chrono::milliseconds>(sam_end-sam_begin).count();
+    cout << "RK4-SAM Time: " << elapsedTime_sam << " ms" << endl;
 
     double samErr = 0;
     double samRel = 0;
@@ -131,11 +135,7 @@ void computeMetrics(vector<Vector3d> positions, vector<Vector3d> speeds)
         samRel += diff.norm() / baseline[i].norm();
     }
 
-    cout << "Baseline (RK4-BS) Time: " << elapsedTime_base << " ms" << endl;
-    cout << "Fast (Boris-SAM) Time: " << elapsedTime_fast << " ms" << endl;
-    cout << "Boris-BS Time: " << elapsedTime_boris << " ms" << endl;
-    cout << "RK4-SAM Time: " << elapsedTime_sam << " ms" << endl;
-    cout << "Baseline vs Fast: Cumulative Error = " << cumErr << ", Relative Error = " << relErr << endl;
+    cout << "Baseline vs Fast: Cumulative Error = " << fastErr << ", Relative Error = " << fastRel << endl;
     cout << "Baseline vs Boris: Cumulative Error = " << borisErr << ", Relative Error = " << borisRel << endl;
     cout << "Baseline vs SAM: Cumulative Error = " << samErr << ", Relative Error = " << samRel << endl;
 }
