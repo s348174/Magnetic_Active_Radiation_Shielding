@@ -250,3 +250,7 @@ def fit_gp_with_noise_floor(gp, noise_floor=1e-8, retry_noise=1e-6):
             pass
         mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
         fit_gpytorch_mll(mll)
+
+def likelihood_noise_scalar(gp):
+    noise = torch.as_tensor(gp.likelihood.noise, dtype=torch.double, device=device)
+    return noise.mean().item()

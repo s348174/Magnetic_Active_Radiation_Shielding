@@ -7,11 +7,11 @@
 #include <Eigen/Eigen>
 // Starndard libraries for math
 #include <vector>
-//#include <numeric>
 #include "Constants.hpp"
 #include <math.h>
 #include <cmath>
 #include <random>
+#include <utility>
 // For i/o and string manipulation
 #include <iostream>
 //#include <iomanip>
@@ -33,13 +33,15 @@ using namespace Eigen;
 
 bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& energy_samples,
                 const string& particleName, const double& m, const double& q, const int& N,
-                double& dt, unsigned long& seed, double& expectedDose) {
+                double& dt, unsigned long& seed, double& expectedDose, double& variance) {
     // Monte Carlo simulation
     default_random_engine gen(seed);
     uniform_real_distribution<double> azimut(0, 2 * PI);
     uniform_real_distribution<double> polar(0, PI);
 
     double expectedEVCounter = 0.0; // Counter for how may eV received
+    vector<double> energyValues;
+    energyValues.reserve(N);
     const double conversionEV = 2 * e_q / m;
     for (size_t i = 0; i < N; ++i) {
         // Sample initial position from a sphere of radius 4R
@@ -64,10 +66,17 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& energ
         }
         // Update probablity estimation of hits
         double partHitProb = v_abs * part.hit_prob;
-        expectedEVCounter += energy_samples[i] * partHitProb;
+        double exptEVPart = energy_samples[i] * partHitProb;
+        expectedEVCounter += exptEVPart;
+        energyValues.push_back(exptEVPart);
     }
-    // Return the expected dose computed by this thread.
+    // Return the expected dose and the variance computed by this thread.
     expectedDose = expectedEVCounter / static_cast<double>(N);
+    double squareDiff = 0.0;
+    for (size_t i = 0; i < energyValues.size(); ++i) {
+        squareDiff += (energyValues[i] - expectedDose) * (energyValues[i] - expectedDose);
+    }
+    variance = squareDiff / static_cast<double>(N - 1);
 
     return true;
 }
@@ -95,13 +104,15 @@ double evaluateExpression(const string& expr) {
 // Thread worker function
 void runSimulation(BField field, Revelator revelator, const vector<double>& energy_samples,
                    string name, double m, double q, int N, double dt, unsigned long seed,
-                   double& totalExpectedDose, mutex& doseMutex) {
+                   double& totalExpectedDose, double& totalVariance, mutex& doseMutex) {
     double expectedDose = 0.0;
-    bool ok = monteCarlo(field, revelator, energy_samples, name, m, q, N, dt, seed, expectedDose);
+    double variance = 0.0;
+    bool ok = monteCarlo(field, revelator, energy_samples, name, m, q, N, dt, seed, expectedDose, variance);
 
     if (ok) {
         lock_guard<mutex> lock(doseMutex);
         totalExpectedDose += expectedDose;
+        totalVariance += variance / static_cast<double>(N);
     }
 
     {
@@ -113,17 +124,17 @@ void runSimulation(BField field, Revelator revelator, const vector<double>& ener
 }
 
 // Main reader & dispatcher
-double runFromCSV_MT(const string& filename, BField field, Revelator revelator,
+pair<double, double> runFromCSV_MT(const string& filename, BField field, Revelator revelator,
                      unordered_map<string, vector<double>> samples, int N,
                      double dt, unsigned long seed) {
     ifstream file(filename);
     if (!file.is_open()) {
         cerr << "Seed " << seed << ". Error: Could not open " << filename << endl;
-        return -1;
+        return make_pair(-1, -1);
     }
     if (file.peek() == ifstream::traits_type::eof()) {
         cerr << "Seed " << seed << ". Error: File is empty!" << endl;
-        return -1;
+        return make_pair(-1, -1);
     }
 
     string line;
@@ -131,6 +142,7 @@ double runFromCSV_MT(const string& filename, BField field, Revelator revelator,
 
     vector<thread> threads;
     double totalExpectedDose = 0.0;
+    double totalVariance = 0.0;
     mutex doseMutex;
 
     cout << "Starting simulations with seed " << seed << "..." << endl;
@@ -155,7 +167,7 @@ double runFromCSV_MT(const string& filename, BField field, Revelator revelator,
             const vector<double>& energy_samples = samples.at(name);
 
             // Launch one thread per simulation
-            threads.emplace_back(runSimulation, field, revelator, ref(energy_samples), name, m, q, N, dt, seed, ref(totalExpectedDose), ref(doseMutex));
+            threads.emplace_back(runSimulation, field, revelator, ref(energy_samples), name, m, q, N, dt, seed, ref(totalExpectedDose), ref(totalVariance), ref(doseMutex));
         }
         catch (const std::exception& e) {
             lock_guard<mutex> lock(io_mutex);
@@ -172,5 +184,5 @@ double runFromCSV_MT(const string& filename, BField field, Revelator revelator,
 
     cout << "\n All simulations with seed " << seed << " finished.\n";
 
-    return totalExpectedDose;
+    return make_pair(totalExpectedDose, totalVariance);
 }
