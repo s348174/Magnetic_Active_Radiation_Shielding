@@ -9,13 +9,12 @@ from gpytorch.mlls import ExactMarginalLogLikelihood # Marginal log likelihood f
 
 # Import standard libraries
 import numpy as np
-from joblib import Parallel, delayed
 
 # Import externals functions
 from Objective import objective_function
 
 # Import imput variables
-from input import COPY, K, device, LOWER, UPPER, D, USE_FEATURE_MAPPING, PERIODIC_IDXS, unit_bounds, rng, INIT, SEED, CONVERGENCE_THRESHOLD, Q
+from input import K, device, LOWER, UPPER, D, USE_FEATURE_MAPPING, PERIODIC_IDXS, unit_bounds, rng, INIT, SEED, CONVERGENCE_THRESHOLD, Q
 
 ###################################################################
 # NORMALIZATION FUNCTIONS AND CONFIGURATION PACKING/UNPACKING
@@ -199,16 +198,12 @@ def sobol_sample():
     X_train_unnorm = denormalize(X_train).cpu().numpy() # shape: (INIT, D)
     centers_init = np.empty((INIT, K, 3))
     normals_init = np.empty((INIT, K, 2))
-    energies = np.empty((INIT, COPY))
+    energy_init = np.empty((INIT,))
+    train_yvar = np.empty((INIT,))
     for i in range(INIT):
         print(f"Evaluating initial configuration {i+1}/{INIT}...")
         centers_init[i], normals_init[i] = unpack_configuration(X_train_unnorm[i])
-        energies[i] = Parallel(n_jobs=-1)(
-            delayed(objective_function)(rng.integers(1e6), centers_init[i], normals_init[i]) 
-            for _ in range(COPY)
-        )
-    energy_init = np.array([np.mean(energies[i]) for i in range(INIT)])
-    train_yvar = np.array([np.var(energies[i]) for i in range(INIT)])
+        energy_init[i], train_yvar[i] = objective_function(rng.integers(1e6), centers_init[i], normals_init[i])
     y_train = -energy_init.flatten() # Negate energy for maximization
     # Remove any non-finite or nan values that might arise from the simulator
     finite_mask = np.isfinite(y_train)

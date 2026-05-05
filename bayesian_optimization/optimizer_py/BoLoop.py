@@ -30,13 +30,19 @@ from BoUtils import (
     fit_gp_with_noise_floor
 )
 from Objective import objective_function
-from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q, COPY
+from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q
+
+
+def _likelihood_noise_scalar(gp):
+    noise = torch.as_tensor(gp.likelihood.noise, dtype=torch.double, device=device)
+    return noise.mean().item()
 
 def bo_matern_kernel(nu=2.5):
     warnings_counter = 0
     # Step 1: Initialize BO with Sobol samples
     X_train, y_train, train_yvar = sobol_sample()
     train_yvar = torch.tensor(train_yvar, dtype=torch.double).unsqueeze(-1).to(device) # Convert to tensor for noise floor fitting
+    train_yvar = torch.clamp(train_yvar, min=1e-6) # Avoid zero noise variance which can cause GP fitting issues
 
     ## Step 2: Fit Gaussian Process model over centers and normals
     covar_module = ScaleKernel(
@@ -83,13 +89,9 @@ def bo_matern_kernel(nu=2.5):
         centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
         
         # 3. Evaluate simulation at new point (parallelized)
-        energies = Parallel(n_jobs=-1)(
-            delayed(objective_function)(rng.integers(1e6), centers_next, normals_next) 
-            for _ in range(COPY)
-        )
-        energy_next = np.mean(energies)
-        var = np.var(energies, ddof=1)/COPY # Variance of the mean estimate, can be used to adaptively adjust noise floor if desired
-        train_yvar = torch.cat((train_yvar, torch.tensor([[var]], dtype=torch.double).to(device)), dim=0) # Append new variance to training noise variances
+        energy_next, var_next = objective_function(rng.integers(1e6), centers_next, normals_next)                
+        train_yvar = torch.cat((train_yvar, torch.tensor([[var_next]], dtype=torch.double).to(device)), dim=0) # Append new variance to training noise variances
+        train_yvar = torch.clamp(train_yvar, min=1e-6) # Ensure noise variance doesn't go to zero 
         if np.isnan(energy_next) or np.isinf(energy_next):
             warnings.warn(f"Non-finite energy from simulator encountered at iteration {iteration+1}. Skipping.")
             warnings_counter += 1
@@ -128,7 +130,7 @@ def bo_matern_kernel(nu=2.5):
             raw_samples=1024,
         )
         best_mean_hist.append(current_best_mean)
-        learned_noise_var = gp.likelihood.noise.item()
+        learned_noise_var = _likelihood_noise_scalar(gp)
         # Use top-5 observed points — more stable than a single noisy incumbent
         top_k = min(5, X_train.shape[0])
         top_idx = torch.as_tensor(
@@ -226,7 +228,7 @@ def bo_rbf_kernel():
             raw_samples=1024,
             )
         best_mean_hist.append(current_best_mean)
-        learned_noise_var = gp.likelihood.noise.item()
+        learned_noise_var = _likelihood_noise_scalar(gp)
         # Use top-5 observed points — more stable than a single noisy incumbent
         top_k = min(5, X_train.shape[0])
         top_idx = torch.as_tensor(

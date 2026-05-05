@@ -35,7 +35,7 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& energ
                 const string& particleName, const double& m, const double& q, const int& N,
                 double& dt, unsigned long& seed, double& expectedDose) {
     // Monte Carlo simulation
-    default_random_engine gen;
+    default_random_engine gen(seed);
     uniform_real_distribution<double> azimut(0, 2 * PI);
     uniform_real_distribution<double> polar(0, PI);
 
