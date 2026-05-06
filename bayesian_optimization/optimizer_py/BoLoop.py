@@ -15,7 +15,6 @@ from gpytorch.kernels import MaternKernel, ScaleKernel # Kernels for GP (Matern 
 # Import standard libraries
 import numpy as np
 import warnings
-from joblib import Parallel, delayed
 
 # Import externals functions
 from BoUtils import (

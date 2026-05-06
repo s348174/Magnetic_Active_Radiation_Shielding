@@ -5,10 +5,9 @@ sys.path.append('../Release')
 import simulator
 
 import numpy as np
-from joblib import Parallel, delayed
 
 from LogDataSampler import sample_all_particles
-from input import K, N, I, R, LOG_DATA, rng, COPY
+from input import K, N, I, R, LOG_DATA, rng
 
 def spherical_to_cartesian(r, theta, phi):
     """
