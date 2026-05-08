@@ -45,14 +45,17 @@ def objective_function(seed, centers, normals):
     samples_dict = sample_all_particles(LOG_DATA, n_samples=N)
     
     # Call the C++ simulator
-    expected_energy = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict)
+    meanVar = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict)
     # Take the log of energy to stabilize optimization and handle wide range of values
-    log_energy = np.log(expected_energy)
+    log_energy = np.log(meanVar[0])
+    log_var = meanVar[1] / (meanVar[0] ** 2 + 1e-6) + 1e-6 # Variance of log(energy) using delta method
     if np.isnan(log_energy) or np.isinf(log_energy):
-        print(f"Warning: Non-finite energy encountered. Expected energy: {expected_energy}. Try again with a different seed or check the simulator for issues.")
+        print(f"Warning: Non-finite energy encountered. Expected energy: {meanVar[0]}. Try again with a different seed or check the simulator for issues.")
         samples_dict = sample_all_particles(LOG_DATA, n_samples=N)  # Debug: print some samples to check distribution
         seed = rng.integers(1e6)
         print(f"New seed: {seed}")
-        expected_energy = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict)
-        log_energy = np.log(expected_energy)
-    return log_energy
+        meanVar = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict)
+        # Take the log of energy to stabilize optimization and handle wide range of values
+        log_energy = np.log(meanVar[0])
+        log_var = meanVar[1] / (meanVar[0] ** 2 + 1e-6) + 1e-6 # Variance of log(energy) using delta method
+    return log_energy, log_var

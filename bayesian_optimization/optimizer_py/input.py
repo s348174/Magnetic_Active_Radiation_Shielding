@@ -7,17 +7,16 @@ import os
 device = torch.device("cpu")
 
 # Field parameters (fixed for this optimization)
-K = 5 # Number of coils
+K = 6 # Number of coils
 N = int(1e3) # Number of particles
 I = 7.2E4 # Current in Amperes
 R = 0.25 # Initial coil radius in meters
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
 D = 5 * K # Input dimension (5 parameters per coil: r, theta, phi for center and theta, phi for normal)
-INIT = 5*D # Number of initial random samples for BO
-MAX_ITER = 500 # Maximum number of BO iterations
-COPY = 10 # Number of replicates for each configuration to average out noise
-CONVERGENCE_THRESHOLD = 1e-3 # Threshold for convergence
+INIT = 5 * D # Number of initial random samples for BO
+MAX_ITER = 20 * D # Maximum number of BO iterations
+CONVERGENCE_THRESHOLD = 1e-5 # Threshold for convergence
 Q = 1 # Batch size: this pipeline optimizes one configuration at a time
 SEED = 67
 rng = np.random.default_rng(SEED)

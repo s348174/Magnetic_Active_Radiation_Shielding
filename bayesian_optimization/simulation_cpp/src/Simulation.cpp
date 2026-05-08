@@ -12,6 +12,7 @@
 #include <chrono>
 #include <unordered_map>
 #include <string>
+#include <utility>
 
 using namespace std;
 using namespace Eigen;
@@ -54,7 +55,7 @@ std::unordered_map<std::string, std::vector<double>> dict_to_map(py::dict py_dic
     return map_cpp;
 }
 
-double launch_simulation(unsigned long seed, int N, size_t K, double I, double R,
+pair<double, double> launch_simulation(unsigned long seed, int N, size_t K, double I, double R,
                          py::array_t<double> centers_np, py::array_t<double> normals_np,
                          py::dict samples_np)
 {
@@ -67,8 +68,8 @@ double launch_simulation(unsigned long seed, int N, size_t K, double I, double R
     double rho = 2;
     Revelator revelator(rho);
 
-    // Define expected dose
-    double totalExpectedDose;
+    // Define output
+    pair<double, double> meanVariance;
 
     // Convert numpy arrays
     vector<Vector3d> centers = numpy_to_vector3d(centers_np);
@@ -83,15 +84,16 @@ double launch_simulation(unsigned long seed, int N, size_t K, double I, double R
         BField field(K, centers, normals, R, I);
 
         // Run multithread simulation from CSV input (for particles phyisics data)
-        totalExpectedDose = runFromCSV_MT("../data/particles_input.csv", field, revelator, samples, N, dt, seed);
+        meanVariance = runFromCSV_MT("../data/particles_input.csv", field, revelator, samples, N, dt, seed);
 
         chrono::steady_clock::time_point t_end = chrono::steady_clock::now();
         double elapsedTime = chrono::duration_cast<chrono::seconds>(t_end-t_begin).count();
         cout << "Seed " << seed << ". Elapsed simulation time: " << elapsedTime << "s." << endl;
-        cout << "Seed " << seed << ". Total expected dose: " << totalExpectedDose << endl;
+        cout << "Seed " << seed << ". Total expected dose: " << meanVariance.first << endl;
+        cout << "Seed " << seed << ". Total variance: " << meanVariance.second << endl;
     } catch (const invalid_argument e){
         cerr << "Seed " << seed << ". Error: number of coils and number of coils parameters provided do not match!" << endl;
     }
 
-    return totalExpectedDose;
+    return meanVariance;
 }
