@@ -7,10 +7,10 @@ import os
 device = torch.device("cpu")
 
 # Field parameters (fixed for this optimization)
-K = 6 # Number of coils
+K = 10 # Number of coils
 N = int(1e3) # Number of particles
 I = 7.2E4 # Current in Amperes
-R = 0.25 # Initial coil radius in meters
+R = 0.25 # Coil radius in meters
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
 D = 5 * K # Input dimension (5 parameters per coil: r, theta, phi for center and theta, phi for normal)

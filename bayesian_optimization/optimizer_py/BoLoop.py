@@ -15,6 +15,7 @@ from gpytorch.kernels import MaternKernel, ScaleKernel # Kernels for GP (Matern 
 # Import standard libraries
 import numpy as np
 import warnings
+from botorch.models.utils.assorted import InputDataWarning
 
 # Import externals functions
 from BoUtils import (
@@ -34,6 +35,9 @@ from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q
 
 def bo_matern_kernel(nu=2.5):
     warnings_counter = 0
+    # Suppress unit cube scaling warning (expected for feature-mapped inputs)
+    warnings.filterwarnings("ignore", category=InputDataWarning)
+    
     # Step 1: Initialize BO with Sobol samples
     X_train, y_train, train_yvar = sobol_sample()
     train_yvar = torch.tensor(train_yvar, dtype=torch.double).unsqueeze(-1).to(device) # Convert to tensor for noise floor fitting
@@ -144,12 +148,16 @@ def bo_matern_kernel(nu=2.5):
 
 def bo_rbf_kernel():
     warnings_counter = 0
+    # Suppress unit cube scaling warning (expected for feature-mapped inputs)
+    warnings.filterwarnings("ignore", category=InputDataWarning)
+    
     # Step 1: Initialize BO with Sobol samples
     X_train, y_train, _ = sobol_sample()
 
     # Step 2: Fit GP model
+    X_train_model = map_fn(X_train)
     gp = SingleTaskGP(
-        X_train.detach().clone().to(device),
+        X_train_model.detach().clone().to(device),
         torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
     )
     mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
@@ -163,12 +171,13 @@ def bo_rbf_kernel():
     for iteration in range(MAX_ITER):
         # 1. Optimize acquisition function to find next point
         #ei = LogExpectedImprovement(gp, best_f=torch.tensor(y_train.max(), dtype=torch.double).to(device))
-        qLogNEI = qLogNoisyExpectedImprovement(
+        """qLogNEI = qLogNoisyExpectedImprovement(
             model=gp, 
             X_baseline=X_train,
-            )
-        candidate, _ = optimize_acqf(
-            acq_function=qLogNEI,
+            )"""
+        qKG = qKnowledgeGradient(model=InputMappedModel(gp, map_fn), num_fantasies=2) # More fantasies can give better performance but increase runtime
+        candidate, qkg_value = optimize_acqf(
+            acq_function=qKG,
             bounds=unit_bounds,
             q=Q,
             num_restarts=60,
@@ -202,19 +211,21 @@ def bo_rbf_kernel():
             f"Shape mismatch: X={X_train.shape}, y={y_train.shape}"
         
         # 5. Refit GP model with new data
+        X_train_model = map_fn(X_train)
         gp = SingleTaskGP(
-            X_train.detach().clone().to(device),
+            X_train_model.detach().clone().to(device),
             torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
         )
         mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
         fit_gpytorch_mll(mll)
 
         # 6. Check convergence via best predicted value
-        max_ei = qLogNEI(candidate).item()
+        max_ei = qkg_value.item()
         ei_array = np.append(ei_array, np.exp(max_ei))
         post_mean = PosteriorMean(gp)
+        post_mean_on_original_space = InputMappedAcquisition(post_mean, map_fn)
         _, current_best_mean = optimize_acqf(
-            acq_function=post_mean,
+            acq_function=post_mean_on_original_space,
             bounds=unit_bounds,
             q=1,
             num_restarts=60,
@@ -229,7 +240,7 @@ def bo_rbf_kernel():
             dtype=torch.long,
             device=device,
         )
-        eval_X = X_train[top_idx]
+        eval_X = X_train_model[top_idx]
         posterior = gp.posterior(eval_X)
         posterior_var = posterior.variance.mean().item()
         variance_hist.append(posterior_var)
