@@ -171,13 +171,16 @@ def bo_rbf_kernel():
     for iteration in range(MAX_ITER):
         # 1. Optimize acquisition function to find next point
         #ei = LogExpectedImprovement(gp, best_f=torch.tensor(y_train.max(), dtype=torch.double).to(device))
-        """qLogNEI = qLogNoisyExpectedImprovement(
-            model=gp, 
+        # Wrap the GP with InputMappedModel so the acquisition sees inputs
+        # in the original (pre-mapped) space. This ensures `X_baseline`
+        # is compatible with the model and avoids shape mismatches.
+        qLogNEI = qLogNoisyExpectedImprovement(
+            model=InputMappedModel(gp, map_fn),
             X_baseline=X_train,
-            )"""
-        qKG = qKnowledgeGradient(model=InputMappedModel(gp, map_fn), num_fantasies=2) # More fantasies can give better performance but increase runtime
-        candidate, qkg_value = optimize_acqf(
-            acq_function=qKG,
+        )
+        #qKG = qKnowledgeGradient(model=InputMappedModel(gp, map_fn), num_fantasies=2) # More fantasies can give better performance but increase runtime
+        candidate, _ = optimize_acqf(
+            acq_function=qLogNEI,
             bounds=unit_bounds,
             q=Q,
             num_restarts=60,
@@ -220,7 +223,7 @@ def bo_rbf_kernel():
         fit_gpytorch_mll(mll)
 
         # 6. Check convergence via best predicted value
-        max_ei = qkg_value.item()
+        max_ei = qLogNEI(candidate).item()
         ei_array = np.append(ei_array, np.exp(max_ei))
         post_mean = PosteriorMean(gp)
         post_mean_on_original_space = InputMappedAcquisition(post_mean, map_fn)
@@ -228,9 +231,9 @@ def bo_rbf_kernel():
             acq_function=post_mean_on_original_space,
             bounds=unit_bounds,
             q=1,
-            num_restarts=60,
-            raw_samples=1024,
-            )
+            num_restarts=30,
+            raw_samples=256,
+        )
         best_mean_hist.append(current_best_mean)
         learned_noise_var = likelihood_noise_scalar(gp)
         # Use top-5 observed points — more stable than a single noisy incumbent
