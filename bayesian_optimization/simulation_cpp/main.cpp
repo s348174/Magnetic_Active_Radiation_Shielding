@@ -1,54 +1,34 @@
-#include "Utils.hpp"
+#include "Test.hpp"
 #include <Eigen/Eigen>
 #include <iostream>
-#include <stdexcept>
 #include <Revelator.hpp>
 #include <BField.hpp>
-#include <Utils.hpp>
-#include <vector>
-#include <chrono>
 
 using namespace std;
 using namespace Eigen;
 
 int main()
 {
-    chrono::steady_clock::time_point t_begin = chrono::steady_clock::now();
-    // Simulation arguments
-    double N = 10; // Number of simulated particles
-    const double T = 1e7; // K
-    double dt = 1e-9; // Initial time step
-    unsigned long seed = 40001;
-
-    // Define Revelator
-    double rho = 10;
-    Revelator revelator(rho);
-
-    // Define B Field generator
-    double K = 1;
-    double I = 1e5;
-    double R = 15;
-    vector<Vector3d> centers;
-    Vector3d origin;
-    origin << 0, 0, 0;
-    centers.push_back(origin);
-    vector<Vector3d> normals;
-    Vector3d z;
-    z << 0, 0, 1;
-    normals.push_back(z);
-    //try { // Try to run simulation
-    BField field(K, centers, normals, R, I);
-
-    // Run multithread simulation from CSV input (for particles phyisics data)
-    double totalExpectedDose = runFromCSV_MT("../simulation_cpp/particles_input.csv", field, revelator, N, T, dt, seed);
-
-    chrono::steady_clock::time_point t_end = chrono::steady_clock::now();
-    double elapsedTime = chrono::duration_cast<chrono::milliseconds>(t_end-t_begin).count();
-    cout << "Elapsed simulation time: " << elapsedTime << "ms." << endl;
-    cout << "Total expected dose: " << totalExpectedDose << endl;
-    //} catch (const invalid_argument e){
-    //    cerr << "Error: number of coils and number of coils parameters provided do not match!" << endl;
-    //}
-
+    cout << "Starting tests..." << endl;
+    vector<Vector3d> positions;
+    vector<Vector3d> speeds;
+    // Test 1: Single particle with initial position (50,0,0) and velocity (0,1e6,0)
+    cout << "Test 1: Single particle with initial position (50,0,0) and velocity (0,1e6,0)" << endl;
+    positions.push_back(Vector3d(50, 0, 0));
+    speeds.push_back(Vector3d(0, 1e6, 0));
+    computeMetrics(positions, speeds);
+    // Test2: Multiple particles with random initial positions and random initial velocities in range [1e6-1e8]
+    cout << "Test 2: Multiple particles with random initial positions and random initial velocities in range [1e6-1e8]" << endl;
+    positions.clear();
+    speeds.clear();
+    for (int i = 0; i < 100; ++i) {
+        Vector3d pos = Vector3d::Random() * 50; // Random position
+        double v0 = 1e6 + (1e8 - 1e6) * (rand() / (double)RAND_MAX); // Random speed norm [1e6-1e8]
+        Vector3d direction = -pos.normalized(); // Direction from pos towards origin
+        Vector3d vel = direction * v0; // Velocity vector
+        positions.push_back(pos);
+        speeds.push_back(vel);
+    }
+    computeMetrics(positions, speeds);
     return 0;
 }

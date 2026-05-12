@@ -3,7 +3,12 @@
 #include <Eigen/Eigen>
 #include <math.h>
 #include <cmath>
+#include <array>
 #include "Constants.hpp"
+
+#ifdef MARS_USE_CUDA
+#include "TorusCuda.hpp"
+#endif
 
 
 using namespace std;
@@ -54,6 +59,13 @@ struct Torus {
         if (isPointInTorus(X))
             return Vector3d::Zero();
 
+#ifdef MARS_USE_CUDA
+        std::array<double, 3> bCuda;
+        if (mars::computeTorusMagneticFieldCUDA(*this, X(0), X(1), X(2), bCuda)) {
+            return Vector3d(bCuda[0], bCuda[1], bCuda[2]);
+        }
+#endif
+
         // Precompute static variables
         precomputeTables();
         Vector3d B;
@@ -76,6 +88,45 @@ struct Torus {
         // Magnetic field vector
         double coeff = mu0 * I * R / (4 * PI);
         B << coeff * integral_x, coeff * integral_y, coeff * integral_z;
+        return B;
+    }
+
+    Vector3d computeSAM(const Vector3d& X) {
+        // Compute magnetic field with SAM algorithm
+        const double C = mu0 / PI;
+
+        // Conversion to cylindrical coordinates
+        const double rho2 = X(0)*X(0) + X(1)*X(1);
+        const double rho1 = sqrt(rho2);
+        const double z = X(2);
+        const double z2 = z * z;
+        const double phi = atan(X(1) / X(0));
+        const double R2 = R * R;
+
+        // Constants for integration
+        const double a2 = R2 + rho2 + z2 - 2*R*rho1;
+        const double b2 = R2 + rho2 + z2 + 2*R*rho1;
+        const double b = sqrt(b2);
+        const double k2 = 1 - (a2 / b2);
+        const double k = sqrt(k2);
+
+        // Compute ellitic integrals
+        const double E = comp_ellint_1(k);
+        const double K = comp_ellint_2(k);
+
+        // Compute field components
+        const double term1_rho = (R2 + rho2 + z2);
+        const double term1_z = (R2 - rho2 + z2);
+        const double denominator = 2.0 * a2 * b;
+
+        double B_rho = C * I * z * (term1_rho * E - a2 * K) / (denominator * rho1);
+        double B_z = C * I * (term1_z * E + a2 * K) / denominator;
+        // B_phi is 0
+
+        // Transform back in cartesian
+        Vector3d B;
+        B << B_rho * cos(phi), B_rho * sin(phi), B_z;
+
         return B;
     }
 };

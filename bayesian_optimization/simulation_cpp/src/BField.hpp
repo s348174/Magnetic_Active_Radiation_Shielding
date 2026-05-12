@@ -4,8 +4,9 @@
 #include <Eigen/Eigen>
 #include <math.h>
 #include <cmath>
+#include <algorithm>
 #include <vector>
-//#include <stdexcept>
+#include <stdexcept>
 
 using namespace std;
 using namespace Eigen;
@@ -20,15 +21,19 @@ struct BField {
     vector<Quaterniond> rotations; // Store quaternions for rotations of normals w.r.t. z
     vector<Quaterniond> conjugates; // Store rotation conjugates
 
-    // Static cached data (initialized once)
-    static constexpr int N = 300;
+    // Static cached data for Biot-Savart (initialized once)
+    static constexpr int N = 500;
     static constexpr int numPoints = 2 * N + 1;
     static constexpr double dtheta = PI / N; // Integration step
     static inline ArrayXd sinT, cosT, weights;
-    static inline bool precomputed = false;
+    static inline bool precomputedBS = false;
 
-    static void precomputeTables() {
-        if (precomputed) return;
+    // Static cached data for SAM (initialized once)
+    static inline double C;
+    static inline bool precomputedSAM = false;
+
+    static void precomputeTablesBS() {
+        if (precomputedBS) return;
 
         // Precompute arrays for integration
         VectorXd thetaVec(numPoints);
@@ -44,21 +49,36 @@ struct BField {
         for (int i = 1; i < numPoints - 1; ++i)
             // Assign 2 if i is even, else 4
             if (i % 2 == 0) weights(i) = 2; else weights(i) = 4;
-        precomputed = true;
+        precomputedBS = true;
     }
 
-    BField(double k_in, vector<Vector3d> centers_in, vector<Vector3d> normals_in, double R_in, double I_in) {
+    static void precomputeTablesSAM() {
+        if(precomputedSAM) return;
+        C = mu0 / PI;
+        precomputedSAM = true;
+    }
+
+    BField(size_t k_in, vector<Vector3d> centers_in, vector<Vector3d> normals_in, double R_in, double I_in) {
+        if(k_in != centers_in.size() || k_in != normals_in.size()) {
+            throw invalid_argument("Error in generating BField.");
+            return;
+        }
+
         k = k_in;
-        centers = centers_in;
-        normals = normals_in;
-        // if(k != centers.size() || k != normals.size())
-        //     throw invalid_argument("Error in generating BField.");
-        //     return;
+        centers.reserve(k);
+        normals.reserve(k);
+        for (auto& v : centers_in) {
+            centers.push_back(v);
+        }
+        for (auto& v : normals_in) {
+            normals.push_back(v);
+        }
+
         R = R_in;
         I = I_in;
         coeff = mu0 * I * R / (4 * PI);
 
-        // Rotate frame of reference
+        // Precompute rotation of frames of reference
         Vector3d z(0, 0, 1);
         for (size_t i = 0; i < k; ++i) {
             Quaterniond q = Quaterniond::FromTwoVectors(z, normals[i].normalized());
@@ -67,10 +87,10 @@ struct BField {
         }
     }
 
-    Vector3d coilBField(const Vector3d& X) {
-        // This mehod computes the magnetic field of a single coil in a given point X
+    Vector3d computeBS(const Vector3d& X) {
+        // This mehod computes the magnetic field of a single coil in a given point X with Biot-Savart law
         // Precompute static variables
-        precomputeTables();
+        precomputeTablesBS();
         Vector3d B;
 
         ArrayXd base = (X(0) * X(0) + X(1) * X(1) + X(2) * X(2) + R * R
@@ -93,13 +113,78 @@ struct BField {
         return B;
     }
 
+    Vector3d computeSAM(const Vector3d& X) {
+        // Compute magnetic field with SAM algorithm
+        precomputeTablesSAM();
+
+        // Conversion to cylindrical coordinates
+        const double x = X(0);
+        const double y = X(1);
+        const double rho2 = x * x + y * y;
+        const double rho = sqrt(rho2);
+        const double z = X(2);
+        const double z2 = z * z;
+        const double R2 = R * R;
+
+        // Axisymmetric closed form on the coil axis avoids 0/0 in B_rho.
+        if (rho < 1e-9) {
+            const double denom_axis = pow(R2 + z2, 1.5);
+            Vector3d B;
+            B << 0.0, 0.0, mu0 * I * R2 / (2.0 * denom_axis);
+            return B;
+        }
+
+        // Constants for integration
+        const double a2 = R2 + rho2 + z2 - 2*R*rho;
+        const double b2 = R2 + rho2 + z2 + 2*R*rho;
+        // The closed-form expression becomes singular at the wire location.
+        // Return a finite fallback there instead of propagating NaNs.
+        if (a2 < 1e-12 || b2 < 1e-12 || !std::isfinite(a2) || !std::isfinite(b2)) {
+            return Vector3d::Zero();
+        }
+        const double b = sqrt(b2);
+        const double k2 = std::max(0.0, std::min(1.0, 1.0 - (a2 / b2)));
+        const double k = sqrt(k2);
+
+        // Compute complete elliptic integrals (K: first kind, E: second kind)
+        const double K = comp_ellint_1(k);
+        const double E = comp_ellint_2(k);
+
+        // Compute field components
+        const double term1_rho = (R2 + rho2 + z2);
+        const double term1_z = (R2 - rho2 - z2);
+        const double denominator = 2.0 * a2 * b;
+        if (denominator < 1e-12 || !std::isfinite(denominator)) {
+            return Vector3d::Zero();
+        }
+
+        double B_rho = C * I * z * (term1_rho * E - a2 * K) / (denominator * rho);
+        double B_z = C * I * (term1_z * E + a2 * K) / denominator;
+        // B_phi is 0
+
+        // Transform back in cartesian
+        Vector3d B;
+        const double rho_safe = std::max(rho, 1e-12);
+        B << B_rho * (x / rho_safe), B_rho * (y / rho_safe), B_z;
+
+        return B;
+    }
+
     Vector3d totalBField(const Vector3d& X) {
         // This methods just sums up the field over all coils
-        Vector3d totalB;
+        Vector3d totalB(0.0, 0.0, 0.0);
         for (size_t i = 0; i < k; ++i) {
             Vector3d X_local = conjugates[i] * (X - centers[i]); // Rotate and recenter
-            totalB += rotations[i] * coilBField(X_local); // Compute field in frame of reference and add to total field
-            //totalB += coilBField(X);
+            totalB += rotations[i] * computeSAM(X_local); // Compute field with SAM algorithm and rotate
+        }
+        return totalB;
+    }
+    Vector3d totalBS(const Vector3d& X) {
+        // This methods just sums up the field over all coils
+        Vector3d totalB(0.0, 0.0, 0.0);
+        for (size_t i = 0; i < k; ++i) {
+            Vector3d X_local = conjugates[i] * (X - centers[i]); // Rotate and recenter
+            totalB += rotations[i] * computeBS(X_local); // Compute field with SAM algorithm and rotate
         }
         return totalB;
     }

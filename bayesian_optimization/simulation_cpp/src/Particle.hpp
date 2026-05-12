@@ -3,7 +3,6 @@
 #include <Constants.hpp>
 #include <Revelator.hpp>
 #include <Eigen/Eigen>
-#include <vector>
 #include <Trajectory.hpp>
 #include <BField.hpp>
 #include <algorithm>
@@ -36,22 +35,7 @@ struct Particle {
         v_t = v0;
 
         // Set hit prob to 0
-        hit_prob = 0;
-
-        // int N = round(T_max/dt);
-        // tj.X.reserve(N);
-        // tj.v.reserve(N);
-        // tj.a.reserve(N);
-
-        // tj.X.push_back(X0);
-        // tj.v.push_back(v0);
-        // a_t << 0, 0, 0;
-        // tj.a.push_back(a_t);
-        // Init relativistic momentum p = gamma*m*v
-        // double v2 = v_t.squaredNorm();
-        // double gamma = 1.0 / sqrt(1.0 - min(v2 / (c_light*c_light), 0.999999999999)); // Avoid v >= c
-        // p_t = gamma * m * v_t;
-        // tj.p.push_back(p_t);
+        hit_prob = 0.0;
     }
 
     ~Particle() {} // Class destructor
@@ -74,26 +58,146 @@ struct Particle {
 
         // Boris integrator simplified (no E field)
         Vector3d t = (q * B / m) * (0.5 * dt);
-        Vector3d v_prime = v_t + v_t.cross(t);
-        Vector3d v_next = v_t + (2.0 / (1.0 + t.squaredNorm())) * (v_prime.cross(t));
+        Vector3d s = 2.0 * t / (1.0 + t.squaredNorm());
+        Vector3d v_minus = v_t;
+        Vector3d v_prime = v_minus + v_minus.cross(t);
+        Vector3d v_plus = v_minus + v_prime.cross(s);
+        Vector3d v_next = v_plus;
 
         // Compute probability to be detected at this time step
-        Vector3d X_next = X_t + dt * v_t; // Next position
-        if (X_next.norm() < 1.5 * revelator.R) { // Try to limit calls to revelator function
-            // Simpson's rule quadrature along the path
-            hit_prob += dt * (revelator.revelatorProbability(X_t) +
-                              revelator.revelatorProbability(X_next)) / 2;
-        }
+        Vector3d X_next = X_t + dt * v_next; // Next position
+        // Quadrature along the path
+        hit_prob += dt * (revelator.revelatorProbability(X_t) +
+                          revelator.revelatorProbability(X_next)) / 2;
 
         // Update position and speed
         X_t = X_next;
         v_t = v_next;
+    }
 
-        // Update trajectory
-        // a_t = q * v_t.cross(B) / m;
-        // tj.p.push_back(p_t);
-        // tj.a.push_back(a_t);
-        // tj.v.push_back(v_t);
-        // tj.X.push_back(X_t);
+    void updatePositionRK4(BField& field, Revelator& revelator){ 
+        // Update the trajectory with RK4. Returns TRUE if the torus gets hit
+        // Compute B field and Lorentz force
+        Vector3d B = field.totalBField(X_t);
+
+        // Adaptive step control
+        const double dx_max = revelator.R / 4; // Max displacement per step (m)
+        double Bmag = B.norm();
+        double vmag = v_t.norm();
+        // Limit by displacement
+        double dt_disp = dx_max / max(vmag, 1e-9);
+        // Limit by 10% of cyclotron (gyration) period (if Bmag > tol): if B is small, we use bigger dt
+        double dt_cycl = (Bmag > 1e-12) ? 0.1 * (2 * M_PI * m) / (abs(q) * Bmag) : dt_max;
+        // Take the smaller of the two
+        double dt_new = min({dt_disp, dt_cycl, dt_max});
+        dt = clamp(dt_new, dt_min, dt_max); // Clamp between max and min to avoid too small or too big dt
+
+        // Compute acceleration at current position
+        Vector3d a_t = (q / m) * v_t.cross(B);
+
+        // RK4 integration for position and velocity
+        Vector3d k1_v = a_t;
+        Vector3d k1_x = v_t;
+
+        Vector3d k2_v = (q / m) * (v_t + 0.5 * dt * k1_v).cross(field.totalBField(X_t + 0.5 * dt * k1_x));
+        Vector3d k2_x = v_t + 0.5 * dt * k1_v;
+
+        Vector3d k3_v = (q / m) * (v_t + 0.5 * dt * k2_v).cross(field.totalBField(X_t + 0.5 * dt * k2_x));
+        Vector3d k3_x = v_t + 0.5 * dt * k2_v;
+
+        Vector3d k4_v = (q / m) * (v_t + dt * k3_v).cross(field.totalBField(X_t + dt * k3_x));
+        Vector3d k4_x = v_t + dt * k3_v;
+
+        Vector3d v_next = v_t + (dt / 6.0) * (k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v);
+        Vector3d X_next = X_t + (dt / 6.0) * (k1_x + 2.0 * k2_x + 2.0 * k3_x + k4_x);
+
+        // Quadrature along the path
+        hit_prob += dt * (revelator.revelatorProbability(X_t) +
+                          revelator.revelatorProbability(X_next)) / 2;
+
+        // Update position and speed
+        X_t = X_next;
+        v_t = v_next;
+    }
+
+    void updateBS(BField& field, Revelator& revelator){ // Update the trajectory. Returns TRUE if the torus gets hit
+        // Compute B field and Lorentz force
+        Vector3d B = field.totalBS(X_t);
+
+        // Adaptive step control
+        const double dx_max = revelator.R / 4; // Max displacement per step (m)
+        double Bmag = B.norm();
+        double vmag = v_t.norm();
+        // Limit by displacement
+        double dt_disp = dx_max / max(vmag, 1e-9);
+        // Limit by 10% of cyclotron (gyration) period (if Bmag > tol): if B is small, we use bigger dt
+        double dt_cycl = (Bmag > 1e-12) ? 0.1 * (2 * M_PI * m) / (abs(q) * Bmag) : dt_max;
+        // Take the smaller of the two
+        double dt_new = min({dt_disp, dt_cycl, dt_max});
+        dt = clamp(dt_new, dt_min, dt_max); // Clamp between max and min to avoid too small or too big dt
+
+        // Boris integrator simplified (no E field)
+        Vector3d t = (q * B / m) * (0.5 * dt);
+        Vector3d s = 2.0 * t / (1.0 + t.squaredNorm());
+        Vector3d v_minus = v_t;
+        Vector3d v_prime = v_minus + v_minus.cross(t);
+        Vector3d v_plus = v_minus + v_prime.cross(s);
+        Vector3d v_next = v_plus;
+
+        // Compute probability to be detected at this time step
+        Vector3d X_next = X_t + dt * v_next; // Next position
+        // Quadrature along the path
+        hit_prob += dt * (revelator.revelatorProbability(X_t) +
+                          revelator.revelatorProbability(X_next)) / 2;
+
+        // Update position and speed
+        X_t = X_next;
+        v_t = v_next;
+    }
+
+    void updatePositionRK4_BS(BField& field, Revelator& revelator){
+        // Update the trajectory with RK4.
+
+        // Compute B field and Lorentz force
+        Vector3d B = field.totalBS(X_t);
+
+        // Adaptive step control
+        const double dx_max = revelator.R / 4; // Max displacement per step (m)
+        double Bmag = B.norm();
+        double vmag = v_t.norm();
+        // Limit by displacement
+        double dt_disp = dx_max / max(vmag, 1e-9);
+        // Limit by 10% of cyclotron (gyration) period (if Bmag > tol): if B is small, we use bigger dt
+        double dt_cycl = (Bmag > 1e-12) ? 0.1 * (2 * M_PI * m) / (abs(q) * Bmag) : dt_max;
+        // Take the smaller of the two
+        double dt_new = min({dt_disp, dt_cycl, dt_max});
+        dt = clamp(dt_new, dt_min, dt_max); // Clamp between max and min to avoid too small or too big dt
+
+        // Compute acceleration at current position
+        Vector3d a_t = (q / m) * v_t.cross(B);
+
+        // RK4 integration for position and velocity
+        Vector3d k1_v = a_t;
+        Vector3d k1_x = v_t;
+
+        Vector3d k2_v = (q / m) * (v_t + 0.5 * dt * k1_v).cross(field.totalBField(X_t + 0.5 * dt * k1_x));
+        Vector3d k2_x = v_t + 0.5 * dt * k1_v;
+
+        Vector3d k3_v = (q / m) * (v_t + 0.5 * dt * k2_v).cross(field.totalBField(X_t + 0.5 * dt * k2_x));
+        Vector3d k3_x = v_t + 0.5 * dt * k2_v;
+
+        Vector3d k4_v = (q / m) * (v_t + dt * k3_v).cross(field.totalBField(X_t + dt * k3_x));
+        Vector3d k4_x = v_t + dt * k3_v;
+
+        Vector3d v_next = v_t + (dt / 6.0) * (k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v);
+        Vector3d X_next = X_t + (dt / 6.0) * (k1_x + 2.0 * k2_x + 2.0 * k3_x + k4_x);
+
+        // Quadrature along the path
+        hit_prob += dt * (revelator.revelatorProbability(X_t) +
+                          revelator.revelatorProbability(X_next)) / 2;
+
+        // Update position and speed
+        X_t = X_next;
+        v_t = v_next;
     }
 };

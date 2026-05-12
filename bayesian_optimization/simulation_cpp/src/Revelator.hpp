@@ -4,7 +4,6 @@
 #include <Eigen/Eigen>
 #include <math.h>
 #include <cmath>
-#include <iostream>
 
 using namespace std;
 using namespace Eigen;
@@ -42,8 +41,8 @@ struct Revelator {
     }
 
     double revelatorProbability(Vector3d& X) {
-        double rho = X.norm() / R;
-        if (rho < 1 - 1e-6) return exp(1 / (rho * rho - 1)) / mollifier_area;
+        double rho = X.squaredNorm() / (R * R);
+        if (rho < 1 - 1e-6) return exp(1 / (rho - 1)) / mollifier_area;
         else return 0.0;
     }
 };

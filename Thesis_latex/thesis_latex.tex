@@ -5,11 +5,12 @@
 \usepackage{algorithmic}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{hyperref}
 \geometry{a4paper,
-left=2cm,
-right=2cm,
-top=2cm,
-bottom=2cm,
+	left=2cm,
+	right=2cm,
+	top=2cm,
+	bottom=2cm,
 }
 \usepackage[
 backend=biber,
@@ -18,12 +19,22 @@ citestyle=numeric-comp
 ]{biblatex}
 \addbibresource{ProposalReferences.bib}
 
+% Definition of math components
+\usepackage{amsthm}
+\newtheorem{lemma}{Lemma}
+\newtheorem{prop}{Proposition}
+\newtheorem{defn}{Definition}
+\newtheorem{obs}{Observation}
+
 %-----------------------------------------------------%
+
+\usepackage{imakeidx}
+\makeindex
 
 \begin{document}
 	
 	\begin{center}
-		\Large Development of a Bayesian Optimization algorithm to explore magnetic field topology for radiation dose reduction in crewed space missions shielding.
+		\Large Development of a Bayesian Optimization algorithm to explore magnetic field topology for radiation dose reduction in crewed space mission shielding.
 	\end{center}
 	
 	% Things needed/points to hit:
@@ -31,7 +42,8 @@ citestyle=numeric-comp
 	% HOW is this reserach going to be different to what's already been done, what previous research has been done if any, where are the gaps and how will this research fill it?
 	% How will it be done/ how will the research questions be answered?
 	
-	The problem of radiation shielding is of paramount importance in crewed space missions: the limitations of damages to the astronauts' healths puts limits on the duration of a crewed mission. At this time, NASA duration for ISS missions is 6 months \cite{Kahn2014}. This cap makes unfeasible at the current stage the possibility of planning crewed mission to explore other solar system planets. 
+	\section*{Introduction}
+	The problem of radiation shielding is of paramount importance in crewed space missions: the limitation of damages to the astronauts' healths puts limits on the duration of a crewed mission. At this time, NASA duration for ISS missions is 6 months \cite{Kahn2014}. This cap makes unfeasible, at the current stage, the possibility of planning crewed mission to explore other Solar System's planets. 
 	
 	There are two types of radiation shielding: passive and active. Passive shielding operates by placing some shielding material that absorbs radiation by particle interaction. This is the type of shielding that the most research has been conducted about.
 	
@@ -76,9 +88,93 @@ citestyle=numeric-comp
 	
 	A theoretical study on convergence guarantees and robustness under noise will be conducted in parallel, with the help of italian supervisors \cite{boconvergence2024}.
 	
+	\newpage
+	\tableofcontents
+	\newpage
+	
+	\section{The Bayesian framework: preliminary statistics concepts}
+	
+	\section{Gaussian Processes theory}
+	\subsection{Basic definitions}
+	\begin{defn}[Random Process]
+		A \textit{random process}, or \textit{stochastic process}, is a collection of random variables $(X_t)_{t \in T}$ on the same probability space, and indexed by elements $t$ of a set $T$. If the set $T$ is a continuous interval, then the process is \textit{time-continuous}.
+	\end{defn}
+	
+	\begin{defn}[Gaussian Process]
+		A continuous time random process $(X_t)_{t \in T}$ is called a \textit{Gaussian process} if for every finite subset $T_0 \subset T$ (i.e.: for any finite collection of indexes $\{t_1, ..., t_n \}$), the random vector:
+		$$(X_t)_{t \in T_0}$$
+		has normal distribution. We indicate the process as:
+		$$X(t) \sim \mathcal{GP}(m(\cdot), k(\cdot, \cdot)),$$
+		where $m(\cdot)$ is the mean function and $k(\cdot, \cdot)$ is the covariance function.
+	\end{defn}
+	
+	\begin{obs}
+		A Gaussian process is completely specified by its mean and covariance function \cite{rasmussen_2005}.
+	\end{obs}
+	
+	We consider the Gaussian process as a distribution over the function space (the functions are induced by data), so we will write:
+	$$f(\mathbf{x}) \sim \mathcal{GP}(m(\mathbf{x}), k(\mathbf{x}, \mathbf{x'})), \ \forall x \in \mathcal{X}$$
+	where:
+	$$m(\mathbf{x}) = \mathbb{E}[f(\mathbf{x})],$$
+	$$k(\mathbf{x}, \mathbf{x'}) = \mathbb{E}[(f(\mathbf{x}) - m(\mathbf{x}))(f(\mathbf{x'}) - m(\mathbf{x'}))].$$
+	Here the random variable $f(\mathbf{x})$ is the value of the function at point $\mathbf{x}$. In our case, the index space $\mathcal{X}$ is not a time interval, but a subset of $\mathbb{R}^D$, since our data are spatial.
+	
+	\subsection{Prediction with GPs}
+	
+	\subsection{Kernel functions}
+	\subsubsection{Definition and requirements}
+	While in most of applications the mean function is taken to be uniformly 0, the covariance function needs to be well chosen in order because, as we've seen from the prediction section, it encodes our beliefs about the function that we're learning. The covariance function, defines the notion of nearness or similarity for GPs by providing a measure of how much two points are correlated according to their distance. In general, an arbitrary function of $\mathbf{x}, \mathbf{x'}$ will not be a valid covariance function, but it will be subject to some requirements.
+	
+	In general, a function that maps a pair of inputs $\mathbf{x}, \mathbf{x'} \in \mathcal{X}$ to $\mathbb{R}$ is called a \textit{kernel}. The name comes from integral operators theory, where the operator:
+	
+	\begin{equation}
+		(T_k f)(\mathbf{x}) = \int_\mathcal{X} k(\mathbf{x}, \mathbf{x'}) f(\mathbf{x'}) \ d \mu (\mathbf{x'}).
+	\end{equation}
+	
+	A real kernel is \textit{symmetric} if $k(\mathbf{x}, \mathbf{x'}) = k(\mathbf{x'}, \mathbf{x})$. Clearly, covariance functions must be symmetric by definition.
+	
+	A kernel is also \textit{positive semi-definite} if:
+	\begin{equation}
+		\int_\mathcal{X} k(\mathbf{x}, \mathbf{x'}) f(\mathbf{x}) f(\mathbf{x'}) \ d \mu (\mathbf{x}) \ d \mu (\mathbf{x'}) \geq 0 \ \forall f \in L_2(\mathcal{X}, \mu).\
+	\end{equation}
+	Valid covariance functions must be positive semi-definite.	
+	
+	Also, a kernel is \textit{stationarity} if it's a function of $\mathbf{x} - \mathbf{x'}$, thus it's invariant to translations in the input space. Furthermore, if it's a function of $|\mathbf{x} - \mathbf{x'}|$, then it's also \textit{isotropic}, which means it's invariant to all rigid motions.
+	
+	Another property that will be extremely useful in analyzing kernels is the following.
+	\begin{defn}[Mean square continuity]
+		Let $\mathbf{x}_1, \mathbf{x}_2, ...$ be a sequence of points and $\mathbf{x}_\star \in \mathbb{R}^D$ a fixed point such that $|\mathbf{x}_k - \mathbf{x}_\star| \rightarrow 0$ as $k \rightarrow \infty$. Then a process $f(\mathbf{x})$ is said to be \textbf{mean square continuous} at $\mathbf{x}_\star$ if $\mathbb{E}[|f(\mathbf{x}_k) - f (\mathbf{x}_\star) |^2] \rightarrow 0$ as $k \rightarrow \infty$.
+	\end{defn}
+	
+	\begin{prop}
+		A random field is mean square continuous in $\mathbf{x}_\star$ if and only if it's kernel $k(\mathbf{x}, \mathbf{x'})$ is continuous at $\mathbf{x} = \mathbf{x'} = \mathbf{x}_\star$. For a stationary kernel, this reduces to check continuity at $\mathbf{x} = 0$.
+	\end{prop}
+
+	\begin{defn}[Mean square differentiability]
+		The mean square derivative of $f(\mathbf{x})$ in the $i$th direction is defined as:
+		$${\partial f(\mathbf{x}) \over \partial x_i} = \lim_{h \rightarrow 0} {f(\mathbf{x} + h \mathbf{e}_i) - \mathbf{x} \over h},$$
+		when the limit exists.
+	\end{defn}
+
+	We now present a couple of kernel classes that will be of interest throughout this work. For simplicity's sake, in the next sections, we will pose $r = \mathbf{x} - \mathbf{x'}$
+	
+	\subsubsection{The $\gamma$-exponential kernel class}
+	The $\gamma$-exponential class is given by the expression:
+	$$k(r) = exp(-(r/l)^\gamma) for 0 < \gamma \geq 2.$$
+	For $\gamma = 2$, this gives the \textit{Squared Exponential} kernel, one of the most used in literature:
+	$$k_{SE}(r) = exp\left(-{r^\gamma \over 2 l^\gamma}\right),$$
+	where $l$ is the characteristic length scale. This kernel is infinitely differentiable, so the GP with this covariance function has mean squared derivatives of all orders, implying that it's very smooth. This usually mean that this specific kernel is not suitable for modeling physical real world objective functions that are rarely infinitely smooth.
+	
+	\subsubsection{The Matérn kernel class}
+	The Matérn kernel class has the following expression.
+	
+	\section{Bayesian Optimization theory}
+	
 	\section{Preliminary study on objective function continuity}
 	% Define why it is important
-	As the literature highlights, the only requirement for Bayesian Optimization is for the objective function to be continuous, otherwise the algorithm may not converge \cite{frazier2018tutorialbayesianoptimization}. We suppose now that a parametrization such that $\mathbf{B}(\theta)$ is continuous w.r.t. $\theta \in \Theta$ exists. This is actually obvious, since we can always construct our parametrization to be continuous, by ignoring the physical meaning. Now the theoretical challenge is to make the radiation dose to depend continuously on the magnetic field. We will tackle this problem by dividing it in two pieces.
+	As the literature highlights, the only requirement for Bayesian Optimization is for the objective function to be continuous, otherwise the algorithm may not converge \cite{frazier2018tutorialbayesianoptimization}. We suppose now that a parametrization such that $\mathbf{B}(\theta)$ is continuous w.r.t. $\theta \in \Theta$ exists. This is actually obvious, since we can always construct our parametrization to be continuous, by ignoring the physical meaning. Formally, we can say that if $\mathcal{F}$ is the space of all vector fields $\mathbb{R}^3 \to \mathbb{R}^3$, then $\mathbf{B} \in C^0(\Theta, \mathcal{F})$.
+	
+	Now the theoretical challenge is to make the radiation dose to depend continuously on the magnetic field. We will tackle this problem by dividing it in two pieces.
 	
 	\subsection{Trajectory continuity}
 	% Trajectory Mapping and Lorentz Force
@@ -86,19 +182,20 @@ citestyle=numeric-comp
 	\begin{equation}
 		\begin{cases}
 			\mathbf{x}(0) = \mathbf{x}_0, \ \dot{\mathbf{x}}(0) = \mathbf{v}_0, \\
-			m \frac{d^2\mathbf{x}}{dt^2} = q \left( \frac{d\mathbf{x}}{dt} \times \mathbf{B}(\mathbf{x}) \right),
+			m \frac{d^2\mathbf{x}}{dt^2} = q \left( \frac{d\mathbf{x}}{dt} \times \mathbf{B}_\theta(\mathbf{x}) \right),
 		\end{cases}
 	\end{equation}
-	where $\mathbf{B}$ is a magnetic field in the Banach space $C^1(\Theta, \mathbb{R}^3)$ and $\xi = (\mathbf{x}_0, \mathbf{v}_0) \in \Xi$ represents the initial state of a particle in the probability space of incoming radiation.
+	where $\mathbf{B}_\theta$ is a functional in the Banach space $C^0(\Theta, \mathcal{F})$ of mappings between the parameters space and the 3 dimensional vector fields \footnote{Completeness is ensured by compactness of $\Theta$, which is required by Bayesian Optimization.}. For briefness, it will hereon be called $\mathbf{B}$. $\xi = (\mathbf{x}_0, \mathbf{v}_0) \in \Xi$ represents the initial state of a particle in the probability space of incoming radiation.
 	
 	Let's now rewrite the system as a first order ODE problem. Let $\gamma(t) = (\mathbf{x}(t), \mathbf{v}(t))$ be the trajectory of a particle in the field, then:
 	
-	\begin{equation}
+	\begin{equation} \label{ode_first}
 		\begin{cases}
 			\gamma(0) = \xi, \\
-			{d \gamma \over dt} = F(\gamma, \mathbf{B}, t),
+			{d \gamma \over dt} = F(\gamma, \mathbf{B}, t).
 		\end{cases}
 	\end{equation}
+	
 	where:
 	
 	\begin{equation}
@@ -108,18 +205,113 @@ citestyle=numeric-comp
 			{q \over m} \left( \mathbf{v}(t) \times \mathbf{B}(\mathbf{x}) \right)
 		\end{pmatrix}
 	\end{equation}
-	is the nonlinear bounded functional representing the Lorentz force.
 	
-	We can exploit the following facts:
-	\begin{enumerate}
-		\item $\mathbf{B}$ is continuous and Lipschitz by construction;
-		\item $\| \mathbf{v} \|$ is physically bounded by the speed of light;
-	\end{enumerate}  
-	to apply the Picard-Lindelof theorem, which ensures existence and unicity of solution.
+	is the linear functional representing Lorentz force.
+	
+	We want to prove the following.
+	
+	\begin{prop} \label{ode_continuity}
+		Let $\gamma(t)$ be a solution of problem \eqref{ode_first}, then:
+		\begin{enumerate}
+			\item $\gamma(t)$ exists and is unique,
+			\item $\gamma(t)$ depends on $\theta \in \Theta$ with uniform continuity.
+		\end{enumerate}	
+	\end{prop}
+	
+	Let's first introduce a technical lemma that will be used in¸ the proof:
+	
+	\begin{lemma}[Gronwall's inequality]
+		Let $I$ be an interval on the real line in the form $[a,b], \ [a, \infty), \ [a, b)$ with $a < b$. Let $\alpha, \beta, u$ be real valued functions defined on $I$. If these conditions are true:
+		\begin{enumerate}
+			\item $u, \beta$ are continuous,
+			\item The negative part of $\alpha$ is integrable on every closed and bounded subinterval of $I$,
+			\item $\beta$ is non-negative and $\alpha$ is non-decreasing,
+			\item $u$ satisfies the integral inequality:
+			$$u(t) \leq \alpha(t) + \int_a^t \beta(s) u(s) \ ds \ t \in I \ ,$$
+		\end{enumerate}
+		then the following bound holds:
+		\begin{equation}
+			u(t) \leq \alpha(t) \exp \left( \int_a^t \beta(s) \ ds \right) \ .
+		\end{equation}
+	\end{lemma}
+	
+	\begin{proof}
+		
+		We can exploit the following facts:
+		\begin{enumerate}
+			\item $\mathbf{B}$ is continuous and Lipschitz by construction;
+			\item $\| \mathbf{v} \|$ is physically bounded by the speed of light;
+		\end{enumerate}  
+		to apply the Picard-Lindelof theorem, which ensures existence and unicity of solution $\gamma(t)$.
+		
+		% Continuous Dependence via Grönwall's Inequality
+		Now that we know $\gamma(t)$ exists and is unique, we can proceed on proving that it also depends with uniform continuity on $F(\gamma, \mathbf{B}, t)$. Since the speed $\| \mathbf{v} \|$ is bounded by the speed of light $c$ and the magnetic field $\mathbf{B}$ is Lipschitz continuous, the functional $F(\gamma, \mathbf{B}, t)$ is globally Lipschitz in $\gamma$ uniformly with respect to $t$, with Lipschitz constant $L$. Furthermore, $F$ is continuously dependent on the parameter $\mathbf{B}$.
+		
+		Let $\gamma_1(t)$ and $\gamma_2(t)$ be solutions corresponding to two different initial states $\xi_1, \xi_2 \in \Xi$ and two different magnetic fields $\mathbf{B}_1, \mathbf{B}_2$. By the integral formulation of the initial value problem, we have:
+		\begin{equation}
+			\gamma_i(t) = \xi_i + \int_0^t F(\gamma_i(s), \mathbf{B}_i, s) \, ds, \quad \text{for } i \in \{1, 2\}.
+		\end{equation}
+		
+		Taking the norm of the difference and applying the triangle inequality yields:
+		\begin{equation}
+			\|\gamma_1(t) - \gamma_2(t)\| \le \|\xi_1 - \xi_2\| + \int_0^t \| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \, ds.
+		\end{equation}
+		
+		By adding and subtracting $F(\gamma_1(s), \mathbf{B}_2, s)$ inside the integral:
+		
+		$$
+		\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| =  \| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_1(s), \mathbf{B}_2, s) + F(\gamma_1(s), \mathbf{B}_2, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \leq
+		$$
+		$$
+		\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_1(s), \mathbf{B}_2, s) \| + \| F(\gamma_1(s), \mathbf{B}_2, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \ .
+		$$
+		
+		Now we exploit the Lipschitz continuity of $F$ with respect to $\gamma$ and its linearity with respect to $\mathbf{B}$:
+		
+		\begin{enumerate}
+			\item $\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_1(s), \mathbf{B}_2, s) \| = \| F(\gamma_1(s), \mathbf{B}_1 - \mathbf{B}_2, s) \| \leq K \| \mathbf{B}_1(\mathbf{x}_1) - \mathbf{B}_2(\mathbf{x}_1) \|_{\infty} ,$
+			\item $\| F(\gamma_1(s), \mathbf{B}_2, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \leq L \|\gamma_1(s) - \gamma_2(s)\| ,$
+		\end{enumerate}
+		where $K = \frac{q c}{m}$ is a constant derived from the physical bounds of the Lorentz force. This provides the bound:
+		\begin{equation}
+			\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \le L \|\gamma_1(s) - \gamma_2(s)\| + K \|\mathbf{B}_1(\mathbf{x}_1) - \mathbf{B}_2(\mathbf{x}_1)\|_\infty,
+		\end{equation}
+		Substituting this back into the integral, we get:
+		\begin{equation} \label{cont_bound_1}
+			\|\gamma_1(t) - \gamma_2(t)\| \le \|\xi_1 - \xi_2\| + K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t + L \int_0^t \|\gamma_1(s) - \gamma_2(s)\| \, ds.
+		\end{equation}
+		
+		We need now to apply Gronwall's lemma. Let:
+		\begin{enumerate}
+			\item $u(t) = \|\gamma_1(t) - \gamma_2(t)\| \ ,$
+			\item $\alpha(t) = \|\xi_1 - \xi_2\| +  K\|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t \ ,$
+			\item $\beta(t) = L$.
+		\end{enumerate}
+		
+		Then, condition 1 is clearly satisfied by continuity of the norm for $u$, while $\beta$ is constant. Condition 2 holds because $\alpha(t) \geq 0 \ \forall t \geq 0$, so the negative part of $\alpha$ on any interval $[0, T]$ is 0. We can also see that $\beta(t) = L > 0$ by definition of Lipschitz constant and $\alpha ' (t) = K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty \geq 0$ by definition, thus infering condition 3. Condition 4 is satisfied by equation \eqref{cont_bound_1}.
+		
+		Applying Grönwall's inequality, we obtain the final bound:
+		\begin{equation}
+			\|\gamma_1(t) - \gamma_2(t)\| \le \left( \|\xi_1 - \xi_2\| + K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t \right) e^{Lt}.
+		\end{equation}
+		
+		This result shows that as $\xi_1 \to \xi_2$ and $\mathbf{B}_1 \to \mathbf{B}_2$, the difference between the trajectories $\|\gamma_1(t) - \gamma_2(t)\| \to 0$ uniformly on any compact time interval $[0, T]$. Thus, the trajectory depends with uniform continuity on both the initial conditions and the magnetic field.
+		
+		Formally, we can define $\|\xi_1 - \xi_2\| < \delta_1$ and $\|\mathbf{B}_1 - \mathbf{B}_2\|_\infty < \delta_2$, with $\delta_1, \delta_2 > 0$, and:
+		
+		$$\varepsilon = (\delta_1 + K \delta t) e^{Lt},$$
+		
+		hence:
+		
+		$$\|\gamma_1(t) - \gamma_2(t)\| \leq (\delta_1 + K \delta t) e^{Lt} = \varepsilon \ .$$
+		
+		It is clear that for any choice of $\varepsilon > 0$ it is possible to find $\delta_1, \delta_2 > 0$ at any given time $t \in [0, T]$, thus concluding the continuity proof.
+		
+	\end{proof}
 	
 	\subsection{Revelator continuity}
 	% Soft Scoring Kernel Definitions
-	To ensure the continuity of the objective function, we need to avoid using a hit/miss revelator, since step function is non continuous. We define a soft scoring kernel $\Phi: \mathbb{R}^3 \to [0, 1]$. A possible choice for ensuring $C^\infty$ regularity is a Normalized Compact Mollifier with support on the ball $\mathcal{B}_\varepsilon$ of radius $\epsilon$:
+	To ensure the continuity of the objective function, we need to avoid using a hit/miss detector, since step function is non continuous. We define a soft scoring kernel $\Phi: \mathbb{R}^3 \to [0, 1]$. A possible choice for ensuring $C^\infty$ regularity is a Normalized Compact Mollifier with support on the ball $\mathcal{B}_\varepsilon$ of radius $\epsilon$ and center in the origin:
 	
 	\begin{equation}
 		\Phi(\mathbf{x}) = 
@@ -150,7 +342,7 @@ citestyle=numeric-comp
 	\begin{equation}
 		\mathcal{J}(\mathbf{\Theta}) = \mathbb{E}_{\xi \sim P} [D(\mathbf{B}, \xi)] = \int_{\Xi} D(\mathbf{B}, \xi) P(\xi) \ d\xi = \int_{\Xi} E(\xi) \|\mathbf{v}(\xi)\|  P(\xi) \int_0^T \Phi(\mathbf{x}(t; \mathbf{B}, \xi)) \ dt \ d\xi.
 	\end{equation}
-
+	
 	We take the expectation of the dose to try to average out the intrinsic variance of the Monte Carlo simulation. At this point, our observations will hopefully come from a continuous function (maybe even smooth) with some small random noise.
 	
 	It is possible to transform the integral over $\Xi$ to get a more explicit version:
@@ -160,7 +352,7 @@ citestyle=numeric-comp
 	\end{equation}
 	where $N$ is the total number of simulated particles.
 	
-	Since we simulate very large $N$ (around 1e6 particles), the expected value might be very low even if we multiply by energies (which are indeed very high). Keep in mind that we also hope $D(\mathbf{B}, \xi)$ to be as low as possible. So, to avoid issues with the objective function being too flat and the BO struggling to find a minimum, we take the log of our simulation output. At the end, our minimization problem becomes:
+	Since we simulate very large $N$ (around $1e6$ particles), the expected value might be very low even if we multiply by energies (which are indeed very high). Keep in mind that we also hope $D(\mathbf{B}, \xi)$ to be as low as possible. So, to avoid issues with the objective function being too flat and the BO struggling to find a minimum, we take the log of our simulation output. At the end, our minimization problem becomes:
 	
 	\begin{equation}
 		\min_{\theta \in \Theta} \log \left( \mathcal{J}(\theta) + \varepsilon \right).
@@ -168,6 +360,46 @@ citestyle=numeric-comp
 	
 	The study of robustness of BO under noise will come in the next chapters, but we already have some guarantees in literature, like in \cite{boconvergence2024}, where Gardner et al. provide bounds for local optimization in high dimension under noisy conditions.
 	
+	\section{The field parametrization problem}
+	\subsection{The coil method}
+	We need now to define the parameters space $\Theta$ that controls the magnetic field. The only requirements for BO to work are:
+	
+	\begin{itemize}
+		\item $\Theta$ must be compact,
+		\item $\mathbf{B}_\theta : \Theta \rightarrow \mathcal{F} \in C^0(\Theta, \mathcal{F})$. 	
+	\end{itemize}
+	
+	The most obvious choice for a real world physics application is to parametrize an array of single coils. This ensures that the resulting optimized field is physically reproducible and that it respects the PDE constraint $\nabla \cdot \mathbf{B} = 0$, which would be hard to enforce in the optimization algorithm. For each coil we have the following parameters:
+	
+	\begin{enumerate}
+		\item $r \geq 0$ is the distance of the coil from origin;
+		\item $\psi \in [0, \pi]$ is azimuthal angle of coil center vector;
+		\item $\phi \in [0, 2 \pi]$ is polar angle of coil center vector;
+		\item $\alpha \in [0, \pi]$ is azimuthal angle of coil normal versor;
+		\item $\beta \in [0, 2 \pi]$ is polar angle of coil normal versor;
+	\end{enumerate}
+	
+	Also, we have a shared parameter $R \geq 0$ which is the radius of each coil. We can clearly see that if we choose finite bounds for $r$ and $R$, compactness of $\Theta$ is ensured. The field components in the frame of reference of the coil come from the following integrals, obtained using Biot-Savart law:
+	
+	$$B(x) = {\mu_0 I R \over 4 \pi} \int_0^{2 \pi} {z \cos(\theta) \over (x^2 + y^2 + z^2 + R^2 -2Rx \cos(\theta) - 2Ry \sin(\theta))^{3/2}} d \theta \ ;$$
+	$$B(y) = {\mu_0 I R \over 4 \pi} \int_0^{2 \pi} {z \sin(\theta) \over (x^2 + y^2 + z^2 + R^2 -2Rx \cos(\theta) - 2Ry \sin(\theta))^{3/2}} d \theta \ ;$$
+	$$B(z) = {\mu_0 I R \over 4 \pi} \int_0^{2 \pi} {R - x\cos(\theta) - y \sin(\theta) \over (x^2 + y^2 + z^2 + R^2 -2Rx \cos(\theta) - 2Ry \sin(\theta))^{3/2}} d \theta \ .$$
+	
+	It comes as a consequence that the field is continuous everywhere except on the coil itself, where the magnitude explodes to infinity with speed $\mathcal{O} \left( {1 \over x^2} \right)$. This is actually not a problem for the simulation, since the probability of a particle hitting exactly the discontinuity point is 0, but it will require to weaken the assumption made in Proposition \ref{ode_continuity}.
+	
+	The other drawback is that every single coil requires five parameters, thus limiting the array to a maximum size of $\sim 10$, so that the optimization problem has $\sim 50$ dimensions, which should be manageable by BO, according to existing literature.
+	
+	Some techniques have been proposed for dimensionality reduction in BO, like random embeddings in \cite{rembo}, but it comes at the price of losing the physical meaning of the original parameters, thus rendering it useless for this parametrization.
+	
+	\section{Code implementation}
+	\subsection{The Python optimizer}
+	\subsubsection{The Sobol initial sampling method}
+	\subsubsection{The BoTorch library functions}
+	\subsection{The C++ Monte Carlo simulation}
+	\subsubsection{Sampling from data with MC}
+	\subsubsection{The SAM algorithm}
+	\subsubsection{The Boris algorithm}
+	\section{Results and Conclusions}
 	
 	\section{Remaining questions}
 	There are still a few more question to address for this application of BO:
@@ -177,9 +409,19 @@ citestyle=numeric-comp
 		\item What is the most useful parametrization, both from a mathematical and a physical perspective?
 	\end{enumerate}
 	
+	\section{Code work}
+	The next steps will be:
+	\begin{enumerate}
+		\item Verify if SAM integrator is faster than Biot Savart,
+		\item Implement sampling from Oltaris data for accurate particle simulation,
+		\item Experiment with different acquisition functions (current one is Expected Improvement),
+		\item Push the dimensionality of the problem to the limits of BO,
+		\item Experiment with different parametrizations.
+	\end{enumerate}
 	
 	Additional references include: \cite{rasmussen_2005}, \cite{garnett_bayesoptbook_2023}.
 	
 	\clearpage
+	\nocite{*}
 	\printbibliography
 \end{document}
