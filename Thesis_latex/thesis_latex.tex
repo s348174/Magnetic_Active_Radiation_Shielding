@@ -119,11 +119,81 @@ citestyle=numeric-comp
 	$$k(\mathbf{x}, \mathbf{x'}) = \mathbb{E}[(f(\mathbf{x}) - m(\mathbf{x}))(f(\mathbf{x'}) - m(\mathbf{x'}))].$$
 	Here the random variable $f(\mathbf{x})$ is the value of the function at point $\mathbf{x}$. In our case, the index space $\mathcal{X}$ is not a time interval, but a subset of $\mathbb{R}^D$, since our data are spatial.
 	
-	\subsection{Prediction with GPs}
+	\subsection{Inference with GPs}
+	The kernel covariance function $k$, implies the distribution over functions of the process. Assume that we have sample functions from the GP at any number of point. We can choose $X_\star$ as the set of $n_\star$ input points $\mathbf{x_\star}$. If the covariance function $k$ is specified, we can write the covariance matrix of the set $X_\star$ and generate a random Gaussian vector.
+	\begin{equation}
+		\mathbf{f_\star} \sim \mathcal{N}(m(X_\star), K(X_\star, X_\star)).
+	\end{equation}
+	After observing $\mathbf{f_\star}$, either directly or through random noise, we can condition the Gaussian Process in order to update our beliefs, following the principles of bayesian statistics.
+	\subsubsection{Noise-free observations}
+	If the observations are noise free we get the \textit{joint prior distribution} of $\mathbf{f}, \mathbf{f}_\star$ according to the prior as:
+	\begin{equation} \label{eq:gp_prior}
+		\begin{pmatrix}
+			\mathbf{f} \\
+			\mathbf{f}_\star
+		\end{pmatrix} 
+		\sim \mathcal{N} \left(
+		\begin{matrix}
+			m(X) \\
+			m(X_\star)
+		\end{matrix} \ , \ 
+		\begin{bmatrix}
+			K(X,X) & K(X,X_\star) \\
+			K(X_\star,X) & K(X_\star,X_\star)
+		\end{bmatrix} \right),
+	\end{equation}
+	where $K(X, X_\star)$ is the $n \times n_\star$ matrix of the covariances evaluated at all pairs of $n$ training points and $n_\star$ test points. The analogue reasoning is valid for $K(X,X)$, $K(X_\star,X)$ and $K(X_\star,X_\star)$.
+	
+	After observing the points, we can get the \textit{posterior distribution} by restricting the prior to the functions that agree with observed points. Here the assumption that the evaluations are noise-free becomes critical. We can condition the Gaussian prior on the observations, following bayesian theory, to obtain:
+	
+	\begin{equation} \label{eq:gp_post}
+		\mathbf{f}_\star | X_\star,X,\mathbf{f} \sim \mathcal{N} (m(X_\star) + K(X_\star,X)K(X,X)^{-1} \mathbf{f}, \ K(X_\star,X_\star) - K(X_\star,X)K(X,X)^{-1}K(X,X_\star)) \ .
+	\end{equation}
+	
+	\subsubsection{Noisy observations}
+	In many real world applications, we must account for some random noise on the observed data, hence $y = f(\mathbf{x}) + \varepsilon$. We will assume that $\varepsilon$ is additive i.i.d. Gaussian noise with variance $\sigma^2_n$. The covariance is given by:
+	\begin{equation}
+		\text{cov}(\mathbf{y}) = K(X,X) + \sigma^2_n I,
+	\end{equation}
+	
+	We can rewrite equation \eqref{eq:gp_prior} as:
+	
+	\begin{equation}
+		\begin{pmatrix}
+			\mathbf{y} \\
+			\mathbf{f}_\star
+		\end{pmatrix} 
+		\sim \mathcal{N} \left(
+		\begin{matrix}
+			m(X) \\
+			m(X_\star)
+		\end{matrix} \ , \ 
+		\begin{bmatrix}
+			K(X,X) + \sigma_n^2I & K(X,X_\star) \\
+			K(X_\star,X) & K(X_\star,X_\star)
+		\end{bmatrix} \right).
+	\end{equation}
+	
+	We now want to get a posterior distribution, as in \eqref{eq:gp_post}:
+	
+	\begin{equation} \label{eq:gp_noisy_post}
+		\begin{split}   
+			\mathbf{f}_\star | X_\star,X,\mathbf{y} \sim \mathcal{N} & (m(X_\star) + K(X_\star,X)[K(X,X) + \sigma^2_n I]^{-1} \mathbf{y}, \\
+			& \ K(X_\star,X_\star) - K(X_\star,X) [K(X,X) + \sigma^2_n I]^{-1} K(X,X_\star)) \ .
+		\end{split}
+	\end{equation}
+	
+	We can use a more compact notation by writing $K = K(X,X)$ and $K_\star = K(X, X_\star)$. Furthermore, if there is only one test point $\mathbf{x}_\star$, as will be the case in Bayesian Optimization, the covariance matrix $K_\star$ is reduced to a vector of covariances between $\mathbf{x}_\star$ and the $n$ training points. We will call this vector $\mathbf{k}_\star$. Then:
+	\begin{equation}
+		\begin{split}
+			\mathbb{E}[\mathbf{f}_\star | \mathbf{x}_\star,X,\mathbf{y}] & = \mathbf{k}_\star^{\top} (K + \sigma^2_n I)^{-1} \mathbf{y}, \\
+			\text{var}(\mathbf{f}_\star | \mathbf{x}_\star,X,\mathbf{y}) & = k(\mathbf{x_\star, \mathbf{x}_\star} - \mathbf{k}_\star^\top (K + \sigma^2_n I)^{-1} \mathbf{k}_\star .
+		\end{split}
+	\end{equation}
 	
 	\subsection{Kernel functions}
 	\subsubsection{Definition and requirements}
-	While in most of applications the mean function is taken to be uniformly 0, the covariance function needs to be well chosen in order because, as we've seen from the prediction section, it encodes our beliefs about the function that we're learning. The covariance function, defines the notion of nearness or similarity for GPs by providing a measure of how much two points are correlated according to their distance. In general, an arbitrary function of $\mathbf{x}, \mathbf{x'}$ will not be a valid covariance function, but it will be subject to some requirements.
+	While in most of applications the mean function is taken to be uniformly 0, the covariance function needs to be well chosen because, as we've seen from the prediction section, it encodes our beliefs about the function that we're learning. The covariance function, defines the notion of nearness or similarity for GPs by providing a measure of how much two points are correlated according to their distance. In general, an arbitrary function of $\mathbf{x}, \mathbf{x'}$ will not be a valid covariance function, but it will be subject to some requirements.
 	
 	In general, a function that maps a pair of inputs $\mathbf{x}, \mathbf{x'} \in \mathcal{X}$ to $\mathbb{R}$ is called a \textit{kernel}. The name comes from integral operators theory, where the operator:
 	
@@ -139,7 +209,7 @@ citestyle=numeric-comp
 	\end{equation}
 	Valid covariance functions must be positive semi-definite.	
 	
-	Also, a kernel is \textit{stationarity} if it's a function of $\mathbf{x} - \mathbf{x'}$, thus it's invariant to translations in the input space. Furthermore, if it's a function of $|\mathbf{x} - \mathbf{x'}|$, then it's also \textit{isotropic}, which means it's invariant to all rigid motions.
+	Also, a kernel is \textit{stationary} if it's a function of $\mathbf{x} - \mathbf{x'}$, thus it's invariant to translations in the input space. Furthermore, if it's a function of $|\mathbf{x} - \mathbf{x'}|$, then it's also \textit{isotropic}, which means it's invariant to all rigid motions.
 	
 	Another property that will be extremely useful in analyzing kernels is the following.
 	\begin{defn}[Mean square continuity]
@@ -147,26 +217,47 @@ citestyle=numeric-comp
 	\end{defn}
 	
 	\begin{prop}
-		A random field is mean square continuous in $\mathbf{x}_\star$ if and only if it's kernel $k(\mathbf{x}, \mathbf{x'})$ is continuous at $\mathbf{x} = \mathbf{x'} = \mathbf{x}_\star$. For a stationary kernel, this reduces to check continuity at $\mathbf{x} = 0$.
+		A random field is mean square continuous in $\mathbf{x}_\star$ if and only if its kernel $k(\mathbf{x}, \mathbf{x'})$ is continuous at $\mathbf{x} = \mathbf{x'} = \mathbf{x}_\star$. For a stationary kernel, this reduces to check continuity at $\mathbf{x} = 0$.
 	\end{prop}
-
+	
 	\begin{defn}[Mean square differentiability]
 		The mean square derivative of $f(\mathbf{x})$ in the $i$th direction is defined as:
 		$${\partial f(\mathbf{x}) \over \partial x_i} = \lim_{h \rightarrow 0} {f(\mathbf{x} + h \mathbf{e}_i) - \mathbf{x} \over h},$$
 		when the limit exists.
 	\end{defn}
-
+	
 	We now present a couple of kernel classes that will be of interest throughout this work. For simplicity's sake, in the next sections, we will pose $r = \mathbf{x} - \mathbf{x'}$
 	
 	\subsubsection{The $\gamma$-exponential kernel class}
 	The $\gamma$-exponential class is given by the expression:
-	$$k(r) = exp(-(r/l)^\gamma) for 0 < \gamma \geq 2.$$
+	\begin{equation}
+		k(r) = exp(-(r/\ell)^\gamma), \ \ \text{for} \ 0 < \gamma \leq 2.
+	\end{equation}
 	For $\gamma = 2$, this gives the \textit{Squared Exponential} kernel, one of the most used in literature:
-	$$k_{SE}(r) = exp\left(-{r^\gamma \over 2 l^\gamma}\right),$$
-	where $l$ is the characteristic length scale. This kernel is infinitely differentiable, so the GP with this covariance function has mean squared derivatives of all orders, implying that it's very smooth. This usually mean that this specific kernel is not suitable for modeling physical real world objective functions that are rarely infinitely smooth.
+	\begin{equation}
+		k_{SE}(r) = exp\left(-{r^\gamma \over 2 \ell^\gamma}\right),
+	\end{equation}
+	where $\ell$ is the characteristic length scale. This kernel is infinitely differentiable, so the GP with this covariance function has mean squared derivatives of all orders, implying that it's very smooth. This usually mean that this specific kernel is not suitable for modelling physical real world objective functions that are rarely infinitely smooth.
 	
 	\subsubsection{The Matérn kernel class}
 	The Matérn kernel class has the following expression.
+	\begin{equation}
+		k_M(r) = {2^{(1 - \nu)} \over \Gamma (\nu)} \left( {\sqrt{2 \nu} r \over \ell} \right)^\nu K_\nu \left( {\sqrt{2 \nu} r \over \ell} \right),
+	\end{equation}
+	with positive parameters $\nu$ and $l$. $K_\nu$ is a modified Bessel function. In this class, the process is $k$-times Mean Square differentiable with $k < \nu$.
+	When $\nu = n + \frac{1}{2}, \ n \in \mathbb{N}$ the Bessel function expression becomes simple to evaluate. In particular, the most widely used Matern kernels are for $\nu = 5/2$ and $\nu = 3/2$, with expressions:
+	
+	\begin{equation}
+		k_{3/2}(r) = \left(1 + {\sqrt{3}r \over \ell} \right) \exp \left( - {\sqrt{3}r \over \ell} \right),
+	\end{equation}
+	\begin{equation}
+		k_{5/2}(r) = \left(1 + {\sqrt{5}r \over \ell} + {5 r^2 \over 3l^2} \right) \exp \left( - {\sqrt{5}r \over \ell} \right).
+	\end{equation}
+	
+	The first one is used for rough physical processes, while the latter is suitable for more smooth process and more widely used. It's also the default choice for most Matern class kernel implementation in GPs libraries for Python and R.
+	
+	\subsection{Regression with Gaussian Processes}
+	
 	
 	\section{Bayesian Optimization theory}
 	
@@ -299,11 +390,11 @@ citestyle=numeric-comp
 		
 		Formally, we can define $\|\xi_1 - \xi_2\| < \delta_1$ and $\|\mathbf{B}_1 - \mathbf{B}_2\|_\infty < \delta_2$, with $\delta_1, \delta_2 > 0$, and:
 		
-		$$\varepsilon = (\delta_1 + K \delta t) e^{Lt},$$
+		$$\varepsilon = (\delta_1 + K \delta_2 t) e^{Lt},$$
 		
 		hence:
 		
-		$$\|\gamma_1(t) - \gamma_2(t)\| \leq (\delta_1 + K \delta t) e^{Lt} = \varepsilon \ .$$
+		$$\|\gamma_1(t) - \gamma_2(t)\| \leq (\delta_1 + K \delta_2 t) e^{Lt} = \varepsilon \ .$$
 		
 		It is clear that for any choice of $\varepsilon > 0$ it is possible to find $\delta_1, \delta_2 > 0$ at any given time $t \in [0, T]$, thus concluding the continuity proof.
 		
@@ -412,11 +503,14 @@ citestyle=numeric-comp
 	\section{Code work}
 	The next steps will be:
 	\begin{enumerate}
-		\item Verify if SAM integrator is faster than Biot Savart,
-		\item Implement sampling from Oltaris data for accurate particle simulation,
-		\item Experiment with different acquisition functions (current one is Expected Improvement),
-		\item Push the dimensionality of the problem to the limits of BO,
+		\item Verify if SAM integrator is faster than Biot Savart (DONE),
+		\item Implement sampling from Oltaris data for accurate particle simulation (DONE),
+		\item Experiment with different acquisition functions (current one is Expected Improvement) (TRIED KNOWLEDGE GRADIENT),
+		\item Change the kernel to accomodate periodic parameters instead of relying on feature map.
+		\item Need to implement interchangeability of coils.
+		\item Push the dimensionality of the problem to the limits of BO (WORKING): I need to implement either Trust Region algorithm to optimize locally or Random Embeddings to reduce dimensionality. Maybe try SAASBO.
 		\item Experiment with different parametrizations.
+		\item Reduce variance of Monte Carlo simulation, currently the highest number of particles that is doable is 28e4, so i need to reduce the variance. The easiest path is to use quasi Monte Carlo methods, like Sobol sampling and recycle the same starting points across different optimizations. If there will be time, i will implement a backward Monte Carlo (Adjoint MC) to do importance sampling of interesting trajectories.
 	\end{enumerate}
 	
 	Additional references include: \cite{rasmussen_2005}, \cite{garnett_bayesoptbook_2023}.
