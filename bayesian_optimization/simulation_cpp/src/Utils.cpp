@@ -3,6 +3,7 @@
 #include <BField.hpp>
 #include <Revelator.hpp>
 #include <Particle.hpp>
+#include <Sobol.hpp>
 // External libraries
 #include <Eigen/Eigen>
 // Starndard libraries for math
@@ -35,20 +36,16 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& energ
                 const string& particleName, const double& m, const double& q, const int& N,
                 double& dt, unsigned long& seed, double& expectedDose, double& variance) {
     // Monte Carlo simulation
-    default_random_engine gen(seed);
-    uniform_real_distribution<double> azimut(0, 2 * PI);
-    uniform_real_distribution<double> polar(0, PI);
+    // Sobol sample of initial positions
+    uint32_t seed32 = static_cast<uint32_t>(seed ^ (seed >> 32)); // Fold a 64 seed in half
+    vector<Vector3d> startPoints = sampleSphereSobol(N, 50, seed32);
 
     double expectedEVCounter = 0.0; // Counter for how may eV received
     vector<double> energyValues;
     energyValues.reserve(N);
     const double conversionEV = 2 * e_q / m;
     for (size_t i = 0; i < N; ++i) {
-        // Sample initial position from a sphere of radius 4R
-        double theta = azimut(gen);
-        double phi = polar(gen);
-        Vector3d X0;
-        X0 << 50 * sin(phi) * cos(theta), 50 * sin(phi) * sin(theta), 50 * cos(phi);
+        Vector3d X0 = startPoints[i];
         // Set target as center of particle detector
         const Vector3d target = - X0;
         const double v_abs = sqrt(energy_samples[i] * conversionEV);
