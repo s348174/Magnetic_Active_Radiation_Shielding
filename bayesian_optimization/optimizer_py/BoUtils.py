@@ -11,7 +11,7 @@ from gpytorch.mlls import ExactMarginalLogLikelihood # Marginal log likelihood f
 import numpy as np
 
 # Import externals functions
-from Objective import objective_function
+from Objective import objective_function, spherical_to_cartesian
 
 # Import imput variables
 from input import K, device, LOWER, UPPER, D, USE_FEATURE_MAPPING, PERIODIC_IDXS, unit_bounds, rng, INIT, SEED, CONVERGENCE_THRESHOLD, Q
@@ -57,6 +57,37 @@ def unpack_configuration(x):
     normals = np.stack([normal_theta, normal_phi], axis=1)
     return centers, normals
 
+def canonicalize_candidate(x, K):
+    r = x[:K]
+    theta = x[K:2*K]
+    phi = x[2*K:3*K]
+    theta_n = x[3*K:4*K]
+    phi_n = x[4*K:5*K]
+
+    coils = []
+
+    for i in range(K):
+        coils.append([
+            r[i],
+            theta[i],
+            phi[i],
+            theta_n[i],
+            phi_n[i]
+        ])
+
+    # canonical ordering
+    coils.sort(key=lambda c: (c[1], c[2]))
+
+    coils = np.array(coils)
+
+    return np.concatenate([
+        coils[:,0],
+        coils[:,1],
+        coils[:,2],
+        coils[:,3],
+        coils[:,4]
+    ])
+
 ########################################################
 # CHANGE OF FEATURES FOR PERIODIC VARIABLES
 ########################################################
@@ -97,6 +128,82 @@ def identity_map(X):
 
 # Choose mapping function depending on the toggle
 map_fn = periodic_feature_map if USE_FEATURE_MAPPING else identity_map
+
+def map_cart(X):
+    """
+    Convert spherical parameters → Cartesian embedding for GP.
+    """
+
+    if not torch.is_tensor(X):
+        X = torch.tensor(X, dtype=torch.double, device=device)
+
+    X = X.to(dtype=torch.double, device=device)
+
+    r = X[..., :K]
+    theta = X[..., K:2*K]
+    phi = X[..., 2*K:3*K]
+
+    theta_n = X[..., 3*K:4*K]
+    phi_n = X[..., 4*K:5*K]
+
+    # centers cartesian
+    sin_phi = torch.sin(phi)
+    cx = r * sin_phi * torch.cos(theta)
+    cy = r * sin_phi * torch.sin(theta)
+    cz = r * torch.cos(phi)
+
+    # normals cartesian (unit vectors)
+    sin_phi_n = torch.sin(phi_n)
+    nx = sin_phi_n * torch.cos(theta_n)
+    ny = sin_phi_n * torch.sin(theta_n)
+    nz = torch.cos(phi_n)
+
+    return torch.cat([
+        cx, cy, cz,
+        nx, ny, nz
+    ], dim=-1)
+
+def map_set(X):
+    """
+    X: (B, 5K) spherical parameters
+    returns: (B, D_out) permutation-invariant embedding
+    """
+
+    if not torch.is_tensor(X):
+        X = torch.tensor(X, dtype=torch.double, device=device)
+
+    r = X[..., :K]
+    theta = X[..., K:2*K]
+    phi = X[..., 2*K:3*K]
+
+    theta_n = X[..., 3*K:4*K]
+    phi_n = X[..., 4*K:5*K]
+
+    # centers cartesian
+    sin_phi = torch.sin(phi)
+    c = torch.stack([
+        r * sin_phi * torch.cos(theta),
+        r * sin_phi * torch.sin(theta),
+        r * torch.cos(phi)
+    ], dim=-1)  # (B,K,3)
+
+    # normals cartesian
+    sin_phi_n = torch.sin(phi_n)
+    n = torch.stack([
+        sin_phi_n * torch.cos(theta_n),
+        sin_phi_n * torch.sin(theta_n),
+        torch.cos(phi_n)
+    ], dim=-1)  # (B,K,3)
+
+    # per-coil embedding
+    h = torch.cat([c, n], dim=-1)  # (B,K,6)
+
+    # permutation invariant pooling
+    h_mean = h.mean(dim=-2)
+    h_std = h.std(dim=-2)
+    h_max = h.max(dim=-2).values
+
+    return torch.cat([h_mean, h_std, h_max], dim=-1)
 
 class InputMappedAcquisition(AcquisitionFunction):
     """Evaluate an acquisition on mapped inputs while optimizing in original space."""
@@ -225,10 +332,16 @@ def stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
             return True
     return False
 
-def duplicate_safe_candidate(X_train, candidate, tol=1e-8):
+def duplicate_safe_candidate(X_train, candidate, tol=1e-6):
     """Return True when candidate is already present in X_train."""
-    cand = candidate.detach().clone().to(device).reshape(1, -1)
-    dists = torch.norm(X_train - cand, dim=1)
+    cand = torch.tensor(candidate, dtype=torch.double, device=device).unsqueeze(0) # shape: (1, D)
+    cand = map_set(cand) if USE_FEATURE_MAPPING else cand
+    X_train_denorm = denormalize(X_train) if not USE_FEATURE_MAPPING else X_train
+    X_train_mapped = map_set(X_train_denorm) if USE_FEATURE_MAPPING else X_train
+    dists = torch.max(
+        torch.abs(X_train_mapped - cand),
+        dim=1
+    ).values
     return bool((dists < tol).any())
 
 

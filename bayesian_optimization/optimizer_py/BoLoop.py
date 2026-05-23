@@ -20,8 +20,12 @@ from botorch.models.utils.assorted import InputDataWarning
 # Import externals functions
 from BoUtils import (
     denormalize,
+    normalize,
     unpack_configuration,
+    canonicalize_candidate,
     map_fn,
+    map_cart,
+    map_set,
     InputMappedAcquisition,
     InputMappedModel,
     sobol_sample,
@@ -31,7 +35,7 @@ from BoUtils import (
     likelihood_noise_scalar
 )
 from Objective import objective_function
-from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q
+from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q, K
 
 def bo_matern_kernel(nu=2.5):
     warnings_counter = 0
@@ -155,7 +159,7 @@ def bo_rbf_kernel():
     X_train, y_train, _ = sobol_sample()
 
     # Step 2: Fit GP model
-    X_train_model = map_fn(X_train)
+    X_train_model = map_set(X_train)
     gp = SingleTaskGP(
         X_train_model.detach().clone().to(device),
         torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
@@ -175,10 +179,10 @@ def bo_rbf_kernel():
         # in the original (pre-mapped) space. This ensures `X_baseline`
         # is compatible with the model and avoids shape mismatches.
         qLogNEI = qLogNoisyExpectedImprovement(
-            model=InputMappedModel(gp, map_fn),
+            model=InputMappedModel(gp, map_set),
             X_baseline=X_train,
         )
-        #qKG = qKnowledgeGradient(model=InputMappedModel(gp, map_fn), num_fantasies=2) # More fantasies can give better performance but increase runtime
+        #qKG = qKnowledgeGradient(model=InputMappedModel(gp, map_cart), num_fantasies=2) # More fantasies can give better performance but increase runtime
         candidate, _ = optimize_acqf(
             acq_function=qLogNEI,
             bounds=unit_bounds,
@@ -186,15 +190,15 @@ def bo_rbf_kernel():
             num_restarts=60,
             raw_samples=1024,
         )
-        # Check for duplicates in training data (can happen due to optimization tolerances)
         cand = candidate[0:1].detach().clone().to(device)  # Take only first from batch
-        if duplicate_safe_candidate(X_train, cand):
-            print("Duplicate candidate returned by optimizer — skipping this iteration")
-            continue
         
         # 2. Extract params from candidate and generate random centers and normals
         candidate_np = candidate.detach().cpu().numpy()
-        candidate_unnorm = denormalize(candidate_np) # Denormalize candidate to original scale
+        candidate_unnorm = denormalize(candidate_np).detach().cpu().numpy() # Denormalize candidate to original scale
+        # Check for duplicates in training data (can happen due to optimization tolerances)
+        if duplicate_safe_candidate(X_train, candidate_unnorm):
+            print("Duplicate candidate returned by optimizer — skipping this iteration")
+            continue
         centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
         
         # 3. Evaluate simulation at new point
@@ -207,14 +211,14 @@ def bo_rbf_kernel():
             continue  # Skip this iteration and try again with a new candidate
         
         # 4. Update training data
-        X_train = torch.vstack((X_train, candidate[0:1])) # candidate is already normalized, take only first from batch
+        X_train = torch.vstack((X_train, cand)) # candidate is already normalized, take only first from batch
         y_train = np.append(y_train, float(-energy_next)) # Negate energy for maximization
         # Check shapes before fitting GP
         assert X_train.shape[0] == y_train.shape[0], \
             f"Shape mismatch: X={X_train.shape}, y={y_train.shape}"
         
         # 5. Refit GP model with new data
-        X_train_model = map_fn(X_train)
+        X_train_model = map_set(X_train)
         gp = SingleTaskGP(
             X_train_model.detach().clone().to(device),
             torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
@@ -226,7 +230,7 @@ def bo_rbf_kernel():
         max_ei = qLogNEI(candidate).item()
         ei_array = np.append(ei_array, np.exp(max_ei))
         post_mean = PosteriorMean(gp)
-        post_mean_on_original_space = InputMappedAcquisition(post_mean, map_fn)
+        post_mean_on_original_space = InputMappedAcquisition(post_mean, map_set)
         _, current_best_mean = optimize_acqf(
             acq_function=post_mean_on_original_space,
             bounds=unit_bounds,
