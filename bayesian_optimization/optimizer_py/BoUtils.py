@@ -334,7 +334,8 @@ def stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
 
 def duplicate_safe_candidate(X_train, candidate, tol=1e-6):
     """Return True when candidate is already present in X_train."""
-    cand = torch.tensor(candidate, dtype=torch.double, device=device).unsqueeze(0) # shape: (1, D)
+    #cand = torch.tensor(candidate, dtype=torch.double, device=device).unsqueeze(0) # shape: (1, D)
+    cand = candidate.clone().detach().to(dtype=torch.double, device=device).unsqueeze(0) # shape: (1, D)
     cand = map_set(cand) if USE_FEATURE_MAPPING else cand
     X_train_denorm = denormalize(X_train) if not USE_FEATURE_MAPPING else X_train
     X_train_mapped = map_set(X_train_denorm) if USE_FEATURE_MAPPING else X_train

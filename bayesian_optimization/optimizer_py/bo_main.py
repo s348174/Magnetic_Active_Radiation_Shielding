@@ -12,6 +12,7 @@ from PlotResults import interactive_plot, plot_convergence_metrics
 from BoUtils import unpack_configuration, denormalize
 from BoLoop import bo_matern_kernel, bo_rbf_kernel
 from Objective import spherical_to_cartesian
+from TurBo import bo_turbo_matern
 
 from input import K, SEED, device
 
@@ -21,7 +22,7 @@ def main():
 
     # Run BO optimization loop
     #X_train, y_train, ei_array, best_mean_hist, variance_hist = bo_matern_kernel(nu=2.5)
-    X_train, y_train, ei_array, best_mean_hist, variance_hist = bo_rbf_kernel()
+    X_train, y_train, ei_array, best_mean_hist, variance_hist = bo_turbo_matern()
     
     end_clock = time.time() - start_clock
     print(f'Elapsed time: {end_clock:.4f} s')
