@@ -14,7 +14,7 @@ from botorch.optim import optimize_acqf
 
 # GPyTorch imports
 from gpytorch.mlls import ExactMarginalLogLikelihood
-from gpytorch.kernels import MaternKernel, ScaleKernel
+from gpytorch.kernels import MaternKernel, ScaleKernel, RBFKernel
 from gpytorch.constraints import Interval
 from gpytorch.likelihoods import GaussianLikelihood
 import gpytorch
@@ -189,12 +189,16 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
     # Step 2: Initial GP fit
     # ------------------------------------------------------------------
     # Lengthscale constraints recommended in the TuRBO paper
-    covar_module = ScaleKernel(
+    """covar_module = ScaleKernel(
         MaternKernel(
             nu=nu,
             ard_num_dims=MAPPED_D,
             lengthscale_constraint=Interval(0.005, 4.0),
         )
+    )"""
+    covar_module = RBFKernel(
+        ard_num_dims=MAPPED_D,
+        lengthscale_constraint=Interval(0.005, 4.0),
     )
     likelihood = GaussianLikelihood(noise_constraint=Interval(1e-8, 1e-3))
 

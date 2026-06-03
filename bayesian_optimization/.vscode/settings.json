@@ -2,6 +2,6 @@
     "python.analysis.extraPaths": [
         "Release"
     ],
-    "cmake.sourceDirectory": "/home/alberto/Documents/Magnetic_Active_Radiation_Shielding/bayesian_optimization/simulation_cpp",
+    "cmake.sourceDirectory": "/home/alberto/Documenti/Magnetic_Active_Radiation_Shielding/bayesian_optimization/simulation_cpp",
     "python-envs.defaultEnvManager": "ms-python.python:venv"
 }
