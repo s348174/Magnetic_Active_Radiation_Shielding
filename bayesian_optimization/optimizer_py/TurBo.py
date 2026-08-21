@@ -43,6 +43,7 @@ from BoUtils import (
 )
 from Objective import objective_function
 from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q, K
+from Kernels import CoilSetKernel, CoilMomentKernel
 
 # ---------------------------------------------------------------------------
 # TuRBO state dataclass (faithful to the original BoTorch tutorial)
@@ -196,13 +197,14 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
             lengthscale_constraint=Interval(0.005, 4.0),
         )
     )"""
-    covar_module = RBFKernel(
+    """covar_module = RBFKernel(
         ard_num_dims=MAPPED_D,
         lengthscale_constraint=Interval(0.005, 4.0),
-    )
+    )"""
+    covar_module = ScaleKernel(CoilSetKernel(n_coils=K, normalize=True)) + ScaleKernel(CoilMomentKernel(n_coils=K))
     likelihood = GaussianLikelihood(noise_constraint=Interval(1e-8, 1e-3))
 
-    X_train_model = map_cart(X_train)
+    X_train_model = map_set(X_train)
     gp = SingleTaskGP(
         X_train_model.detach().clone().to(device),
         torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device),
@@ -245,7 +247,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
                 gp=gp,
                 X_train=X_train,
                 y_train=y_train,
-                map_local=map_cart,
+                map_local=map_set,
                 n_candidates=N_CANDIDATES,
                 num_restarts=NUM_RESTARTS,
                 raw_samples=RAW_SAMPLES,
@@ -256,7 +258,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
             tr_bounds = _tr_bounds(state, X_train, y_train)
             best_f = torch.tensor(y_train.max(), dtype=torch.double, device=device)
             log_ei = qLogNoisyExpectedImprovement(
-                model=InputMappedModel(gp, map_cart),
+                model=InputMappedModel(gp, map_set),
                 best_f=best_f,
             )
             candidate, acq_value = optimize_acqf(
@@ -307,7 +309,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
         state = update_state(state=state, Y_next=Y_next_tensor)
 
         # 6. Refit GP on all data collected so far
-        X_train_model = map_cart(X_train)
+        X_train_model = map_set(X_train)
         gp = SingleTaskGP(
             X_train_model.detach().clone().to(device),
             torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device),
@@ -323,7 +325,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
 
         from botorch.acquisition import PosteriorMean  # local import avoids circular issues
         post_mean = PosteriorMean(gp)
-        post_mean_mapped = InputMappedAcquisition(post_mean, map_cart)
+        post_mean_mapped = InputMappedAcquisition(post_mean, map_set)
         _, current_best_mean = optimize_acqf(
             acq_function=post_mean_mapped,
             bounds=unit_bounds,

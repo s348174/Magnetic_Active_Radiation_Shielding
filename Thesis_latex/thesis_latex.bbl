@@ -606,6 +606,93 @@
       \verb https://arxiv.org/abs/2305.15572
       \endverb
     \endentry
+    \entry{gelman_bda_2013}{book}{}
+      \name{author}{6}{}{%
+        {{hash=1e1eb60e3b6e222217bf8e9b24070b28}{%
+           family={Gelman},
+           familyi={G\bibinitperiod},
+           given={Andrew},
+           giveni={A\bibinitperiod}}}%
+        {{hash=5f088783ee75f9f0908eeb4fa9571a31}{%
+           family={Carlin},
+           familyi={C\bibinitperiod},
+           given={John\bibnamedelima B.},
+           giveni={J\bibinitperiod\bibinitdelim B\bibinitperiod}}}%
+        {{hash=fd9cbf9e3046ffa6a7cecf24e1a46b03}{%
+           family={Stern},
+           familyi={S\bibinitperiod},
+           given={Hal\bibnamedelima S.},
+           giveni={H\bibinitperiod\bibinitdelim S\bibinitperiod}}}%
+        {{hash=84545b54e408a7eba6bf9280fd2eaae7}{%
+           family={Dunson},
+           familyi={D\bibinitperiod},
+           given={David\bibnamedelima B.},
+           giveni={D\bibinitperiod\bibinitdelim B\bibinitperiod}}}%
+        {{hash=5d36e97683cbc9d6ef06fc2ec40becb0}{%
+           family={Vehtari},
+           familyi={V\bibinitperiod},
+           given={Aki},
+           giveni={A\bibinitperiod}}}%
+        {{hash=49a367b6280de8a239f8bbdd573f996f}{%
+           family={Rubin},
+           familyi={R\bibinitperiod},
+           given={Donald\bibnamedelima B.},
+           giveni={D\bibinitperiod\bibinitdelim B\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Boca Raton, FL}%
+      }
+      \list{publisher}{1}{%
+        {CRC Press}%
+      }
+      \strng{namehash}{7b511f44eded88e08c98470ecd75568d}
+      \strng{fullhash}{5c09c13430845c0df008aa82cfeb78ef}
+      \strng{bibnamehash}{5c09c13430845c0df008aa82cfeb78ef}
+      \strng{authorbibnamehash}{5c09c13430845c0df008aa82cfeb78ef}
+      \strng{authornamehash}{7b511f44eded88e08c98470ecd75568d}
+      \strng{authorfullhash}{5c09c13430845c0df008aa82cfeb78ef}
+      \field{sortinit}{9}
+      \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{edition}{3rd}
+      \field{title}{{Bayesian Data Analysis}}
+      \field{year}{2013}
+    \endentry
+    \entry{robert_casella_mcsm_2004}{book}{}
+      \name{author}{2}{}{%
+        {{hash=0a257fbe5a59f3a17cc4e1089b887257}{%
+           family={Robert},
+           familyi={R\bibinitperiod},
+           given={Christian\bibnamedelima P.},
+           giveni={C\bibinitperiod\bibinitdelim P\bibinitperiod}}}%
+        {{hash=c7abc90e14f2761d9325ee092fda0de7}{%
+           family={Casella},
+           familyi={C\bibinitperiod},
+           given={George},
+           giveni={G\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {New York}%
+      }
+      \list{publisher}{1}{%
+        {Springer}%
+      }
+      \strng{namehash}{6325bdb18443214ba419d392ce44599a}
+      \strng{fullhash}{6325bdb18443214ba419d392ce44599a}
+      \strng{bibnamehash}{6325bdb18443214ba419d392ce44599a}
+      \strng{authorbibnamehash}{6325bdb18443214ba419d392ce44599a}
+      \strng{authornamehash}{6325bdb18443214ba419d392ce44599a}
+      \strng{authorfullhash}{6325bdb18443214ba419d392ce44599a}
+      \field{sortinit}{9}
+      \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{edition}{2nd}
+      \field{series}{Springer Texts in Statistics}
+      \field{title}{{Monte Carlo Statistical Methods}}
+      \field{year}{2004}
+    \endentry
     \entry{rasmussen_2005}{book}{}
       \name{author}{2}{}{%
         {{hash=58d90ed7b7348c7a5a9b4a2a8f46df7b}{%
@@ -628,8 +715,8 @@
       \strng{authorbibnamehash}{f0ccf4a09a3a6a91719405724e3ae5da}
       \strng{authornamehash}{f0ccf4a09a3a6a91719405724e3ae5da}
       \strng{authorfullhash}{f0ccf4a09a3a6a91719405724e3ae5da}
-      \field{sortinit}{9}
-      \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{isbn}{9780262256834}
@@ -645,37 +732,74 @@
       \verb https://direct.mit.edu/books/oa-monograph/2320/Gaussian-Processes-for-Machine-Learning
       \endverb
     \endentry
-    \entry{borisalgorithm}{article}{}
-      \name{author}{2}{}{%
-        {{hash=249015b2db28fa344edb8c527fc8f31f}{%
-           family={Zafar},
-           familyi={Z\bibinitperiod},
-           given={Abdullah},
-           giveni={A\bibinitperiod}}}%
-        {{hash=0c88f17505394e16dd553c20cc52fabf}{%
-           family={Khan},
-           familyi={K\bibinitperiod},
-           given={Majid},
-           giveni={M\bibinitperiod}}}%
+    \entry{garnett_bayesoptbook_2023}{book}{}
+      \name{author}{1}{}{%
+        {{hash=eaf84e3fe4f887967dc3d793d28b9e94}{%
+           family={Garnett},
+           familyi={G\bibinitperiod},
+           given={Roman},
+           giveni={R\bibinitperiod}}}%
       }
-      \strng{namehash}{f91630fac46c75746732b205048211da}
-      \strng{fullhash}{f91630fac46c75746732b205048211da}
-      \strng{bibnamehash}{f91630fac46c75746732b205048211da}
-      \strng{authorbibnamehash}{f91630fac46c75746732b205048211da}
-      \strng{authornamehash}{f91630fac46c75746732b205048211da}
-      \strng{authorfullhash}{f91630fac46c75746732b205048211da}
+      \list{publisher}{1}{%
+        {Cambridge University Press}%
+      }
+      \strng{namehash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{fullhash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{bibnamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{authorbibnamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{authornamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
+      \strng{authorfullhash}{eaf84e3fe4f887967dc3d793d28b9e94}
       \field{sortinit}{1}
       \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
-      \field{journaltitle}{Chinese Physics B}
-      \field{month}{04}
-      \field{title}{Energy behavior of Boris algorithm}
-      \field{volume}{30}
-      \field{year}{2021}
-      \verb{doi}
-      \verb 10.1088/1674-1056/abd161
+      \field{title}{{Bayesian Optimization}}
+      \field{year}{2023}
+      \verb{urlraw}
+      \verb https://bayesoptbook.com/
       \endverb
+      \verb{url}
+      \verb https://bayesoptbook.com/
+      \endverb
+    \endentry
+    \entry{Srinivas2010}{inproceedings}{}
+      \name{author}{4}{}{%
+        {{hash=bba8edc4dfbbc8fe73390e4b562c9cc3}{%
+           family={Srinivas},
+           familyi={S\bibinitperiod},
+           given={Niranjan},
+           giveni={N\bibinitperiod}}}%
+        {{hash=112eb0b147c4a7f674d015a86e5dea70}{%
+           family={Krause},
+           familyi={K\bibinitperiod},
+           given={Andreas},
+           giveni={A\bibinitperiod}}}%
+        {{hash=62f00e3f321f1ecf72fcb15013b7ac86}{%
+           family={Kakade},
+           familyi={K\bibinitperiod},
+           given={Sham\bibnamedelima M.},
+           giveni={S\bibinitperiod\bibinitdelim M\bibinitperiod}}}%
+        {{hash=9f881b2bdd82b01b43c0b7a6f9dd3208}{%
+           family={Seeger},
+           familyi={S\bibinitperiod},
+           given={Matthias},
+           giveni={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{461f4ef76fbf2abe225b67377bac9403}
+      \strng{fullhash}{8f2c7302a4e5377ae4e26adf11e48d7e}
+      \strng{bibnamehash}{8f2c7302a4e5377ae4e26adf11e48d7e}
+      \strng{authorbibnamehash}{8f2c7302a4e5377ae4e26adf11e48d7e}
+      \strng{authornamehash}{461f4ef76fbf2abe225b67377bac9403}
+      \strng{authorfullhash}{8f2c7302a4e5377ae4e26adf11e48d7e}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Proceedings of the 27th International Conference on Machine Learning (ICML)}
+      \field{title}{{G}aussian Process Optimization in the Bandit Setting: No Regret and Experimental Design}
+      \field{year}{2010}
+      \field{pages}{1015\bibrangedash 1022}
+      \range{pages}{8}
     \endentry
     \entry{rembo}{misc}{}
       \name{author}{5}{}{%
@@ -731,151 +855,88 @@
       \verb https://arxiv.org/abs/1301.1942
       \endverb
     \endentry
-    \entry{garnett_bayesoptbook_2023}{book}{}
-      \name{author}{1}{}{%
-        {{hash=eaf84e3fe4f887967dc3d793d28b9e94}{%
-           family={Garnett},
-           familyi={G\bibinitperiod},
-           given={Roman},
-           giveni={R\bibinitperiod}}}%
-      }
-      \list{publisher}{1}{%
-        {Cambridge University Press}%
-      }
-      \strng{namehash}{eaf84e3fe4f887967dc3d793d28b9e94}
-      \strng{fullhash}{eaf84e3fe4f887967dc3d793d28b9e94}
-      \strng{bibnamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
-      \strng{authorbibnamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
-      \strng{authornamehash}{eaf84e3fe4f887967dc3d793d28b9e94}
-      \strng{authorfullhash}{eaf84e3fe4f887967dc3d793d28b9e94}
-      \field{sortinit}{1}
-      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
-      \field{labelnamesource}{author}
-      \field{labeltitlesource}{title}
-      \field{title}{{Bayesian Optimization}}
-      \field{year}{2023}
-      \verb{urlraw}
-      \verb https://bayesoptbook.com/
-      \endverb
-      \verb{url}
-      \verb https://bayesoptbook.com/
-      \endverb
-    \endentry
-    \entry{Smith2020ArtemisProgram}{inproceedings}{}
-      \name{author}{7}{}{%
-        {{hash=cf140248ca169b21b46c547c87c74971}{%
-           family={Smith},
-           familyi={S\bibinitperiod},
-           given={Marshall},
-           giveni={M\bibinitperiod}}}%
-        {{hash=f55e9d2a13cdfc5b9c3b2ad2ac2d5b88}{%
-           family={Craig},
-           familyi={C\bibinitperiod},
-           given={Douglas},
-           giveni={D\bibinitperiod}}}%
-        {{hash=fcaffa22ae59a8bee58d18fb2b9884b2}{%
-           family={Herrmann},
-           familyi={H\bibinitperiod},
-           given={Nicole},
-           giveni={N\bibinitperiod}}}%
-        {{hash=eda2b9993a1f3f832a2086353c989371}{%
-           family={Mahoney},
-           familyi={M\bibinitperiod},
-           given={Erin},
-           giveni={E\bibinitperiod}}}%
-        {{hash=10afd315aa7ea148f0ff1e09f8e9331c}{%
-           family={Krezel},
-           familyi={K\bibinitperiod},
-           given={Jonathan},
-           giveni={J\bibinitperiod}}}%
-        {{hash=a5885ee4a87c627edf143f8425662fb7}{%
-           family={McIntyre},
-           familyi={M\bibinitperiod},
-           given={Nate},
-           giveni={N\bibinitperiod}}}%
-        {{hash=7ab6a592d22c933530a19782db14b0e3}{%
-           family={Goodliff},
-           familyi={G\bibinitperiod},
-           given={Kandyce},
-           giveni={K\bibinitperiod}}}%
-      }
-      \strng{namehash}{0e85ded56ef308aea29cd1cda3581275}
-      \strng{fullhash}{6d1a8dc3bcfcd01f49e975083e9260b6}
-      \strng{bibnamehash}{0e85ded56ef308aea29cd1cda3581275}
-      \strng{authorbibnamehash}{0e85ded56ef308aea29cd1cda3581275}
-      \strng{authornamehash}{0e85ded56ef308aea29cd1cda3581275}
-      \strng{authorfullhash}{6d1a8dc3bcfcd01f49e975083e9260b6}
-      \field{sortinit}{1}
-      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
-      \field{labelnamesource}{author}
-      \field{labeltitlesource}{title}
-      \field{booktitle}{2020 IEEE Aerospace Conference}
-      \field{title}{The Artemis Program: An Overview of NASA's Activities to Return Humans to the Moon}
-      \field{year}{2020}
-      \true{nocite}
-      \field{pages}{1\bibrangedash 10}
-      \range{pages}{10}
-      \verb{doi}
-      \verb 10.1109/AERO47225.2020.9172323
-      \endverb
-      \keyw{Personal protective equipment;Mars;South Pole;Moon;NASA;Logic gates;Aerospace electronics;Space exploration;Deep-space communications;Logistics}
-    \endentry
-    \entry{solenoid_efficient_algo}{article}{}
+    \entry{Eriksson2019}{inproceedings}{}
       \name{author}{5}{}{%
-        {{hash=4dc298c97b61288f6bd458ab10818108}{%
-           family={Granum},
+        {{hash=582e497c3c9e98562bf0fbb46511d91a}{%
+           family={Eriksson},
+           familyi={E\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+        {{hash=25ca8c9526c5e34856fdc8cd624e0a80}{%
+           family={Pearce},
+           familyi={P\bibinitperiod},
+           given={Michael},
+           giveni={M\bibinitperiod}}}%
+        {{hash=f3a89257f5247ef5afff322c1746fe13}{%
+           family={Gardner},
            familyi={G\bibinitperiod},
-           given={Peter},
-           giveni={P\bibinitperiod}}}%
-        {{hash=d1962ce5827170a99f500cea4a24ab00}{%
-           family={Madsen},
-           familyi={M\bibinitperiod},
-           given={Magnus\bibnamedelima Linnet},
-           giveni={M\bibinitperiod\bibinitdelim L\bibinitperiod}}}%
-        {{hash=51dcd486f4e7a6264038702be69fb934}{%
-           family={McKenna},
-           familyi={M\bibinitperiod},
-           given={Joseph\bibnamedelimb Tiarnan\bibnamedelima Kerr},
-           giveni={J\bibinitperiod\bibinitdelim T\bibinitperiod\bibinitdelim K\bibinitperiod}}}%
-        {{hash=45c471dba00a54f1841e98e429f5c43c}{%
-           family={Hodgkinson},
-           familyi={H\bibinitperiod},
-           given={Danielle\bibnamedelima Louise},
-           giveni={D\bibinitperiod\bibinitdelim L\bibinitperiod}}}%
-        {{hash=e44076fa4232d642ff97baf253e297c6}{%
-           family={Fajans},
-           familyi={F\bibinitperiod},
-           given={Joel},
-           giveni={J\bibinitperiod}}}%
+           given={Jacob\bibnamedelima R.},
+           giveni={J\bibinitperiod\bibinitdelim R\bibinitperiod}}}%
+        {{hash=3719372373ea9b1be3cddb49ddf0aa47}{%
+           family={Turner},
+           familyi={T\bibinitperiod},
+           given={Ryan\bibnamedelima D.},
+           giveni={R\bibinitperiod\bibinitdelim D\bibinitperiod}}}%
+        {{hash=2776ab61e5bbbd0a0795eb8c67bb4674}{%
+           family={Poloczek},
+           familyi={P\bibinitperiod},
+           given={Matthias},
+           giveni={M\bibinitperiod}}}%
       }
-      \strng{namehash}{c0379fbf921252b6131f7f7c0ccf358f}
-      \strng{fullhash}{69f93da4795b5b65a236537d1851bad3}
-      \strng{bibnamehash}{69f93da4795b5b65a236537d1851bad3}
-      \strng{authorbibnamehash}{69f93da4795b5b65a236537d1851bad3}
-      \strng{authornamehash}{c0379fbf921252b6131f7f7c0ccf358f}
-      \strng{authorfullhash}{69f93da4795b5b65a236537d1851bad3}
-      \field{sortinit}{3}
-      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \strng{namehash}{de739a3a60f4122292d04ae368c29edb}
+      \strng{fullhash}{67b97134d5ad6c5ccd2f6c52795aecdd}
+      \strng{bibnamehash}{67b97134d5ad6c5ccd2f6c52795aecdd}
+      \strng{authorbibnamehash}{67b97134d5ad6c5ccd2f6c52795aecdd}
+      \strng{authornamehash}{de739a3a60f4122292d04ae368c29edb}
+      \strng{authorfullhash}{67b97134d5ad6c5ccd2f6c52795aecdd}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
-      \field{issn}{0168-9002}
-      \field{journaltitle}{Nuclear Instruments and Methods in Physics Research Section A: Accelerators, Spectrometers, Detectors and Associated Equipment}
-      \field{title}{Efficient calculations of magnetic fields of solenoids for simulations}
-      \field{volume}{1034}
-      \field{year}{2022}
-      \true{nocite}
-      \field{pages}{166706}
-      \range{pages}{1}
-      \verb{doi}
-      \verb https://doi.org/10.1016/j.nima.2022.166706
-      \endverb
+      \field{booktitle}{Advances in Neural Information Processing Systems (NeurIPS)}
+      \field{title}{Scalable Global Optimization via Local {B}ayesian Optimization}
+      \field{volume}{32}
+      \field{year}{2019}
+      \field{pages}{5496\bibrangedash 5507}
+      \range{pages}{12}
       \verb{urlraw}
-      \verb https://www.sciencedirect.com/science/article/pii/S0168900222002455
+      \verb https://proceedings.neurips.cc/paper/2019/hash/6c990b7aca7bc7058f5e98ea909e924b-Abstract.html
       \endverb
       \verb{url}
-      \verb https://www.sciencedirect.com/science/article/pii/S0168900222002455
+      \verb https://proceedings.neurips.cc/paper/2019/hash/6c990b7aca7bc7058f5e98ea909e924b-Abstract.html
       \endverb
-      \keyw{Magnets,Solenoids,Simulations,Magnetic fields,Efficiency,Field models}
+    \endentry
+    \entry{borisalgorithm}{article}{}
+      \name{author}{2}{}{%
+        {{hash=249015b2db28fa344edb8c527fc8f31f}{%
+           family={Zafar},
+           familyi={Z\bibinitperiod},
+           given={Abdullah},
+           giveni={A\bibinitperiod}}}%
+        {{hash=0c88f17505394e16dd553c20cc52fabf}{%
+           family={Khan},
+           familyi={K\bibinitperiod},
+           given={Majid},
+           giveni={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{f91630fac46c75746732b205048211da}
+      \strng{fullhash}{f91630fac46c75746732b205048211da}
+      \strng{bibnamehash}{f91630fac46c75746732b205048211da}
+      \strng{authorbibnamehash}{f91630fac46c75746732b205048211da}
+      \strng{authornamehash}{f91630fac46c75746732b205048211da}
+      \strng{authorfullhash}{f91630fac46c75746732b205048211da}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Chinese Physics B}
+      \field{month}{04}
+      \field{title}{Energy behavior of Boris algorithm}
+      \field{volume}{30}
+      \field{year}{2021}
+      \verb{doi}
+      \verb 10.1088/1674-1056/abd161
+      \endverb
     \endentry
   \enddatalist
 \endrefsection

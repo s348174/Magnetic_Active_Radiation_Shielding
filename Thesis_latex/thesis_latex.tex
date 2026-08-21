@@ -25,6 +25,8 @@ citestyle=numeric-comp
 \newtheorem{prop}{Proposition}
 \newtheorem{defn}{Definition}
 \newtheorem{obs}{Observation}
+\newtheorem{thm}{Theorem}
+\newtheorem{corollary}{Corollary}
 
 %-----------------------------------------------------%
 
@@ -37,10 +39,14 @@ citestyle=numeric-comp
 		\Large Development of a Bayesian Optimization algorithm to explore magnetic field topology for radiation dose reduction in crewed space mission shielding.
 	\end{center}
 	
+	\begin{center}
+		Click \href{https://github.com/s348174/Magnetic_Active_Radiation_Shielding/tree/main/bayesian_optimization}{HERE} for GitHub repository.
+	\end{center}
+	
 	% Things needed/points to hit:
 	% WHY is this research NEEDED, what's the biggest picture this influences, who does it help, why should we do it? Be grandiose at first
 	% HOW is this reserach going to be different to what's already been done, what previous research has been done if any, where are the gaps and how will this research fill it?
-	% How will it be done/ how will the research questions be answered?
+	% How will it be done/  reachedhow will the research questions be answered?
 	
 	\section*{Introduction}
 	The problem of radiation shielding is of paramount importance in crewed space missions: the limitation of damages to the astronauts' healths puts limits on the duration of a crewed mission. At this time, NASA duration for ISS missions is 6 months \cite{Kahn2014}. This cap makes unfeasible, at the current stage, the possibility of planning crewed mission to explore other Solar System's planets. 
@@ -93,6 +99,153 @@ citestyle=numeric-comp
 	\newpage
 	
 	\section{The Bayesian framework: preliminary statistics concepts}
+	
+	References for this chapter are \cite{gelman_bda_2013, robert_casella_mcsm_2004}.
+	
+	\subsection{Bayesian models}
+	
+	\begin{defn}[Statistical model]
+		A \textit{statistical model} for data $\mathcal{D}$ is a family of probability distributions $\{p(\mathcal{D} \mid \theta) : \theta \in \Theta\}$ indexed by a parameter $\theta$ ranging over a parameter space $\Theta$.
+	\end{defn}
+	
+	\begin{defn}[Bayesian model]
+		A \textit{Bayesian model} additionally treats $\theta$ as a random variable, equipping $\Theta$ with a probability distribution $p(\theta)$, called the \textit{prior}. The pair $(p(\theta), p(\mathcal{D} \mid \theta))$ induces a joint distribution
+		\begin{equation}
+			p(\theta, \mathcal{D}) = p(\mathcal{D} \mid \theta) \, p(\theta) \ .
+		\end{equation}
+	\end{defn}
+	
+	\begin{obs}
+		This is the essential distinction from the frequentist paradigm: there, $\theta$ is a fixed, non-random unknown, and probability describes only the sampling variability of $\mathcal{D}$ given $\theta$; here, $\theta$ itself carries a distribution, and probability statements about $\theta$ are meaningful.
+	\end{obs}
+	
+	\begin{prop}[Bayes' theorem]
+		Let $p(\mathcal{D}) = \int_\Theta p(\mathcal{D} \mid \theta') \, p(\theta') \, d\theta' > 0$. Then
+		\begin{equation} \label{eq:bayes}
+			p(\theta \mid \mathcal{D}) = \frac{p(\mathcal{D} \mid \theta) \, p(\theta)}{p(\mathcal{D})} \ .
+		\end{equation}
+	\end{prop}
+	\begin{proof}
+		By the definition of conditional density, $p(\theta, \mathcal{D}) = p(\theta \mid \mathcal{D}) \, p(\mathcal{D}) = p(\mathcal{D} \mid \theta) \, p(\theta)$. Dividing both sides by $p(\mathcal{D})$ gives \eqref{eq:bayes}.
+	\end{proof}
+	
+	\begin{defn}
+		$p(\theta \mid \mathcal{D})$ is the \textit{posterior}, $p(\mathcal{D} \mid \theta)$ the \textit{likelihood}, and $p(\mathcal{D})$ the \textit{marginal likelihood} (or \textit{evidence}). Since $p(\mathcal{D})$ does not depend on $\theta$, \eqref{eq:bayes} is equivalently written
+		\begin{equation} \label{eq:bayes_prop}
+			p(\theta \mid \mathcal{D}) \propto p(\mathcal{D} \mid \theta) \, p(\theta) \ .
+		\end{equation}
+	\end{defn}
+	
+	\begin{prop}[Sequential updating] \label{prop:seq_update}
+		Let $\mathcal{D} = \mathcal{D}_1 \cup \mathcal{D}_2$, with $\mathcal{D}_1, \mathcal{D}_2$ conditionally independent given $\theta$. Then
+		\begin{equation}
+			p(\theta \mid \mathcal{D}_1, \mathcal{D}_2) \propto p(\mathcal{D}_2 \mid \theta) \, p(\theta \mid \mathcal{D}_1) \ .
+		\end{equation}
+	\end{prop}
+	\begin{proof}
+		By conditional independence, $p(\mathcal{D}_1, \mathcal{D}_2 \mid \theta) = p(\mathcal{D}_1 \mid \theta) \, p(\mathcal{D}_2 \mid \theta)$. Applying \eqref{eq:bayes_prop} to $\mathcal{D} = \mathcal{D}_1 \cup \mathcal{D}_2$,
+		\begin{equation}
+			p(\theta \mid \mathcal{D}_1, \mathcal{D}_2) \propto p(\mathcal{D}_1 \mid \theta) \, p(\mathcal{D}_2 \mid \theta) \, p(\theta) = p(\mathcal{D}_2 \mid \theta) \, \big[p(\mathcal{D}_1 \mid \theta) \, p(\theta)\big] \propto p(\mathcal{D}_2 \mid \theta) \, p(\theta \mid \mathcal{D}_1) \ . \qedhere
+		\end{equation}
+	\end{proof}
+	
+	\begin{obs}
+		Proposition~\ref{prop:seq_update} is what allows a Bayesian surrogate model to be refined one observation at a time, using the current posterior as the prior for the next update, rather than being refit from scratch after every new data point — the property exploited throughout Bayesian Optimization.
+	\end{obs}
+	
+	\subsection{Conjugacy and the Gaussian case}
+	
+	\begin{defn}[Conjugate prior]
+		A prior $p(\theta)$ is \textit{conjugate} to a likelihood $p(\mathcal{D} \mid \theta)$ if the posterior $p(\theta \mid \mathcal{D})$ belongs to the same parametric family as $p(\theta)$.
+	\end{defn}
+	
+	\begin{prop}[Gaussian-Gaussian conjugacy] \label{prop:gauss_conj}
+		Let $\theta \sim \mathcal{N}(\mu_0, \sigma_0^2)$ and let $y_1, \dots, y_n \mid \theta$ be i.i.d.\ $\mathcal{N}(\theta, \sigma^2)$ with $\sigma^2$ known. Then
+		\begin{equation}
+			\theta \mid y_1, \dots, y_n \sim \mathcal{N}(\mu_n, \sigma_n^2), 
+			\qquad 
+			\frac{1}{\sigma_n^2} = \frac{1}{\sigma_0^2} + \frac{n}{\sigma^2}, 
+			\qquad 
+			\mu_n = \sigma_n^2 \left( \frac{\mu_0}{\sigma_0^2} + \frac{n \bar{y}}{\sigma^2} \right),
+		\end{equation}
+		where $\bar{y} = \frac{1}{n}\sum_{i=1}^n y_i$.
+	\end{prop}
+	\begin{proof}
+		By \eqref{eq:bayes_prop} and independence of the $y_i$,
+		\begin{equation}
+			p(\theta \mid y_{1:n}) \propto p(\theta) \prod_{i=1}^n p(y_i \mid \theta) \propto \exp\left(-\frac{(\theta-\mu_0)^2}{2\sigma_0^2}\right) \exp\left(-\sum_{i=1}^n \frac{(y_i-\theta)^2}{2\sigma^2}\right) \ .
+		\end{equation}
+		Collecting the exponent as a quadratic in $\theta$,
+		\begin{equation}
+			-\frac{1}{2}\left[ \theta^2 \left(\frac{1}{\sigma_0^2} + \frac{n}{\sigma^2}\right) - 2\theta\left(\frac{\mu_0}{\sigma_0^2} + \frac{n\bar y}{\sigma^2}\right) \right] + \text{const} \ ,
+		\end{equation}
+		which, by completing the square, is proportional to $\exp\left(-\frac{(\theta - \mu_n)^2}{2\sigma_n^2}\right)$ with $\sigma_n^2, \mu_n$ as stated. Since a normalized density proportional to a Gaussian kernel is that Gaussian, the claim follows.
+	\end{proof}
+	
+	\begin{obs}
+		Proposition~\ref{prop:gauss_conj} is the finite-dimensional instance of the closure property that makes Gaussian Processes tractable: conditioning a Gaussian prior on Gaussian-linear observations returns a Gaussian posterior in closed form, with no numerical integration required. Section~2 extends this exact statement from a single random variable $\theta$ to a random \textit{function} $f(\mathbf{x})$.
+	\end{obs}
+	
+	\subsection{Point estimation and credible sets}
+	
+	\begin{defn}[MAP estimate and posterior mean]
+		The \textit{maximum a posteriori} (MAP) estimate is $\hat\theta_{MAP} = \arg\max_{\theta \in \Theta} p(\theta \mid \mathcal{D})$. The \textit{posterior mean} is $\mathbb{E}[\theta \mid \mathcal{D}] = \int_\Theta \theta \, p(\theta \mid \mathcal{D}) \, d\theta$.
+	\end{defn}
+	
+	\begin{defn}[Credible set]
+		A set $C_\alpha \subset \Theta$ is a \textit{credible set} of level $\alpha \in (0,1)$ if $\mathbb{P}(\theta \in C_\alpha \mid \mathcal{D}) = \alpha$.
+	\end{defn}
+	
+	\begin{obs}
+		Unlike a frequentist confidence interval, $C_\alpha$ is a direct probability statement about $\theta$ conditional on the observed data, requiring no repeated-sampling interpretation. In Bayesian Optimization, the analogous object at an unobserved point $\mathbf{x}_\star$ is the posterior predictive variance $\mathrm{var}(f(\mathbf{x}_\star) \mid \mathcal{D})$, which acquisition functions use directly to quantify how much is to be gained by evaluating $\mathbf{x}_\star$.
+	\end{obs}
+	
+	\subsection{Monte Carlo estimation}
+	
+	The objective function studied in this thesis, $\mathcal{J}(\theta)$, is itself computed as a Monte Carlo average over simulated particles, and is therefore observed with an error that is entirely quantifiable using the results below.
+	
+	\begin{defn}[Monte Carlo estimator]
+		Let $\xi_1, \dots, \xi_N$ be i.i.d.\ samples from a distribution $P$ and let $g: \Xi \to \mathbb{R}$ be such that $\mathbb{E}_{\xi \sim P}[g(\xi)] =: I$ exists and is finite. The \textit{Monte Carlo estimator} of $I$ is
+		\begin{equation}
+			\hat{I}_N = \frac{1}{N} \sum_{i=1}^N g(\xi_i) \ .
+		\end{equation}
+	\end{defn}
+	
+	\begin{prop}[Unbiasedness and strong consistency] \label{prop:mc_unbiased}
+		$\hat{I}_N$ is unbiased, $\mathbb{E}[\hat{I}_N] = I$, and strongly consistent, $\hat{I}_N \to I$ almost surely as $N \to \infty$.
+	\end{prop}
+	\begin{proof}
+		Unbiasedness follows from linearity of expectation, $\mathbb{E}[\hat{I}_N] = \frac{1}{N}\sum_{i=1}^N \mathbb{E}[g(\xi_i)] = I$. Strong consistency is the statement of the Strong Law of Large Numbers applied to the i.i.d.\ sequence $(g(\xi_i))_{i \ge 1}$, which has finite mean $I$ by hypothesis.
+	\end{proof}
+	
+	\begin{prop}[Variance and rate of convergence] \label{prop:mc_variance}
+		If $\mathrm{var}_P(g(\xi)) = \sigma_g^2 < \infty$, then
+		\begin{equation}
+			\mathrm{var}(\hat{I}_N) = \frac{\sigma_g^2}{N} \ ,
+		\end{equation}
+		and consequently the root-mean-square error of $\hat{I}_N$ decays as $O(N^{-1/2})$.
+	\end{prop}
+	\begin{proof}
+		By independence of the $\xi_i$, $\mathrm{var}(\hat{I}_N) = \frac{1}{N^2}\sum_{i=1}^N \mathrm{var}(g(\xi_i)) = \frac{\sigma_g^2}{N}$. Taking square roots gives $\sqrt{\mathrm{var}(\hat{I}_N)} = \sigma_g N^{-1/2}$.
+	\end{proof}
+	
+	\begin{prop}[Asymptotic normality]
+		As $N \to \infty$,
+		\begin{equation}
+			\sqrt{N} \, \frac{\hat{I}_N - I}{\sigma_g} \ \xrightarrow{d} \ \mathcal{N}(0, 1) \ .
+		\end{equation}
+	\end{prop}
+	\begin{proof}
+		Direct application of the Central Limit Theorem to the i.i.d.\ sequence $(g(\xi_i))_{i \ge 1}$ with finite mean $I$ and finite variance $\sigma_g^2$.
+	\end{proof}
+	
+	\begin{obs} \label{obs:mc_error}
+		Together, Propositions~\ref{prop:mc_unbiased}--\ref{prop:mc_variance} justify treating a Monte Carlo output as an unbiased, asymptotically Gaussian observation of the true quantity $I$, with a standard error $\hat\sigma_g/\sqrt{N}$ estimable directly from the sample. This is precisely the justification for modelling the noisy observations of $\mathcal{J}(\theta)$ in equation~\eqref{eq:gp_noisy_post} as $y = \mathcal{J}(\theta) + \varepsilon$ with $\varepsilon$ Gaussian: for the particle counts used in this thesis ($N \sim 10^6$), the Central Limit Theorem regime is reached well before $N$, and the resulting noise variance $\sigma_n^2$ can, in principle, be estimated per-query from the batch of simulated particles itself rather than fixed a priori.
+	\end{obs}
+	
+	\begin{obs}[Rate independence from dimension]
+		A further reason Monte Carlo integration is the tool of choice for the dose functional $\mathcal{J}(\theta)$ is that the $O(N^{-1/2})$ rate of Proposition~\ref{prop:mc_variance} does not depend on the dimensionality of the integration variable $\xi \in \Xi$, unlike deterministic quadrature rules. This is essential here, since $\Xi$ is the (high-dimensional) space of particle initial states, over which no low-dimensional quadrature grid would be tractable.
+	\end{obs}
 	
 	\section{Gaussian Processes theory}
 	\subsection{Basic definitions}
@@ -222,7 +375,9 @@ citestyle=numeric-comp
 	
 	\begin{defn}[Mean square differentiability]
 		The mean square derivative of $f(\mathbf{x})$ in the $i$th direction is defined as:
-		$${\partial f(\mathbf{x}) \over \partial x_i} = \lim_{h \rightarrow 0} {f(\mathbf{x} + h \mathbf{e}_i) - \mathbf{x} \over h},$$
+		\begin{equation}
+			{\partial f(\mathbf{x}) \over \partial x_i} = \lim_{h \rightarrow 0} {f(\mathbf{x} + h \mathbf{e}_i) - f(\mathbf{x}) \over h},
+		\end{equation}
 		when the limit exists.
 	\end{defn}
 	
@@ -245,7 +400,7 @@ citestyle=numeric-comp
 		k_M(r) = {2^{(1 - \nu)} \over \Gamma (\nu)} \left( {\sqrt{2 \nu} r \over \ell} \right)^\nu K_\nu \left( {\sqrt{2 \nu} r \over \ell} \right),
 	\end{equation}
 	with positive parameters $\nu$ and $l$. $K_\nu$ is a modified Bessel function. In this class, the process is $k$-times Mean Square differentiable with $k < \nu$.
-	When $\nu = n + \frac{1}{2}, \ n \in \mathbb{N}$ the Bessel function expression becomes simple to evaluate. In particular, the most widely used Matern kernels are for $\nu = 5/2$ and $\nu = 3/2$, with expressions:
+	When $\nu = n + \frac{1}{2}, \ n \in \mathbb{N}$ the Bessel function expression becomes simple to evaluate. In particular, the most widely used Matérn kernels are for $\nu = 5/2$ and $\nu = 3/2$, with expressions:
 	
 	\begin{equation}
 		k_{3/2}(r) = \left(1 + {\sqrt{3}r \over \ell} \right) \exp \left( - {\sqrt{3}r \over \ell} \right),
@@ -254,14 +409,184 @@ citestyle=numeric-comp
 		k_{5/2}(r) = \left(1 + {\sqrt{5}r \over \ell} + {5 r^2 \over 3l^2} \right) \exp \left( - {\sqrt{5}r \over \ell} \right).
 	\end{equation}
 	
-	The first one is used for rough physical processes, while the latter is suitable for more smooth process and more widely used. It's also the default choice for most Matern class kernel implementation in GPs libraries for Python and R.
+	The first one is used for rough physical processes, while the latter is suitable for more smooth process and more widely used. It's also the default choice for most Matérn class kernel implementation in GPs libraries for Python and R.
 	
-	\subsection{Regression with Gaussian Processes}
+	It's also worth noting that for $\nu \rightarrow +\infty$, the Matérn class converges to the Squared Exponential kernel \cite{rasmussen_2005}.
 	
 	
 	\section{Bayesian Optimization theory}
 	
+	Bayesian Optimization (BO) is a sequential, model-based strategy for the global optimization of an objective function $f: \mathcal{X} \to \mathbb{R}$, defined over a domain $\mathcal{X} \subset \mathbb{R}^p$ that is compact (as required, for instance, to guarantee completeness of the function space $C^0(\Theta, \mathcal{F})$ discussed earlier), and where $f$ is expensive to evaluate, does not provide gradient information, and may be corrupted by observation noise \cite{frazier2018tutorialbayesianoptimization, garnett_bayesoptbook_2023}. In our setting $\mathcal{X} = \Theta$, and every evaluation of $f = \mathcal{J}$ requires a full Monte Carlo particle-transport simulation of the kind described later in this thesis: gradients are unavailable, single evaluations are costly, and the outcome is stochastic due to the finite number of simulated particles. This is precisely the regime for which BO was designed, and this chapter develops its theoretical machinery in the depth required for the rest of the thesis, culminating in Trust Region Bayesian Optimization (TuRBO), the algorithm we adopt in later chapters.
+	
+	\subsection{Problem formulation}
+	
+	We seek
+	\begin{equation}
+		\theta^\star = \arg\min_{\theta \in \Theta} f(\theta),
+	\end{equation}
+	under the following standing assumptions, consistent with the continuity results of the previous section:
+	\begin{enumerate}
+		\item $\Theta \subset \mathbb{R}^p$ is compact;
+		\item $f$ is continuous on $\Theta$ (established, for our specific objective, in Section~\ref{sec:continuity} above);
+		\item each query returns a noisy observation $y = f(\theta) + \varepsilon$, with $\varepsilon \sim \mathcal{N}(0, \sigma_n^2)$ i.i.d.;
+		\item $f$ has no known closed form and no available derivatives, so any optimization strategy must be entirely evaluation-based (\textit{zeroth-order}).
+	\end{enumerate}
+	
+	Under these assumptions, classical zeroth-order methods such as grid search or random search have query complexity that grows exponentially in $p$, while gradient-based methods are simply inapplicable. Bayesian Optimization addresses this by replacing the unknown $f$ with a probabilistic surrogate, and using that surrogate's own uncertainty to decide, at every step, where evaluating $f$ is most valuable — rather than where $f$ is merely expected to be smallest.
+	
+	\subsection{The Bayesian Optimization loop}
+	
+	Bayesian Optimization rests on two components, introduced separately in the previous chapter and combined here:
+	\begin{enumerate}
+		\item a \textit{probabilistic surrogate model} of $f$, updated after every observation, providing both a prediction and a calibrated measure of uncertainty at every unobserved point — in this thesis, a Gaussian Process, as in equation~\eqref{eq:gp_noisy_post};
+		\item an \textit{acquisition function} $\alpha: \Theta \to \mathbb{R}$, built from the surrogate's posterior mean $\mu_n(\theta)$ and variance $\sigma_n^2(\theta)$ after $n$ observations, whose maximizer determines the next evaluation point.
+	\end{enumerate}
+	
+	Given $n$ observations $\mathcal{D}_n = \{(\theta_i, y_i)\}_{i=1}^n$, one iteration of the loop consists of:
+	\begin{enumerate}
+		\item updating the GP posterior on $\mathcal{D}_n$, obtaining $\mu_n(\theta)$ and $\sigma_n^2(\theta)$ for every $\theta \in \Theta$ via equation~\eqref{eq:gp_noisy_post};
+		\item selecting the next query point $\theta_{n+1} = \arg\max_{\theta \in \Theta} \alpha(\theta \mid \mathcal{D}_n)$;
+		\item evaluating $y_{n+1} = f(\theta_{n+1}) + \varepsilon_{n+1}$ — in our case, running the dose simulation at $\theta_{n+1}$;
+		\item augmenting $\mathcal{D}_{n+1} = \mathcal{D}_n \cup \{(\theta_{n+1}, y_{n+1})\}$.
+	\end{enumerate}
+	
+	This loop is repeated until an evaluation budget is exhausted. The inner maximization of $\alpha$ over $\Theta$ is itself a continuous optimization problem, but $\alpha$ is cheap to evaluate and differentiable, so it can be solved with standard multi-start gradient ascent or a global optimizer such as CMA-ES, at a cost negligible compared to a single evaluation of $f$. The entire strategy therefore reduces the original expensive black-box problem to a sequence of cheap, well-understood sub-problems.
+	
+	\subsection{Acquisition functions}
+	
+	The central design choice in BO is the acquisition function, which must balance \textit{exploitation} (sampling where the posterior mean is best) against \textit{exploration} (sampling where the posterior variance is largest, i.e. where the model is least confident). We adopt a minimization convention throughout, consistent with our objective $\mathcal{J}$; all definitions below translate to the maximization convention by symmetry.
+	
+	\subsubsection{Improvement-based acquisition functions}
+	
+	Let $f^\star_n = \min_{i \le n} y_i$ denote the best value observed so far. Since the posterior predictive distribution of $f(\theta)$ is Gaussian, $f(\theta) \mid \mathcal{D}_n \sim \mathcal{N}(\mu_n(\theta), \sigma_n^2(\theta))$, define the (positive) \textit{improvement} at $\theta$ as
+	\begin{equation}
+		I_n(\theta) = \max\{f^\star_n - f(\theta), 0\}.
+	\end{equation}
+	
+	\begin{defn}[Probability of Improvement]
+		The \textit{Probability of Improvement} (PI) acquisition function is
+		\begin{equation}
+			\alpha_{PI}(\theta) = \mathbb{P}\big(f(\theta) \le f^\star_n - \xi \mid \mathcal{D}_n\big) = \Phi\!\left( \frac{f^\star_n - \mu_n(\theta) - \xi}{\sigma_n(\theta)} \right),
+		\end{equation}
+		where $\Phi$ is the standard normal CDF and $\xi \ge 0$ is a tunable margin that encourages exploration.
+	\end{defn}
+	
+	PI is known to over-exploit in practice: it rewards any improvement, however small, as long as it is likely, and tends to sample very close to $\theta^\star_n = \arg\min_i y_i$ unless $\xi$ is hand-tuned. The Expected Improvement acquisition function addresses this by weighting improvement by its magnitude, not merely by its probability.
+	
+	\begin{defn}[Expected Improvement]
+		The \textit{Expected Improvement} (EI) acquisition function is
+		\begin{equation}
+			\alpha_{EI}(\theta) = \mathbb{E}\big[I_n(\theta) \mid \mathcal{D}_n\big] = \mathbb{E}\big[\max\{f^\star_n - f(\theta), 0\} \mid \mathcal{D}_n \big].
+		\end{equation}
+	\end{defn}
+	
+	Because $f(\theta) \mid \mathcal{D}_n$ is Gaussian, this expectation has a closed form. Writing $z = (f^\star_n - \mu_n(\theta))/\sigma_n(\theta)$,
+	\begin{equation} \label{eq:ei_closed_form}
+		\alpha_{EI}(\theta) = \big(f^\star_n - \mu_n(\theta)\big) \, \Phi(z) + \sigma_n(\theta) \, \phi(z),
+	\end{equation}
+	where $\phi$ is the standard normal density, with the convention $\alpha_{EI}(\theta) = 0$ when $\sigma_n(\theta) = 0$. The two terms in \eqref{eq:ei_closed_form} make the exploration–exploitation trade-off explicit: the first term is large where the posterior mean is favourable (exploitation), the second is large where the posterior variance is large (exploration), and both are weighted automatically by the geometry of the Gaussian posterior, without requiring a hand-tuned parameter as in PI.
+	
+	\subsubsection{Confidence-bound acquisition functions and GP-UCB}
+	
+	A conceptually different family of acquisition functions dispenses with improvement altogether and instead optimizes a confidence bound on $f$ directly.
+	
+	\begin{defn}[GP-UCB / GP-LCB]
+		For a sequence of positive weights $(\beta_n)_{n \ge 1}$, the \textit{Lower Confidence Bound} acquisition function (appropriate for minimization) is
+		\begin{equation}
+			\alpha_{LCB}(\theta) = \mu_n(\theta) - \beta_n^{1/2} \, \sigma_n(\theta),
+		\end{equation}
+		and the next query point is $\theta_{n+1} = \arg\min_{\theta \in \Theta} \alpha_{LCB}(\theta)$.
+	\end{defn}
+	
+	The appeal of this family is that it admits rigorous finite-sample regret guarantees, first established by Srinivas et al. \cite{Srinivas2010} for the maximization case (GP-UCB), which we summarize in the next section. Unlike EI, GP-UCB/LCB does not require the posterior to be exactly Gaussian to retain a clear interpretation: $\mu_n(\theta) - \beta_n^{1/2}\sigma_n(\theta)$ is, with high probability uniformly over $\Theta$ for an appropriately chosen $\beta_n$, a valid lower bound on $f(\theta)$, so minimizing it never discards a region that could plausibly contain the optimum.
+	
+	\subsection{Regret and convergence guarantees}
+	
+	To formalize what it means for a BO strategy to ``work'', we introduce the standard regret framework from the bandit-optimization literature, adapted to our minimization convention.
+	
+	\begin{defn}[Instantaneous and cumulative regret]
+		Given a sequence of queries $\theta_1, \dots, \theta_T$, the \textit{instantaneous regret} at step $t$ is
+		\begin{equation}
+			r_t = f(\theta_t) - f(\theta^\star),
+		\end{equation}
+		and the \textit{cumulative regret} after $T$ steps is $R_T = \sum_{t=1}^T r_t$.
+	\end{defn}
+	
+	A BO strategy is said to converge if $R_T / T \to 0$ as $T \to \infty$ (sublinear cumulative regret), since this implies $\min_{t \le T} r_t \to 0$, i.e. the best observed point converges to the true optimum. The key quantity controlling how fast this can happen is the \textit{maximum information gain}, which measures how much the GP posterior variance can be reduced by $T$ evaluations, and hence how quickly the surrogate can become confident about $f$.
+	
+	\begin{defn}[Maximum information gain]
+		Let $I(\mathbf{y}_A; \mathbf{f}_A)$ denote the mutual information between the noisy observations $\mathbf{y}_A$ and the true function values $\mathbf{f}_A$ over a finite subset $A \subset \Theta$, $|A| = T$, induced by the GP with kernel $k$. The \textit{maximum information gain} after $T$ rounds is
+		\begin{equation}
+			\gamma_T = \max_{A \subset \Theta, \, |A| = T} I(\mathbf{y}_A; \mathbf{f}_A).
+		\end{equation}
+	\end{defn}
+	
+	$\gamma_T$ depends only on the kernel $k$ and the domain $\Theta$, not on the specific BO run, and it is known to grow sublinearly in $T$ for the kernel classes introduced earlier: for instance $\gamma_T = O((\log T)^{p+1})$ for the Squared Exponential kernel and $\gamma_T = O(T^{p(p+1)/(2\nu + p(p+1))} \log T)$ for the Matérn-$\nu$ class in dimension $p$ \cite{Srinivas2010}. With this quantity in hand, the main convergence result for GP-UCB reads as follows.
+	
+	\begin{prop}[Sublinear regret of GP-UCB, informal statement of \cite{Srinivas2010}] \label{prop:gpucb_regret}
+		Let $f$ be a sample from a GP with kernel $k$ over a compact domain $\Theta \subset \mathbb{R}^p$, and let $\beta_t$ be chosen appropriately as a function of $t$, $\delta$, and $\gamma_t$ (e.g. $\beta_t = O(\log(t^2))$ up to problem-dependent constants, for the case of a finite or appropriately discretized $\Theta$). Then, with probability at least $1 - \delta$, GP-UCB satisfies
+		\begin{equation}
+			R_T = O\!\left(\sqrt{T \, \beta_T \, \gamma_T}\right) \quad \text{for all } T \ge 1.
+		\end{equation}
+	\end{prop}
+	
+	Since $\gamma_T$ grows sublinearly in $T$ for both kernel classes discussed above, and $\beta_T$ grows only logarithmically, $R_T / T \to 0$, i.e. GP-UCB is guaranteed to converge to the true optimum in the limit of infinitely many evaluations, with an explicit, kernel-dependent rate. This is, to our knowledge, the cleanest theoretical justification available for using a GP-based acquisition strategy at all, and it is the reason GP-UCB/LCB-type acquisitions remain a standard baseline even where EI is used in practice.
+	
+	\subsection{The curse of dimensionality in Bayesian Optimization}
+	
+	Proposition~\ref{prop:gpucb_regret} is asymptotically reassuring, but the rate hidden inside the $O(\cdot)$ notation degrades rapidly with the input dimension $p$, both through $\gamma_T$ and through the cost of maximizing the acquisition function itself over $\Theta \subset \mathbb{R}^p$. In practice, global BO strategies of the kind described so far are widely reported to perform poorly beyond roughly $p \approx 15$–$20$ dimensions \cite{garnett_bayesoptbook_2023}: distances between points concentrate in high dimensions, which degrades the ability of stationary kernels to distinguish nearby from distant points, GP hyperparameter fitting becomes ill-posed with the limited number of evaluations a practical budget allows, and covering $\Theta$ densely enough for the surrogate to be informative everywhere requires a number of points that grows exponentially in $p$. This is precisely the setting our shielding problem may fall into, depending on how many free parameters the coil parametrization $\theta$ ultimately has, and it motivates the remainder of this chapter.
+	
+	\subsubsection{Random embeddings}
+	
+	One influential strategy for mitigating this issue is to assume that $f$ varies significantly along only a small number $d_e \ll p$ of directions in $\Theta$ (a low \textit{effective dimensionality}), and to optimize over a randomly chosen low-dimensional subspace instead of the full domain.
+	
+	\begin{defn}[REMBO, informal]
+		Given a random matrix $\mathbf{A} \in \mathbb{R}^{p \times d_e}$ with i.i.d. Gaussian entries, \textit{Random Embedding Bayesian Optimization} (REMBO) runs standard BO over a low-dimensional domain $\mathcal{Y} \subset \mathbb{R}^{d_e}$, mapping every candidate $\mathbf{y} \in \mathcal{Y}$ into $\Theta$ via $\theta = \mathbf{A}\mathbf{y}$ (projected back onto $\Theta$ if necessary), and evaluating $f(\theta)$ \cite{rembo}.
+	\end{defn}
+	
+	REMBO comes with the guarantee that, if $f$ truly has effective dimensionality $d_e$, a random $d_e$-dimensional embedding contains the optimum with high probability, reducing an intractable $p$-dimensional search to a tractable $d_e$-dimensional one. Its main practical weaknesses are that the true effective dimensionality is generally unknown a priori, that the method is sensitive to the choice of bounding box in $\mathcal{Y}$, and that it performs poorly when $f$ does \textit{not} align with a low-dimensional linear subspace (a strong assumption unlikely to hold exactly for a physically parametrized magnetic field). We therefore do not adopt REMBO in this thesis, but mention it since it represents the main alternative, embedding-based paradigm to the local strategies developed next.
+	
+	\subsection{Local Bayesian Optimization}
+	
+	A second, more recent line of work sidesteps the curse of dimensionality not by re-parametrizing $\Theta$, but by abandoning the requirement of finding the \textit{global} optimum, and instead searching greedily for a good \textit{local} optimum by restricting the surrogate model and the acquisition search to a small, adaptively moving region of $\Theta$. This is the strategy we adopt for this thesis, both because it scales far better with $p$ and because a good local minimum of the expected dose is already a highly valuable engineering outcome, even without a formal global optimality guarantee.
+	
+	\subsubsection{Trust regions}
+	
+	\begin{defn}[Trust region]
+		A \textit{trust region} $TR_n \subset \Theta$ at step $n$ is a hyperrectangle centered at the current best observed point $\theta^\star_n$,
+		\begin{equation}
+			TR_n = \left\{ \theta \in \Theta : |\theta_i - \theta^\star_{n,i}| \le \tfrac{1}{2} L_n \, \lambda_i, \ i = 1, \dots, p \right\},
+		\end{equation}
+		where $L_n > 0$ is a scalar \textit{base side length} and $\lambda_i$ are per-dimension rescaling factors.
+	\end{defn}
+	
+	Restricting both the GP fit and the acquisition maximization to $TR_n$ has two immediate benefits over global BO: the GP only needs to explain the local behaviour of $f$ around the current incumbent, which is a far easier modelling task than explaining $f$ over the whole of $\Theta$, and the acquisition function only needs to be optimized over a small region, which is both cheaper and less prone to being dominated by far-away, poorly-modelled areas of high nominal uncertainty.
+	
+	\subsubsection{TuRBO: Trust Region Bayesian Optimization}
+	
+	TuRBO, introduced by Eriksson et al. \cite{Eriksson2019}, operationalizes the trust-region idea with a specific, empirically validated adaptation rule and a batch strategy that runs several trust regions in parallel. We describe it here in the form relevant to this thesis.
+	
+	The domain is first rescaled to $[0,1]^p$. Each trust region is a hyperrectangle centered at its own local incumbent $\theta^\star$, with the per-dimension rescaling factors $\lambda_i$ set proportional to the length-scale $\ell_i$ of the local GP's kernel along dimension $i$ (normalized so that $\prod_i \lambda_i = 1$), so that the trust region is automatically stretched along directions the GP believes $f$ varies slowly in, and compressed along directions it believes $f$ varies quickly in. Each trust region maintains its own base length $L$, initialized at a fixed value $L_{\text{init}}$, together with a success counter and a failure counter, both reset to zero at every restart:
+	\begin{enumerate}
+		\item at every batch of evaluations, candidate points inside $TR$ are proposed using Thompson sampling: a sample path is drawn from the local GP's posterior over a discretized (or randomly perturbed) subset of $TR$, and the points minimizing the sampled path are selected;
+		\item if the batch produces a new incumbent (an improvement over $\theta^\star$), the success counter is incremented and the failure counter reset to zero; otherwise the failure counter is incremented and the success counter reset to zero;
+		\item after $\tau_{\text{succ}}$ consecutive successes, the trust region is expanded, $L \leftarrow \min(2L, L_{\max})$; after $\tau_{\text{fail}}$ consecutive failures, it is shrunk, $L \leftarrow L / 2$;
+		\item if $L$ falls below a minimum threshold $L_{\min}$, the trust region is discarded and a new one is restarted at a randomly chosen point in $\Theta$, discarding the evaluations accumulated by the terminated region for the purpose of that region's own local GP (though they may still contribute to global bookkeeping of the best point found overall).
+	\end{enumerate}
+	
+	When multiple trust regions are run in parallel, TuRBO allocates the evaluation budget among them via an implicit multi-armed bandit formulation: at each round, every active trust region draws its own Thompson sample, and the batch of evaluations is distributed across regions in proportion to how often each region's sampled candidates are selected as the most promising, so that regions showing recent improvement receive more evaluations, while regions that have stalled are still given enough attention to detect a possible restart. Because each local GP is fitted only on the (typically far smaller) set of observations lying inside its own trust region, the cost of GP inference no longer scales with the full evaluation budget accumulated over the whole run, which is the second major source of TuRBO's scalability advantage over global BO, alongside the more tractable, localized modelling task itself. Empirically, this combination allows TuRBO to remain effective on problems with tens to hundreds of input dimensions, a regime in which global EI- or GP-UCB-based BO with a single surrogate typically degrades sharply \cite{Eriksson2019}.
+	
+	\subsubsection{Convergence guarantees for local strategies}
+	
+	Unlike global GP-UCB, whose regret bound (Proposition~\ref{prop:gpucb_regret}) is well established, local strategies such as TuRBO were for a long time justified primarily by empirical performance rather than by theory: the ``folk wisdom'' in the literature was that restricting the search locally sidesteps the curse of dimensionality, without a rigorous characterization of what such methods actually converge to, or how fast. This gap was addressed by Wu, Kim, Garnett and Gardner \cite{boconvergence2024}, who study the behaviour of local Bayesian optimization routines directly. They show that the statistics of individual local optima found under a GP prior are, perhaps surprisingly, competitive with what one would expect a well-tuned global method to find, lending some formal support to the local-search folk wisdom. They further provide the first rigorous convergence analysis of a representative Bayesian local optimization algorithm (a gradient-informed local BO method in the family that TuRBO also belongs to), deriving explicit convergence rates in both the noiseless and the noisy observation settings — the latter being directly relevant to our Monte Carlo dose objective, whose evaluations are themselves noisy due to finite particle counts. It is worth noting explicitly, for scientific honesty, that this analysis targets a specific local BO algorithm rather than TuRBO's exact trust-region-with-restarts mechanism; a fully rigorous convergence proof for TuRBO itself remains, to our knowledge, open. We nonetheless take \cite{boconvergence2024} as the relevant theoretical grounding for the local-search paradigm we adopt, and note it as a natural direction to revisit should the empirical convergence behaviour observed later in this thesis require closer theoretical scrutiny.
+	
+	\subsection{Discussion and relevance to this thesis}
+	
+	To summarize the choice made for the remainder of this work: given a parameter space $\Theta$ whose dimensionality is large enough to make global GP-UCB or EI impractical, but for which a good local minimum of the expected radiation dose $\mathcal{J}(\theta)$ already constitutes a valuable engineering result, we adopt TuRBO as our optimization strategy, run on top of the GP surrogate defined in the previous chapter. The continuity results established for $\mathcal{J}(\theta)$ earlier in this section are exactly the prerequisite that makes this choice theoretically sound: TuRBO's local GP models rely, just as global GP-UCB does, on the assumption that nearby points in $\Theta$ produce correlated values of $f$, and this assumption is only meaningful if $f$ itself is continuous, which is precisely what Proposition~\ref{ode_continuity} and the soft-scoring construction of the previous section guarantee for our specific objective. The next chapter details the practical implementation of this pipeline, including the choice of kernel, the handling of the Monte Carlo observation noise, and the specific TuRBO hyperparameters used in our experiments.
+	
+	
 	\section{Preliminary study on objective function continuity}
+	\label{sec:continuity}
 	% Define why it is important
 	As the literature highlights, the only requirement for Bayesian Optimization is for the objective function to be continuous, otherwise the algorithm may not converge \cite{frazier2018tutorialbayesianoptimization}. We suppose now that a parametrization such that $\mathbf{B}(\theta)$ is continuous w.r.t. $\theta \in \Theta$ exists. This is actually obvious, since we can always construct our parametrization to be continuous, by ignoring the physical meaning. Formally, we can say that if $\mathcal{F}$ is the space of all vector fields $\mathbb{R}^3 \to \mathbb{R}^3$, then $\mathbf{B} \in C^0(\Theta, \mathcal{F})$.
 	
@@ -276,7 +601,7 @@ citestyle=numeric-comp
 			m \frac{d^2\mathbf{x}}{dt^2} = q \left( \frac{d\mathbf{x}}{dt} \times \mathbf{B}_\theta(\mathbf{x}) \right),
 		\end{cases}
 	\end{equation}
-	where $\mathbf{B}_\theta$ is a functional in the Banach space $C^0(\Theta, \mathcal{F})$ of mappings between the parameters space and the 3 dimensional vector fields \footnote{Completeness is ensured by compactness of $\Theta$, which is required by Bayesian Optimization.}. For briefness, it will hereon be called $\mathbf{B}$. $\xi = (\mathbf{x}_0, \mathbf{v}_0) \in \Xi$ represents the initial state of a particle in the probability space of incoming radiation.
+	where $\mathbf{B}_\theta$ is a functional in the Banach space $C^0(\Theta, \mathcal{F})$ of mappings between the parameters space and the 3 dimensional vector fields \footnote{Since $\Theta$ is compact, as required by Bayesian Optimization, and $\mathcal{F}$ is a Banach space, $C^0(\Theta, \mathcal{F})$ is complete under the sup norm.}. For briefness, it will hereon be called $\mathbf{B}$. $\xi = (\mathbf{x}_0, \mathbf{v}_0) \in \Xi$ represents the initial state of a particle in the probability space of incoming radiation.
 	
 	Let's now rewrite the system as a first order ODE problem. Let $\gamma(t) = (\mathbf{x}(t), \mathbf{v}(t))$ be the trajectory of a particle in the field, then:
 	
@@ -289,7 +614,7 @@ citestyle=numeric-comp
 	
 	where:
 	
-	\begin{equation}
+	\begin{equation} \label{eq:ode_complete}
 		F(\gamma, \mathbf{B}, t) =
 		\begin{pmatrix}
 			\mathbf{v}(t) \\
@@ -301,15 +626,15 @@ citestyle=numeric-comp
 	
 	We want to prove the following.
 	
-	\begin{prop} \label{ode_continuity}
+	\begin{thm} \label{thm:ode_continuity}
 		Let $\gamma(t)$ be a solution of problem \eqref{ode_first}, then:
 		\begin{enumerate}
 			\item $\gamma(t)$ exists and is unique,
 			\item $\gamma(t)$ depends on $\theta \in \Theta$ with uniform continuity.
 		\end{enumerate}	
-	\end{prop}
+	\end{thm}
 	
-	Let's first introduce a technical lemma that will be used in¸ the proof:
+	Let's first introduce a technical lemma that will be used in the proof:
 	
 	\begin{lemma}[Gronwall's inequality]
 		Let $I$ be an interval on the real line in the form $[a,b], \ [a, \infty), \ [a, b)$ with $a < b$. Let $\alpha, \beta, u$ be real valued functions defined on $I$. If these conditions are true:
@@ -328,15 +653,23 @@ citestyle=numeric-comp
 	
 	\begin{proof}
 		
-		We can exploit the following facts:
+		We work under the following standing assumptions on $\mathbf{B}$, distinct from (though consistent with) the continuity of the map $\theta \mapsto \mathbf{B}_\theta$ used to define the Banach space $C^0(\Theta, \mathcal{F})$ above: for every fixed $\theta \in \Theta$, the spatial field $\mathbf{x} \mapsto \mathbf{B}_\theta(\mathbf{x})$ is Lipschitz continuous and bounded on the spatial domain of interest. This is a reasonable physical assumption, since $\mathbf{B}_\theta$ is generated by a finite number of current-carrying coils and is therefore $C^\infty$, and in particular Lipschitz and bounded, away from the coil windings themselves. We can then exploit the following facts:
 		\begin{enumerate}
-			\item $\mathbf{B}$ is continuous and Lipschitz by construction;
+			\item $\mathbf{B}$ is continuous, Lipschitz, and bounded in space, for fixed $\theta$, as assumed above;
 			\item $\| \mathbf{v} \|$ is physically bounded by the speed of light;
 		\end{enumerate}  
-		to apply the Picard-Lindelof theorem, which ensures existence and unicity of solution $\gamma(t)$.
+		to apply the Picard-Lindelof theorem, which ensures local existence and uniqueness of the solution $\gamma(t)$. Since $\|\mathbf{v}\| \le c$ provides an a priori bound preventing blow-up of $\gamma(t)$ in finite time, the local solution extends, by the standard continuation theorem for ODEs, to a unique solution on the whole interval $[0,T]$.
 		
 		% Continuous Dependence via Grönwall's Inequality
-		Now that we know $\gamma(t)$ exists and is unique, we can proceed on proving that it also depends with uniform continuity on $F(\gamma, \mathbf{B}, t)$. Since the speed $\| \mathbf{v} \|$ is bounded by the speed of light $c$ and the magnetic field $\mathbf{B}$ is Lipschitz continuous, the functional $F(\gamma, \mathbf{B}, t)$ is globally Lipschitz in $\gamma$ uniformly with respect to $t$, with Lipschitz constant $L$. Furthermore, $F$ is continuously dependent on the parameter $\mathbf{B}$.
+		Now that we know $\gamma(t)$ exists and is unique, we can proceed on proving that it also depends with uniform continuity on $F(\gamma, \mathbf{B}, t)$. Since the speed $\| \mathbf{v} \|$ is bounded by the speed of light $c$ and the magnetic field $\mathbf{B}$ is Lipschitz continuous and bounded in space, the functional $F(\gamma, \mathbf{B}, t)$ is globally Lipschitz in $\gamma$ uniformly with respect to $t$, with Lipschitz constant $L$. Indeed, for a fixed field $\mathbf{B}_2$ and two states $\gamma_1(s) = (\mathbf{x}_1(s), \mathbf{v}_1(s))$, $\gamma_2(s) = (\mathbf{x}_2(s), \mathbf{v}_2(s))$, adding and subtracting $\mathbf{v}_2(s) \times \mathbf{B}_2(\mathbf{x}_1(s))$ gives:
+		\begin{equation}
+			\mathbf{v}_1(s) \times \mathbf{B}_2(\mathbf{x}_1(s)) - \mathbf{v}_2(s) \times \mathbf{B}_2(\mathbf{x}_2(s)) = \big(\mathbf{v}_1(s)-\mathbf{v}_2(s)\big) \times \mathbf{B}_2(\mathbf{x}_1(s)) + \mathbf{v}_2(s) \times \big(\mathbf{B}_2(\mathbf{x}_1(s))-\mathbf{B}_2(\mathbf{x}_2(s))\big) \ ,
+		\end{equation}
+		so that, writing $M = \sup_{\mathbf{x}} \|\mathbf{B}_2(\mathbf{x})\|$ for the spatial sup-norm bound and $\mathrm{Lip}(\mathbf{B}_2)$ for the spatial Lipschitz constant of $\mathbf{B}_2$, both finite by assumption:
+		\begin{equation}
+			\|F(\gamma_1(s), \mathbf{B}_2, s) - F(\gamma_2(s), \mathbf{B}_2, s)\| \le \|\mathbf{v}_1(s)-\mathbf{v}_2(s)\| + \frac{q}{m}\Big[ M \|\mathbf{v}_1(s)-\mathbf{v}_2(s)\| + c\, \mathrm{Lip}(\mathbf{B}_2) \|\mathbf{x}_1(s)-\mathbf{x}_2(s)\| \Big] \ ,
+		\end{equation}
+		which, up to the equivalence of norms on $\mathbb{R}^6$, is bounded by $L\|\gamma_1(s)-\gamma_2(s)\|$ for $L := \max\big\{1 + \tfrac{q}{m}M, \ \tfrac{qc}{m}\mathrm{Lip}(\mathbf{B}_2)\big\}$, independent of $s$ and of the particular states $\gamma_1, \gamma_2$. Furthermore, $F$ is continuously dependent on the parameter $\mathbf{B}$, and in fact linear in it for fixed $\gamma$.
 		
 		Let $\gamma_1(t)$ and $\gamma_2(t)$ be solutions corresponding to two different initial states $\xi_1, \xi_2 \in \Xi$ and two different magnetic fields $\mathbf{B}_1, \mathbf{B}_2$. By the integral formulation of the initial value problem, we have:
 		\begin{equation}
@@ -360,12 +693,12 @@ citestyle=numeric-comp
 		Now we exploit the Lipschitz continuity of $F$ with respect to $\gamma$ and its linearity with respect to $\mathbf{B}$:
 		
 		\begin{enumerate}
-			\item $\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_1(s), \mathbf{B}_2, s) \| = \| F(\gamma_1(s), \mathbf{B}_1 - \mathbf{B}_2, s) \| \leq K \| \mathbf{B}_1(\mathbf{x}_1) - \mathbf{B}_2(\mathbf{x}_1) \|_{\infty} ,$
+			\item $\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_1(s), \mathbf{B}_2, s) \| = \| F(\gamma_1(s), \mathbf{B}_1 - \mathbf{B}_2, s) \| \leq K \| \mathbf{B}_1 - \mathbf{B}_2 \|_{\infty} ,$
 			\item $\| F(\gamma_1(s), \mathbf{B}_2, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \leq L \|\gamma_1(s) - \gamma_2(s)\| ,$
 		\end{enumerate}
-		where $K = \frac{q c}{m}$ is a constant derived from the physical bounds of the Lorentz force. This provides the bound:
+		where $K = \frac{q c}{m}$ is a constant derived from the physical bounds of the Lorentz force, and $\|\mathbf{B}_1 - \mathbf{B}_2\|_\infty$ denotes the global spatial sup norm of the field difference, of which $\|\mathbf{B}_1(\mathbf{x}_1(s)) - \mathbf{B}_2(\mathbf{x}_1(s))\|$ is a pointwise instance bounded above by it. This provides the bound:
 		\begin{equation}
-			\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \le L \|\gamma_1(s) - \gamma_2(s)\| + K \|\mathbf{B}_1(\mathbf{x}_1) - \mathbf{B}_2(\mathbf{x}_1)\|_\infty,
+			\| F(\gamma_1(s), \mathbf{B}_1, s) - F(\gamma_2(s), \mathbf{B}_2, s) \| \le L \|\gamma_1(s) - \gamma_2(s)\| + K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty,
 		\end{equation}
 		Substituting this back into the integral, we get:
 		\begin{equation} \label{cont_bound_1}
@@ -382,7 +715,7 @@ citestyle=numeric-comp
 		Then, condition 1 is clearly satisfied by continuity of the norm for $u$, while $\beta$ is constant. Condition 2 holds because $\alpha(t) \geq 0 \ \forall t \geq 0$, so the negative part of $\alpha$ on any interval $[0, T]$ is 0. We can also see that $\beta(t) = L > 0$ by definition of Lipschitz constant and $\alpha ' (t) = K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty \geq 0$ by definition, thus infering condition 3. Condition 4 is satisfied by equation \eqref{cont_bound_1}.
 		
 		Applying Grönwall's inequality, we obtain the final bound:
-		\begin{equation}
+		\begin{equation} \label{eq:gronwall_bound}
 			\|\gamma_1(t) - \gamma_2(t)\| \le \left( \|\xi_1 - \xi_2\| + K \|\mathbf{B}_1 - \mathbf{B}_2\|_\infty t \right) e^{Lt}.
 		\end{equation}
 		
@@ -399,6 +732,8 @@ citestyle=numeric-comp
 		It is clear that for any choice of $\varepsilon > 0$ it is possible to find $\delta_1, \delta_2 > 0$ at any given time $t \in [0, T]$, thus concluding the continuity proof.
 		
 	\end{proof}
+	
+	
 	
 	\subsection{Revelator continuity}
 	% Soft Scoring Kernel Definitions
@@ -446,7 +781,7 @@ citestyle=numeric-comp
 	Since we simulate very large $N$ (around $1e6$ particles), the expected value might be very low even if we multiply by energies (which are indeed very high). Keep in mind that we also hope $D(\mathbf{B}, \xi)$ to be as low as possible. So, to avoid issues with the objective function being too flat and the BO struggling to find a minimum, we take the log of our simulation output. At the end, our minimization problem becomes:
 	
 	\begin{equation}
-		\min_{\theta \in \Theta} \log \left( \mathcal{J}(\theta) + \varepsilon \right).
+		\min_{\theta \in \Theta} \log \left( \mathcal{J}(\mathbf{\Theta}) + \varepsilon \right).
 	\end{equation}
 	
 	The study of robustness of BO under noise will come in the next chapters, but we already have some guarantees in literature, like in \cite{boconvergence2024}, where Gardner et al. provide bounds for local optimization in high dimension under noisy conditions.
@@ -476,11 +811,224 @@ citestyle=numeric-comp
 	$$B(y) = {\mu_0 I R \over 4 \pi} \int_0^{2 \pi} {z \sin(\theta) \over (x^2 + y^2 + z^2 + R^2 -2Rx \cos(\theta) - 2Ry \sin(\theta))^{3/2}} d \theta \ ;$$
 	$$B(z) = {\mu_0 I R \over 4 \pi} \int_0^{2 \pi} {R - x\cos(\theta) - y \sin(\theta) \over (x^2 + y^2 + z^2 + R^2 -2Rx \cos(\theta) - 2Ry \sin(\theta))^{3/2}} d \theta \ .$$
 	
-	It comes as a consequence that the field is continuous everywhere except on the coil itself, where the magnitude explodes to infinity with speed $\mathcal{O} \left( {1 \over x^2} \right)$. This is actually not a problem for the simulation, since the probability of a particle hitting exactly the discontinuity point is 0, but it will require to weaken the assumption made in Proposition \ref{ode_continuity}.
+	It comes as a consequence that the field is continuous everywhere except on the coil itself, where the magnitude explodes to infinity with speed $\mathcal{O} \left( {1 \over x} \right)$. This is actually not a problem for the simulation, since the probability of a particle hitting exactly the discontinuity point is 0, but it will require to weaken the assumption made in Theorem \ref{thm:ode_continuity}.
 	
 	The other drawback is that every single coil requires five parameters, thus limiting the array to a maximum size of $\sim 10$, so that the optimization problem has $\sim 50$ dimensions, which should be manageable by BO, according to existing literature.
 	
 	Some techniques have been proposed for dimensionality reduction in BO, like random embeddings in \cite{rembo}, but it comes at the price of losing the physical meaning of the original parameters, thus rendering it useless for this parametrization.
+	
+	\subsection{Weakening trajectory continuity: coils inside the domain}
+	\label{sec:coils_inside}
+	
+	The parametrization proposed in this section places the coils themselves inside $\mathbb{R}^3$, with no restriction preventing them from lying in the region swept by particle trajectories. This means $\mathbf{B}_\theta$ is singular on the coil curves and Theorem~\ref{thm:ode_continuity} (which assumed $\mathbf{B}$ to be globally Lipschitz and bounded) no longer applies. We now build the weakened version of that proposition that this setting requires, and show that it is still strong enough to guarantee continuity of the objective $\mathcal{J}(\theta)$, which is the only continuity BO actually needs.
+	
+	\subsubsection{Notation and the singular set}
+	
+	Write $\theta = (\theta_1, \dots, \theta_N, R) \in \Theta$, with $\theta_i = (r_i, \psi_i, \phi_i, \alpha_i, \beta_i)$ the parameters of the $i$-th coil, $N$ fixed, and $\Theta$ the product of $N$ copies of $[0, r_{\max}] \times [0,\pi] \times [0,2\pi] \times [0,\pi] \times [0,2\pi]$ with $[0, R_{\max}]$; each factor is closed and bounded in a finite-dimensional Euclidean space, so $\Theta$ is compact by the Heine--Borel theorem, as required.
+	
+	The center of coil $i$, in spherical coordinates, is
+	\begin{equation}
+		\mathbf{c}_i(\theta_i) = r_i\big(\sin\psi_i\cos\phi_i,\ \sin\psi_i\sin\phi_i,\ \cos\psi_i\big) \ ,
+	\end{equation}
+	and its unit normal is $\mathbf{n}_i(\theta_i) = (\sin\alpha_i\cos\beta_i, \sin\alpha_i\sin\beta_i, \cos\alpha_i)$. Let $\mathbf{u}_i(\theta_i), \mathbf{v}_i(\theta_i)$ be a smooth orthonormal basis of the plane orthogonal to $\mathbf{n}_i$ (obtained, e.g., by Gram--Schmidt from a fixed reference frame; this is smooth wherever $\mathbf{n}_i$ is smooth, i.e.\ everywhere here). The curve occupied by coil $i$ is then
+	\begin{equation}
+		S_{\theta,i} = \big\{ \mathbf{c}_i(\theta_i) + R\big(\cos s \, \mathbf{u}_i(\theta_i) + \sin s \, \mathbf{v}_i(\theta_i)\big) \ : \ s \in [0, 2\pi) \big\} \ , \qquad S_\theta = \bigcup_{i=1}^N S_{\theta,i} \ .
+	\end{equation}
+	
+	Since the Biot--Savart law is linear in the current source, the total field is the superposition of the single-coil fields given above, evaluated in each coil's own frame and transported to the global frame:
+	\begin{equation}
+		\mathbf{B}_\theta(\mathbf{x}) = \sum_{i=1}^N \mathbf{B}_{\theta,i}(\mathbf{x}) \ ,
+	\end{equation}
+	with $\mathbf{B}_{\theta,i} \in C^\infty(\mathbb{R}^3 \setminus S_{\theta,i}, \mathbb{R}^3)$, singular exactly on $S_{\theta,i}$.
+	
+	\subsubsection{Local estimates near a coil}
+	
+	\begin{lemma}[Near-field bounds] \label{lemma:coil_bounds}
+		There exist constants $C_1, C_2 > 0$, depending only on $I$, $R$, $R_{\max}$, and $N$, such that for every $\theta \in \Theta$, every $\delta \in (0, R]$, and every $\mathbf{x}, \mathbf{x}'$ with $\mathrm{dist}(\mathbf{x}, S_\theta), \mathrm{dist}(\mathbf{x}', S_\theta) \ge \delta$,
+		\begin{equation}
+			\|\mathbf{B}_\theta(\mathbf{x})\| \le \frac{C_1}{\delta} \ , \qquad \|\mathbf{B}_\theta(\mathbf{x}) - \mathbf{B}_\theta(\mathbf{x}')\| \le \frac{C_2}{\delta^2}\, \|\mathbf{x} - \mathbf{x}'\| \ .
+		\end{equation}
+	\end{lemma}
+	\begin{proof}[Proof sketch]
+		Fix one coil $i$ and drop the subscript. At scales small compared to the coil radius $R$, the curvature of the circular filament is negligible, and the Biot--Savart integral is locally well approximated by that of an infinite straight wire, for which the classical closed-form estimate $\|\mathbf{B}(\mathbf{x})\| = \frac{\mu_0 I}{2\pi\rho} + O(1)$ holds, with $\rho = \mathrm{dist}(\mathbf{x}, S_{\theta,i})$; the $O(1)$ remainder, and its spatial derivative, are bounded uniformly for $\mathbf{x}$ ranging over any compact region and $\theta$ over the compact set $\Theta$, since $\Theta$ bounds $r_i, R$ and hence the coil geometry uniformly. Differentiating the same local expansion gives $\|\nabla \mathbf{B}(\mathbf{x})\| = O(\rho^{-2})$. This yields the stated bounds for a single coil, with constants uniform in $\theta \in \Theta$ by compactness; summing the $N$ single-coil bounds via the triangle inequality, using $\mathrm{dist}(\mathbf{x}, S_\theta) \ge \delta \Rightarrow \mathrm{dist}(\mathbf{x}, S_{\theta,i}) \ge \delta$ for every $i$, gives the claim with $C_1, C_2$ scaled by a factor $N$.
+	\end{proof}
+	
+	\begin{obs}
+		This refines the divergence rate stated at the beginning of this section: the field magnitude itself diverges as $O(\delta^{-1})$, not $O(\delta^{-2})$; the latter rate governs the \emph{gradient} (equivalently, the local Lipschitz constant) of $\mathbf{B}_\theta$, which is the quantity of direct relevance to the Gronwall argument below.
+	\end{obs}
+	
+	\subsubsection{Hitting time and the safe set}
+	
+	\begin{defn}[Hitting time, safe set, collision set] \label{def:hitting_time}
+		For $(\theta, \xi) \in \Theta \times \Xi$, let $\gamma(t;\theta,\xi)$ denote the (locally defined, as guaranteed below) trajectory, and set
+		\begin{equation}
+			\tau(\theta,\xi) = \inf\{ t \ge 0 : \mathrm{dist}\big(\mathbf{x}(t;\theta,\xi), S_\theta\big) = 0\} \in (0, +\infty] \ .
+		\end{equation}
+		Define the \textit{good set} $\mathcal{G} = \{(\theta,\xi) \in \Theta \times \Xi : \tau(\theta,\xi) > T\}$ and the \textit{collision set} $\mathcal{N} = (\Theta \times \Xi) \setminus \mathcal{G}$.
+	\end{defn}
+	
+	\subsubsection{Continuity on the good set}
+	
+	\begin{prop}[Local existence, uniqueness, and continuity away from collisions] \label{prop:local_cont2}
+		Let $(\theta_0, \xi_0) \in \mathcal{G}$ and let $\delta_0 = \displaystyle\frac{1}{2}\min_{t \in [0,T]} \{ \mathrm{dist}\big[\mathbf{x}(t;\theta_0,\xi_0), S_{\theta_0}\big] \} > 0$. There exists a neighborhood $U \subset \Theta \times \Xi$ of $(\theta_0,\xi_0)$ such that $U \subset \mathcal{G}$, and on $U$ the trajectory exists, is unique on $[0,T]$, and satisfies
+		\begin{equation}
+			\|\gamma(t;\theta_1,\xi_1) - \gamma(t;\theta_2,\xi_2)\| \le \big(\|\xi_1-\xi_2\| + K_{\delta_0}\|\mathbf{B}_{\theta_1}-\mathbf{B}_{\theta_2}\|_{\infty,\delta_0}\, t\big)\, e^{L_{\delta_0} t}
+		\end{equation}
+		$\forall (\theta_1,\xi_1), (\theta_2,\xi_2) \in U$ and $\forall t \in [0,T]$, where $K_{\delta_0}, L_{\delta_0}$ are the constants of Theorem~\ref{thm:ode_continuity} with $M, \mathrm{Lip}(\mathbf{B})$ replaced by the $\delta_0$-dependent bounds $C_1/\delta_0, C_2/\delta_0^2$ of Lemma~\ref{lemma:coil_bounds}, and $\|\cdot\|_{\infty,\delta_0}$ the sup norm restricted to $\{\mathrm{dist}(\cdot,S_\theta) \ge \delta_0\}$.
+	\end{prop}
+\begin{proof}
+	We divide the proof into four sequential steps: safe-domain restriction, local estimate construction, uniform retention on $[0,T]$, and conclusion.
+	
+	\paragraph{1. Safe Domain Construction.}
+	Define the $\delta_0$-safe phase-space region:
+	\begin{equation}
+		D_{\delta_0} := \left\{ (\mathbf{x},\mathbf{v}) \in \mathbb{R}^6 : \mathrm{dist}(\mathbf{x}, S_\theta) \ge \delta_0 \right\} .
+	\end{equation}
+	By definition of $\delta_0$, the nominal trajectory satisfies $\mathrm{dist}(\mathbf{x}(t;\theta_0,\xi_0), S_{\theta_0}) \ge 2\delta_0$ for all $t \in [0,T]$. Thus, $\gamma(t;\theta_0,\xi_0) \in \mathrm{int}(D_{\delta_0})$ strictly on $[0,T]$.
+	By Lemma~\ref{lemma:coil_bounds}, the vector field $\mathbf{F}_\theta$ on $D_{\delta_0}$ is $C^\infty$ with bounded supremum $C_1/\delta_0$ and Lipschitz constant $C_2/\delta_0^2$.
+	
+	\paragraph{2. Escape-Time Definition \& Local Estimate.}
+	For any initial state and parameter pair $(\theta,\xi)$, following Definition \ref{def:hitting_time}, we write the exit time from $D_{\delta_0}$ as:
+	\begin{equation}
+		\tau(\theta,\xi) := \sup \left\{ t \in [0,T] : \mathrm{dist}(\mathbf{x}(s;\theta,\xi), S_\theta) \ge \delta_0 , \ \forall s \in [0,t] \right\} .
+	\end{equation}
+	For any $t \in [0, \tau(\theta,\xi)]$, the trajectory remains within $D_{\delta_0}$. Applying equation \eqref{eq:gronwall_bound} with the bounds $K_{\delta_0}, L_{\delta_0}$ yields:
+	\begin{equation} \label{eq:local_gronwall}
+		\|\gamma(t;\theta,\xi) - \gamma(t;\theta_0,\xi_0)\| \le \left( \|\xi - \xi_0\| + K_{\delta_0} \|\mathbf{B}_\theta - \mathbf{B}_{\theta_0}\|_{\infty,\delta_0} t \right) e^{L_{\delta_0} t} .
+	\end{equation}
+	
+	\paragraph{3. Domain Retention via Parameter Tuning.}
+	By continuity of the magnetic field map $\theta \mapsto \mathbf{B}_\theta$ in the $\|\cdot\|_{\infty,\delta_0}$ norm, we choose an open neighborhood $U \subset \Theta \times \Xi$ of $(\theta_0,\xi_0)$ sufficiently small such that for all $(\theta,\xi) \in U$:
+	\begin{equation}
+		\|\xi - \xi_0\| + K_{\delta_0} T \|\mathbf{B}_\theta - \mathbf{B}_{\theta_0}\|_{\infty,\delta_0} < \delta_0 \, e^{-L_{\delta_0} T} .
+	\end{equation}
+	Evaluating \eqref{eq:local_gronwall} at any $t \in [0, \tau(\theta,\xi)]$ for $(\theta,\xi) \in U$ gives the strict bound:
+	\begin{equation} \label{eq:strict_dist_bound}
+		\|\gamma(t;\theta,\xi) - \gamma(t;\theta_0,\xi_0)\| < \delta_0 \, e^{-L_{\delta_0} T} \cdot e^{L_{\delta_0} t} \le \delta_0 .
+	\end{equation}
+	
+	\paragraph{4. Extension to $[0,T]$ and Conclusion.}
+	By the reverse triangle inequality on spatial components:
+	\begin{equation}
+		\mathrm{dist}(\mathbf{x}(t;\theta,\xi), S_\theta) \ge \mathrm{dist}(\mathbf{x}(t;\theta_0,\xi_0), S_{\theta_0}) - \|\mathbf{x}(t;\theta,\xi) - \mathbf{x}(t;\theta_0,\xi_0)\| > 2\delta_0 - \delta_0 = \delta_0 .
+	\end{equation}
+	Since the distance to $S_\theta$ remains strictly greater than $\delta_0$ at $t = \tau(\theta,\xi)$, the trajectory cannot cross the boundary of $D_{\delta_0}$ at finite $\tau < T$. Consequently, $\tau(\theta,\xi) = T$ for all $(\theta,\xi) \in U$. 
+	
+	Therefore, $U \subset \mathcal{G}$, every trajectory in $U$ exists uniquely up to $t = T$, and applying the triangle inequality together with \eqref{eq:local_gronwall} on any pair $(\theta_1,\xi_1), (\theta_2,\xi_2) \in U$ establishes the stated continuity estimate globally on $[0,T]$.
+\end{proof}
+	
+	\subsubsection{Genericity of the collision set}
+	
+	We now show $\mathcal{N}$ is small. Instead of differentiating with respect to the coil parameters, which becomes singular precisely at the collision, we exploit the structure of the trajectory flow in phase space for any fixed coil configuration.
+	
+	\begin{thm}[The collision set has measure zero for every configuration] \label{thm:collision_null2}
+		For every fixed $\theta \in \Theta$, the fiber $\mathcal{N}_\theta = \{\xi \in \Xi : \tau(\theta,\xi) \le T\}$ has Lebesgue measure zero in $\Xi$. Consequently, $P(\mathcal{N}_\theta) = 0$ everywhere, provided $P \ll \mathrm{Leb}_\Xi$.
+	\end{thm}
+	\begin{proof}
+		Fix an arbitrary $\theta \in \Theta$, which we'll drop from the notation. The coil array $S_\theta$ is a finite union of smooth 1-dimensional curves in $\mathbb{R}^3$. We want to show that the set of initial conditions $\mathcal{N}_\theta \subset \Xi$ leading to a collision with $S_\theta$ within time $T$ has Lebesgue measure 0 in the phase space.
+		
+		Let's consider a sequence of shrinking toroidal neighborhoods around the coils:
+		\begin{equation}
+			U_k = \{ \mathbf{x} \in \mathbb{R}^3 : \mathrm{dist}(\mathbf{x}, S_\theta) < 1/k \},
+		\end{equation} 
+		with boundaries $\partial U_k$, which are smooth 2-dimensional surfaces. For a continuous trajectory to hit $S_\theta$ at some time $t^* \le T$, it must first intersect $\partial U_k$ at some time $t_k < t^*$. 
+		
+		Let the phase space of initial conditions $\Xi$ (the sample space) be parametrized by position and speed. The spatial component of the target $\partial U_k$ has dimension 2. Thus, the full phase space target surface $\mathcal{M}_k$ corresponding to crossing $\partial U_k$ has dimension: 
+		\begin{equation}
+			\dim(\mathcal{M}_k) = 2 + 3 = 5.
+		\end{equation} 
+		Here we assume that the speed component has dimension 3, since there are not enough constraints on this one (i.e.: from a fixed point $x_k$ on $\partial U_k$ there are multiple feasible velocity vectors that end up colliding with $U_k$). A simple topology computation yields that the submanifold $M_k$ has codimension 1 in $\Xi \subset \mathbb{R}^6$. \\
+		
+		We define now the particles flow in phase space that takes an initial point $\mathbf{y}_0$ and moves it forward by time $t$, following the ODE \eqref{eq:ode_complete}:
+		\begin{align*}
+			\phi_t: & \ \mathbb{R}^6 \to \mathbb{R}^6 \\
+			& \ \mathbf{y}_0 \mapsto \mathbf{y}(t).
+		\end{align*}
+		Let also $\phi_{-t} = \phi_t^{-1}$ be the backward flow. Since away from $S_\theta$ the magnetic field is $C^\infty$, then $\phi_t$ is $C^\infty$ in such region, by the Smooth Dependence Theorem for ODEs. Hence, $\phi_{-t}$ is $C^\infty$ and has a $C^\infty$ inverse, thus it is a local diffeomorphism on $\mathbb{R}^6 \setminus (S_\theta \times \mathbb{R}^3)$. 
+		
+		The set of all initial conditions in $\Xi$ whose forward trajectories intersect $\partial U_k$ within time $T$ is given by the image of the evaluation map $\Psi_k : [0,T] \times \mathcal{M}_k \to \Xi$, defined by $\Psi_k(t, y) = \phi_{-t}(y)$. Since:
+		\begin{equation}
+			\dim([0,T] \times \mathcal{M}_k) = 1 + (\dim \Xi - 1) = \dim \Xi,
+		\end{equation}
+		the image set $\mathcal{H}_k = \Psi_k([0,T] \times \mathcal{M}_k)$ can still have the same full dimension of $\Xi$ and, subsequently, a non-zero measure. We then need to find another way to prove the hypothesis.
+		
+		We now want to apply Liouville's theorem for Hamiltonian systems. A simple calculation shows that the vector field $\mathbf{F}(\mathbf{x},\mathbf{v}) = \big(\mathbf{v}, \frac{q}{m}\mathbf{v} \times \mathbf{B}_\theta(\mathbf{x})\big)$ governing particle dynamics is strictly divergence-free in the 6-dimensional phase space. Indeed, evaluating the phase space divergence yields:
+		\begin{equation}
+			\nabla_{\mathbf{x},\mathbf{v}} \cdot \mathbf{F} = \nabla_{\mathbf{x}} \cdot \mathbf{v} + \nabla_{\mathbf{v}} \cdot \left( \frac{q}{m} \mathbf{v} \times \mathbf{B}_\theta(\mathbf{x}) \right) = 0 \ ,
+		\end{equation}
+		where $\nabla_{\mathbf{x}} \cdot \mathbf{v} = 0$ because position and velocity are independent phase-space coordinates, and $\nabla_{\mathbf{v}} \cdot (\mathbf{v} \times \mathbf{B}_\theta) = 0$ because each velocity derivative operates on terms containing only orthogonal velocity components. By Jacobi's formula for the evolution of the flow Jacobian determinant:
+		\begin{equation}
+			\frac{\mathrm{d}}{\mathrm{d}t} \det D\phi_t = (\nabla_{\mathbf{x},\mathbf{v}} \cdot \mathbf{F}) \det D\phi_t = 0,
+		\end{equation}
+		which integrates to $\det D\phi_t \equiv 1$ for all $t$. Now, Liouville's theorem yields that if $\det D\phi_t = 1$, then the flow $\phi_{-t}$ is an exact phase-space volume-preserving map, i.e.: $\mathrm{Leb}_\Xi(\phi_{-t}(A)) = \mathrm{Leb}_\Xi(A)$ for any measurable set $A$. 
+		
+		The volume of the set of initial conditions bounded by $\mathcal{H}_k$ over time $T$ is governed by the volume of states tracing back from the spatial tube $U_k$. Because $S_\theta$ is a 1-dimensional curve in $\mathbb{R}^3$, the spatial volume of $U_k$ scales as $\mathcal{O}(1/k^2)$, which vanishes as $k \to \infty$.
+		
+		Since $\mathcal{N}_\theta \subset \mathcal{H}_k$ for all sufficiently large $k$, we have $\mathrm{Leb}_\Xi(\mathcal{N}_\theta) \le \mathrm{Leb}_\Xi(\mathcal{H}_k) \to 0$ as $k \to \infty$. Thus, $\mathrm{Leb}_\Xi(\mathcal{N}_\theta) = 0$. By absolute continuity, $\mathbb{P}(\mathcal{N}_\theta) = 0$.
+	\end{proof}
+	
+	\begin{obs}[Hamiltonian structure and coordinate equivalence] \label{obs:hamiltonian_equivalence}
+		While Theorem~\ref{thm:collision_null2} establishes volume preservation directly via the zero-divergence condition $\nabla_{\mathbf{x},\mathbf{v}} \cdot \mathbf{F} = 0$ in physical velocity space $(\mathbf{x}, \mathbf{v})$, this is fully consistent with classical Hamiltonian mechanics. The system is Hamiltonian with $H(\mathbf{q}, \mathbf{p}) = \frac{1}{2m} \|\mathbf{p} - q\mathbf{A}(\mathbf{q})\|^2$, where $\mathbf{p} = m\mathbf{v} + q\mathbf{A}(\mathbf{x})$ is the canonical momentum and $\mathbf{A}$ is a magnetic vector potential ($\mathbf{B} = \nabla \times \mathbf{A}$). 
+		
+		The push-forward map $T: (\mathbf{q}, \mathbf{p}) \mapsto (\mathbf{x}, \mathbf{v}) = \big(\mathbf{q}, \frac{1}{m}(\mathbf{p} - q\mathbf{A}(\mathbf{q}))\big)$ between canonical and kinematic phase space has a constant Jacobian determinant:
+		\begin{equation}
+			\det D T(\mathbf{q},\mathbf{p}) = \det \begin{pmatrix} I_3 & 0 \\ -\frac{q}{m}\nabla\mathbf{A} & \frac{1}{m}I_3 \end{pmatrix} = \frac{1}{m^3} \neq 0 \ .
+		\end{equation}
+		Because $\det DT$ is constant throughout phase space, canonical volume preservation under Liouville's theorem in $(\mathbf{q},\mathbf{p})$ is strictly equivalent to Lebesgue measure preservation in the non-canonical velocity space $(\mathbf{x},\mathbf{v})$.
+	\end{obs}
+	
+	Since in our application we actually sample initial positions on a spherical surface and velocities all point inwards, the actual sampling submanifold $\Xi \subset \mathbb{R}^6$ has dimension 4 or 5. Hence, we need to extend the previous Theorem \ref{thm:collision_null2} with the following corollary.
+	
+	\begin{corollary}[The collision set has measure zero on the sampling manifold] \label{cor:collision_null2}
+		Let $\Xi \subset \mathbb{R}^6$ be the $d$-dimensional smooth manifold of initial conditions sampled on the spherical boundary $S^2$ with inward velocities ($d \in \{4, 5\}$ depending on energy parametrization). For every fixed $\theta \in \Theta$, the collision set $\mathcal{N}_\theta = \{\xi \in \Xi : \tau(\theta,\xi) \le T\}$ has $d$-dimensional surface measure zero in $\Xi$. Consequently, $P(\mathcal{N}_\theta) = 0$ for every $\theta$, provided $P \ll \mathrm{Leb}_\Xi$.
+	\end{corollary}
+	\begin{proof}
+		Fix $\theta \in \Theta$. The set of all phase-space points in $\mathbb{R}^6$ whose trajectories hit the 1-dimensional wire $S_\theta$ within time $T$ is given by $\mathcal{M}_{\text{hit}} = \bigcup_{t \in [0,T]} \phi_{-t}(S_\theta \times \mathbb{R}^3)$, where $\phi$ is the smooth flow map away from $S_\theta$, as above. 
+		
+		Following the same reasoning as the previous proof, $\mathcal{M}_{\text{hit}}$ is a smooth manifold of dimension 5, giving it codimension $6 - 5 = 1$ in the ambient phase space $\mathbb{R}^6$.
+		
+		The collision set on the sampling surface is the intersection $\mathcal{N}_\theta = \mathcal{M}_{\text{hit}} \cap \Xi$. By transversality, the intersection of a codimension-1 manifold with the $d$-dimensional manifold $\Xi$ yields a submanifold $\mathcal{N}_\theta \subset \Xi$ of dimension at most $d - 1$. 
+		
+		Since $\dim(\mathcal{N}_\theta) < \dim(\Xi)$, $\mathcal{N}_\theta$ has $d$-dimensional Lebesgue measure zero ($\mathrm{Leb}_\Xi(\mathcal{N}_\theta) = 0$). Because the probability measure $P$ is absolutely continuous with respect to the surface measure on $\Xi$, it follows that $\mathbb{P}(\mathcal{N}_\theta) = 0$.
+	\end{proof}
+	
+	\subsubsection{Continuity of the expected dose}
+	
+	\begin{thm}[Continuity of $\mathcal{J}$ under the coil parametrization] \label{thm:J_continuity_coils}
+		Let $\Phi \le \Phi_{\max}$ be the bounded, compactly supported mollifier of the revelator construction, and assume $\mathbb{E}_{\xi \sim P}[E(\xi)] < \infty$. Then $\mathcal{J}(\theta) = \mathbb{E}_{\xi \sim P}\big[D(\mathbf{B}_\theta,\xi)\big]$ is continuous at every $\theta \in \Theta^\circ$.
+	\end{thm}
+	\begin{proof}
+		Fix $\theta \in \Theta^\circ$ and let $\theta_n \to \theta$. For every $\xi$ and every $n$:
+		\begin{equation}
+			|D(\mathbf{B}_{\theta_n},\xi)| \le E(\xi)\, \|\mathbf{v}(\xi)\| \, T \, \Phi_{\max} \le E(\xi)\, c\, T\, \Phi_{\max} = g(\xi) \ ,
+		\end{equation}
+		using $\|\mathbf{v}\| \le c$ and $\Phi \le \Phi_{\max}$. Also, $g \in L^1(\Xi, \mathbb{P})$ by hypothesis, uniformly in $n$.
+		
+		By Theorem~\ref{thm:collision_null2}: $\mathbb{P}(\mathcal{N}_\theta) = 0$. Hence, for almost every $\xi$, s.t.\ $(\theta,\xi) \in \mathcal{G}$, Proposition~\ref{prop:local_cont2} gives: $\gamma(t;\theta_n,\xi) \to \gamma(t;\theta,\xi)$ uniformly on $[0,T]$ as $n \to \infty$. Because $D(\cdot,\xi)$ is a time-integral of the continuous integrand $E(\xi)\Phi(\mathbf{x}(t))\|\mathbf{v}(t)\|$, then it's continuous functional of the trajectory. This yields the limit: \begin{equation}
+			D(\mathbf{B}_{\theta_n},\xi) \to D(\mathbf{B}_\theta,\xi).
+		\end{equation}
+		Finally, the Dominated Convergence Theorem applied to the sequence $D(\mathbf{B}_{\theta_n},\xi)$, with dominating function $g \in L^1(\Xi, \mathbb{P})$, gives the conclusive result:
+		\begin{equation}
+			\mathcal{J}(\theta_n) = \mathbb{E}_\xi\big[D(\mathbf{B}_{\theta_n},\xi)\big] \ \longrightarrow \ \mathbb{E}_\xi\big[D(\mathbf{B}_\theta,\xi)\big] = \mathcal{J}(\theta) \ . \qedhere
+		\end{equation}
+		This completes the continuity proof for the coil parametrization of the magnetic field.
+	\end{proof}
+	\begin{obs}
+		Theorem~\ref{thm:J_continuity_coils} is the object BO actually requires: it gives continuity of $\mathcal{J}$ at every physically meaningful $\theta$, i.e.\ every configuration in which the spherical-coordinate description of coil position is non-degenerate. The exceptional locus $\Theta \setminus \Theta^\circ$ (coils placed exactly at the origin, or on the polar axis) is itself Lebesgue-null and, as a boundary case of the coordinate chart rather than a physical phenomenon, is of no consequence for the optimization: it is never distinguished by, nor deliberately targeted by, an acquisition function operating on a continuous surrogate.
+	\end{obs}
+	This result is radically different from the uniform continuity result we have shown in Theorem \ref{thm:ode_continuity}, as this doesn't prove uniform continuity of a trajectory, but global continuity of the functional $\mathcal{J}(\theta)$ along with continuity a.e. of $D(\mathbf{B}, \xi)$ and it only works as long as the Monte Carlo integration over $\Xi$ allows us to ignore the zero probability critical trajectories. It is also important to notice that the Monte Carlo estimator:
+	\begin{equation}
+		\mathcal{J} (\mathbf{\Theta}) = {1 \over N} \sum_{i=1}^N D(\mathbf{B}, \xi_i)
+	\end{equation}
+	is only continuous a.e., since there's no longer the integral to smooth out the zero measure discontinuities of $D$. This explains the solution used in the code application, which is naturally discrete.
+	
+	While the measure-theoretic result establishes existence in the continuum limit, numerical implementation requires regularizing the field singularity along $S_\theta$. In the C++ application, we define an open $\varepsilon$-tubular neighborhood (toroidal exclusion zone) around the coil manifold $S_\theta$:
+	\begin{equation}
+		\mathcal{C}_\varepsilon := \left\{ \mathbf{x} \in \mathbb{R}^3 : \mathrm{dist}(\mathbf{x}, S_\theta) < \varepsilon \right\} .
+	\end{equation}
+	Trajectories intersecting $\mathcal{C}_\varepsilon$ are terminated and resampled. The spatial simulation domain $\Omega_\varepsilon := \Omega \setminus \mathcal{C}_\varepsilon$ is a closed manifold whose boundary $\partial \mathcal{C}_\varepsilon$ is homeomorphic to a collection of 2-tori $\mathbb{T}^2$. 
+	
+	Topologically, because the Euler characteristic of the 2-torus vanishes ($\chi(\mathbb{T}^2) = 0$), the Poincaré--Hopf theorem (generalizing the Hairy Ball theorem) permits the existence of an everywhere non-vanishing continuous tangent vector field on $\partial \mathcal{C}_\varepsilon$. Physically, for sufficiently small $\varepsilon$, the magnetic field is dominated by the poloidal Biot-Savart term $\mathbf{B}_\theta \approx \frac{\mu_0 I}{2\pi \varepsilon} \hat{\boldsymbol{\theta}}$, rendering $\partial \mathcal{C}_\varepsilon$ a non-singular boundary surface with $\|\mathbf{B}_\theta\| > 0$. Because $\Omega_\varepsilon \cap S_\theta = \emptyset$, $\mathbf{B}_\theta$ is smooth ($C^\infty$) on all of $\Omega_\varepsilon$, satisfying the hypotheses of Theorem~\ref{thm:ode_continuity}.
 	
 	\section{Code implementation}
 	\subsection{The Python optimizer}
@@ -490,30 +1038,7 @@ citestyle=numeric-comp
 	\subsubsection{Sampling from data with MC}
 	\subsubsection{The SAM algorithm}
 	\subsubsection{The Boris algorithm}
-	\section{Results and Conclusions}
 	
-	\section{Remaining questions}
-	There are still a few more question to address for this application of BO:
-	\begin{enumerate}
-		\item What are the guarantees of convergence under noisy conditions (crucial if the Monte Carlo simulation has high variance)?
-		\item How do this problem's convergence rate and regret bound scale with dimension?
-		\item What is the most useful parametrization, both from a mathematical and a physical perspective?
-	\end{enumerate}
-	
-	\section{Code work}
-	The next steps will be:
-	\begin{enumerate}
-		\item Verify if SAM integrator is faster than Biot Savart (DONE),
-		\item Implement sampling from Oltaris data for accurate particle simulation (DONE),
-		\item Experiment with different acquisition functions (current one is Expected Improvement) (TRIED KNOWLEDGE GRADIENT),
-		\item Change the kernel to accomodate periodic parameters instead of relying on feature map.
-		\item Need to implement interchangeability of coils.
-		\item Push the dimensionality of the problem to the limits of BO (WORKING): I need to implement either Trust Region algorithm to optimize locally or Random Embeddings to reduce dimensionality. Maybe try SAASBO.
-		\item Experiment with different parametrizations.
-		\item Reduce variance of Monte Carlo simulation, currently the highest number of particles that is doable is 28e4, so i need to reduce the variance. The easiest path is to use quasi Monte Carlo methods, like Sobol sampling and recycle the same starting points across different optimizations. If there will be time, i will implement a backward Monte Carlo (Adjoint MC) to do importance sampling of interesting trajectories.
-	\end{enumerate}
-	
-	Additional references include: \cite{rasmussen_2005}, \cite{garnett_bayesoptbook_2023}.
 	
 	\clearpage
 	\nocite{*}
