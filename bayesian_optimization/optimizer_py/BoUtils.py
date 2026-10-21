@@ -295,6 +295,17 @@ class InputMappedModel(Model):
 
     def __getattr__(self, name):
         return super().__getattr__(name)
+
+def map_coilwise(X):
+    """
+    Reshape map_cart's per-component layout (B, 6K) = [cx(K),cy(K),cz(K),nx(K),ny(K),nz(K)]
+    into per-coil layout (B, K*6) = [cx_1,cy_1,cz_1,nx_1,ny_1,nz_1, cx_2,...].
+    Reuses map_cart's existing periodicity-safe Cartesian conversion — no new trig.
+    """
+    h = map_cart(X)                          # (B, 6K)
+    h = h.view(*h.shape[:-1], 6, K)           # (B, 6, K) -- recovers the 6 original blocks
+    h = h.transpose(-2, -1)                   # (B, K, 6) -- group by coil
+    return h.reshape(*h.shape[:-2], K * 6)    # (B, K*6)
     
 ##########################################################
 # FUNCTIONS FOR BO LOOP

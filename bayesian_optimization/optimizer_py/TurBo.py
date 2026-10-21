@@ -33,6 +33,7 @@ from BoUtils import (
     map_fn,
     map_cart,
     map_set,
+    map_coilwise,
     InputMappedAcquisition,
     InputMappedModel,
     sobol_sample,
@@ -43,7 +44,17 @@ from BoUtils import (
 )
 from Objective import objective_function
 from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q, K
-from Kernels import CoilSetKernel, CoilMomentKernel
+from Kernels_v2 import CoilSetKernel, CoilMomentKernel
+
+# TUNING KNOBS FOR TS SAMPLING
+import math
+MAX_MATRIX_BYTES = 2e9  # ~2GB budget for the test-test covariance matrix
+N_CANDIDATES = min(
+    5000,
+    max(200, int(math.sqrt(MAX_MATRIX_BYTES / 8) / K)),
+)
+NUM_RESTARTS = 40
+RAW_SAMPLES  = 512
 
 # ---------------------------------------------------------------------------
 # TuRBO state dataclass (faithful to the original BoTorch tutorial)
@@ -201,10 +212,12 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
         ard_num_dims=MAPPED_D,
         lengthscale_constraint=Interval(0.005, 4.0),
     )"""
-    covar_module = ScaleKernel(CoilSetKernel(n_coils=K, normalize=True)) + ScaleKernel(CoilMomentKernel(n_coils=K))
+    covar_module = ScaleKernel(CoilSetKernel(n_coils=K, normalize=True, chunk_size=200))
+                    # + ScaleKernel(CoilMomentKernel(n_coils=K)) -> to be added later if Turbo plateaus
     likelihood = GaussianLikelihood(noise_constraint=Interval(1e-8, 1e-3))
 
-    X_train_model = map_set(X_train)
+    X_train_model = map_coilwise(X_train)
+    assert X_train_model.shape[-1] == K * 6, f"got {X_train_model.shape[-1]}, expected {K*6} -- check mapping call sites"
     gp = SingleTaskGP(
         X_train_model.detach().clone().to(device),
         torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device),
@@ -220,11 +233,6 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
     state = TurboState(dim=D, batch_size=Q)
     # Seed best_value from Sobol observations
     state.best_value = float(y_train.max())
-
-    # Tuning knobs (mirror BoTorch tutorial defaults)
-    N_CANDIDATES = min(5000, max(2000, 200 * D))
-    NUM_RESTARTS = 40
-    RAW_SAMPLES  = 512
 
     ei_array       = np.empty(0)
     best_mean_hist = []
@@ -247,7 +255,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
                 gp=gp,
                 X_train=X_train,
                 y_train=y_train,
-                map_local=map_set,
+                map_local=map_coilwise,
                 n_candidates=N_CANDIDATES,
                 num_restarts=NUM_RESTARTS,
                 raw_samples=RAW_SAMPLES,
@@ -258,7 +266,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
             tr_bounds = _tr_bounds(state, X_train, y_train)
             best_f = torch.tensor(y_train.max(), dtype=torch.double, device=device)
             log_ei = qLogNoisyExpectedImprovement(
-                model=InputMappedModel(gp, map_set),
+                model=InputMappedModel(gp, map_coilwise),
                 best_f=best_f,
             )
             candidate, acq_value = optimize_acqf(
@@ -309,7 +317,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
         state = update_state(state=state, Y_next=Y_next_tensor)
 
         # 6. Refit GP on all data collected so far
-        X_train_model = map_set(X_train)
+        X_train_model = map_coilwise(X_train)
         gp = SingleTaskGP(
             X_train_model.detach().clone().to(device),
             torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device),
@@ -325,7 +333,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
 
         from botorch.acquisition import PosteriorMean  # local import avoids circular issues
         post_mean = PosteriorMean(gp)
-        post_mean_mapped = InputMappedAcquisition(post_mean, map_set)
+        post_mean_mapped = InputMappedAcquisition(post_mean, map_coilwise)
         _, current_best_mean = optimize_acqf(
             acq_function=post_mean_mapped,
             bounds=unit_bounds,

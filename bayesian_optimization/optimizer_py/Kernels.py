@@ -26,7 +26,6 @@ import torch
 import torch.nn.functional as F
 from gpytorch.kernels import Kernel
 from gpytorch.constraints import Positive
-
 from input import K
 
 
@@ -49,9 +48,10 @@ class CoilSetKernel(Kernel):
     def __init__(
         self,
         n_coils: int = K,
-        per_coil_dim: int = 5,
+        per_coil_dim: int = 6,
         pos_dim: int = 3,
         normalize: bool = True,
+        chunk_size: int = 200,
         lengthscale_constraint=None,
         kappa_constraint=None,
         **kwargs,
@@ -61,6 +61,7 @@ class CoilSetKernel(Kernel):
         self.per_coil_dim = per_coil_dim
         self.pos_dim = pos_dim
         self.normalize = normalize
+        self.chunk_size = chunk_size
 
         lengthscale_constraint = lengthscale_constraint or Positive()
         kappa_constraint = kappa_constraint or Positive()
@@ -110,61 +111,89 @@ class CoilSetKernel(Kernel):
         nrm = F.normalize(x[..., self.pos_dim:], dim=-1, eps=1e-8)
         return pos, nrm
 
-    def _raw_forward(self, x1, x2, diag=False):
-        pos1, n1 = self._split(x1)  # (..., N1, n_coils, pos_dim/dir_dim)
-        pos2, n2 = self._split(x2)  # (..., N2, n_coils, pos_dim/dir_dim)
+    def _diag_forward(self, x1, x2):
+        """x1, x2 must have the SAME shape (..., N, D) -- paired, index-aligned."""
+        pos1, n1 = self._split(x1)   # (..., N, n_coils, pos_dim/dir_dim)
+        pos2, n2 = self._split(x2)
 
-        ell = self.lengthscale  # (..., 1, 1)
-        kappa = self.kappa      # (..., 1, 1)
+        ell = self.lengthscale       # (..., 1, 1)
+        kappa = self.kappa           # (..., 1, 1)
 
-        if diag:
-            # x1, x2 assumed paired (same N, index-aligned)
-            diff = pos1.unsqueeze(-2) - pos2.unsqueeze(-3)          # (..., N, n_coils, n_coils, pos_dim)
-            sq_dist = diff.pow(2).sum(-1)                            # (..., N, n_coils, n_coils)
-            ell_b = ell.unsqueeze(-1)                                 # broadcast over coil x coil
-            pos_k = torch.exp(-sq_dist / (2 * ell_b ** 2))
+        diff = pos1.unsqueeze(-2) - pos2.unsqueeze(-3)            # (..., N, n_coils, n_coils, pos_dim)
+        sq_dist = diff.pow(2).sum(-1)                              # (..., N, n_coils, n_coils)
+        ell_b = ell.unsqueeze(-1)                                   # -> (..., 1, 1, 1), broadcasts fine
+        pos_k = torch.exp(-sq_dist / (2 * ell_b ** 2))
 
-            cos_sim = (n1.unsqueeze(-2) * n2.unsqueeze(-3)).sum(-1)  # (..., N, n_coils, n_coils)
-            kappa_b = kappa.unsqueeze(-1)
-            vmf_k = torch.exp(kappa_b * (cos_sim - 1.0))
+        cos_sim = (n1.unsqueeze(-2) * n2.unsqueeze(-3)).sum(-1)    # (..., N, n_coils, n_coils)
+        kappa_b = kappa.unsqueeze(-1)
+        vmf_k = torch.exp(kappa_b * (cos_sim - 1.0))
 
-            K_diag = (pos_k * vmf_k).sum(dim=(-2, -1))               # (..., N)
-            return K_diag
+        K_diag = (pos_k * vmf_k).sum(dim=(-2, -1))                 # (..., N)
+        return K_diag
 
-        # Full N1 x N2 covariance via flatten + cdist (avoids an explicit 4D loop)
-        *B1, N1, nc, pd = pos1.shape
-        *B2, N2, _, dd = n1.shape[:-1] + (n1.shape[-1],)
+    def _full_forward(self, x1, x2, chunk_size):
+        """Returns (..., N1, N2). Chunks over N2 to bound peak memory."""
+        pos1, n1 = self._split(x1)   # (..., N1, n_coils, pos_dim/dir_dim)
+        pos2, n2 = self._split(x2)   # (..., N2, n_coils, pos_dim/dir_dim)
 
-        pos1_flat = pos1.reshape(*B1, N1 * self.n_coils, pd)
-        pos2_flat = pos2.reshape(*pos2.shape[:-3], pos2.shape[-3] * self.n_coils, pd)
-        n1_flat = n1.reshape(*B1, N1 * self.n_coils, n1.shape[-1])
-        n2_flat = n2.reshape(*n2.shape[:-3], n2.shape[-3] * self.n_coils, n2.shape[-1])
+        # batch_prefix = everything before the (N, n_coils, dim) trailing dims
+        batch_prefix = pos1.shape[:-3]
+        N1 = pos1.shape[-3]
+        N2 = pos2.shape[-3]
 
-        sq_dist = torch.cdist(pos1_flat, pos2_flat, p=2).pow(2)       # (..., N1*n, N2*n)
-        ell_flat = ell.view(*self.batch_shape, 1, 1)
-        pos_k = torch.exp(-sq_dist / (2 * ell_flat ** 2))
+        pos1_flat = pos1.reshape(*batch_prefix, N1 * self.n_coils, pos1.shape[-1])
+        n1_flat = n1.reshape(*batch_prefix, N1 * self.n_coils, n1.shape[-1])
 
-        cos_sim = n1_flat @ n2_flat.transpose(-2, -1)                  # (..., N1*n, N2*n)
-        kappa_flat = kappa.view(*self.batch_shape, 1, 1)
-        vmf_k = torch.exp(kappa_flat * (cos_sim - 1.0))
+        ell_flat = self.lengthscale.view(*self.batch_shape, 1, 1)
+        kappa_flat = self.kappa.view(*self.batch_shape, 1, 1)
 
-        coil_k = pos_k * vmf_k
-        N2_ = pos2.shape[-3]
-        coil_k = coil_k.view(*B1, N1, self.n_coils, N2_, self.n_coils)
-        K = coil_k.sum(dim=(-3, -1))                                   # (..., N1, N2)
+        out_chunks = []
+        for start in range(0, N2, chunk_size):
+            end = min(start + chunk_size, N2)
+            width = end - start
+
+            pos2_c = pos2[..., start:end, :, :].reshape(*batch_prefix, width * self.n_coils, pos2.shape[-1])
+            n2_c = n2[..., start:end, :, :].reshape(*batch_prefix, width * self.n_coils, n2.shape[-1])
+
+            sq_dist = torch.cdist(pos1_flat, pos2_c, p=2).pow(2)     # (..., N1*nc, width*nc)
+            pos_k = torch.exp(-sq_dist / (2 * ell_flat ** 2))
+            del sq_dist
+
+            cos_sim = n1_flat @ n2_c.transpose(-2, -1)                # (..., N1*nc, width*nc)
+            vmf_k = torch.exp(kappa_flat * (cos_sim - 1.0))
+            del cos_sim
+
+            coil_k = pos_k * vmf_k                                    # (..., N1*nc, width*nc)
+            del pos_k, vmf_k
+
+            coil_k = coil_k.reshape(*batch_prefix, N1, self.n_coils, width, self.n_coils)
+            chunk_out = coil_k.sum(dim=(-3, -1))                       # (..., N1, width)
+            del coil_k
+            out_chunks.append(chunk_out)
+
+        K = out_chunks[0] if len(out_chunks) == 1 else torch.cat(out_chunks, dim=-1)  # (..., N1, N2)
+
+        expected_shape = (*batch_prefix, N1, N2)
+        if tuple(K.shape) != expected_shape:
+            raise RuntimeError(
+                f"CoilSetKernel._full_forward produced shape {tuple(K.shape)}, "
+                f"expected {expected_shape}. This indicates a reshape bug -- "
+                f"check batch_prefix={batch_prefix}, N1={N1}, N2={N2}, n_coils={self.n_coils}."
+            )
         return K
 
     def forward(self, x1, x2, diag=False, **params):
-        if not self.normalize:
-            return self._raw_forward(x1, x2, diag=diag)
-
         if diag:
-            # normalized diagonal is trivially 1 by construction
-            return torch.ones(*x1.shape[:-1], device=x1.device, dtype=x1.dtype)
+            if self.normalize:
+                return torch.ones(*x1.shape[:-1], device=x1.device, dtype=x1.dtype)
+            return self._diag_forward(x1, x2)
 
-        K = self._raw_forward(x1, x2, diag=False)
-        diag1 = self._raw_forward(x1, x1, diag=True)  # (..., N1)
-        diag2 = self._raw_forward(x2, x2, diag=True)  # (..., N2)
+        K = self._full_forward(x1, x2, chunk_size=self.chunk_size)
+        if not self.normalize:
+            return K
+
+        diag1 = self._diag_forward(x1, x1)  # (..., N1)
+        diag2 = self._diag_forward(x2, x2)  # (..., N2)
         denom = torch.sqrt(diag1.unsqueeze(-1) * diag2.unsqueeze(-2)).clamp_min(1e-12)
         return K / denom
 
@@ -180,7 +209,7 @@ class CoilMomentKernel(Kernel):
 
     is_stationary = False
 
-    def __init__(self, n_coils: int = K, per_coil_dim: int = 5,
+    def __init__(self, n_coils: int = 10, per_coil_dim: int = 6,
                  lengthscale_constraint=None, **kwargs):
         super().__init__(**kwargs)
         self.n_coils = n_coils
