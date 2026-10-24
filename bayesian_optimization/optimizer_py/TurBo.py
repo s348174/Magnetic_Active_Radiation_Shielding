@@ -44,7 +44,7 @@ from BoUtils import (
 )
 from Objective import objective_function
 from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q, K
-from Kernels_v2 import CoilSetKernel, CoilMomentKernel
+from Kernels_v3 import CoilSetKernel, CoilMomentKernel
 
 # TUNING KNOBS FOR TS SAMPLING
 import math
