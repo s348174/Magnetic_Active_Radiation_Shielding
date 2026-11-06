@@ -1,6 +1,8 @@
 #include "Particle.hpp"
 #include "Utils.hpp"
 #include <array>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -138,6 +140,63 @@ void testSimulatorEnergyScore() {
     std::cout << "PASS simulator energy scoring: proton=" << proton_mean << " eV, iron=" << iron_mean << " eV\n";
 }
 
+void testFluxWeights() {
+    const std::string filename = (std::filesystem::temp_directory_path() / "mars_flux_weights_test.csv").string();
+    {
+        std::ofstream file(filename);
+        file << "Energy,proton,Fe56\n1,2,10\n3,4,20\n6,2,10\n";
+    }
+    const auto weights = readFluxWeights(filename);
+    std::filesystem::remove(filename);
+    require(weights.size() == 2, "Read one integrated flux per species");
+    require(std::abs(weights.at("proton") - 15.0) < 1e-12,
+            "Trapezoidal integration on nonuniform energy grid");
+    require(std::abs(weights.at("Fe56") - 75.0) < 1e-12,
+            "Preserve relative abundance without normalizing species weights");
+    {
+        std::ofstream file(filename);
+        file << "Energy,proton\n1,2\n1,3\n";
+    }
+    bool rejected = false;
+    try { readFluxWeights(filename); } catch (const std::invalid_argument&) { rejected = true; }
+    std::filesystem::remove(filename);
+    require(rejected, "Reject a non-increasing flux energy grid");
+    {
+        std::ofstream file(filename);
+        file << "Energy,proton\n1,2\n2,-3\n";
+    }
+    rejected = false;
+    try { readFluxWeights(filename); } catch (const std::invalid_argument&) { rejected = true; }
+    std::filesystem::remove(filename);
+    require(rejected, "Reject negative differential flux");
+
+    BField field(1, {Vector3d::Zero()}, {Vector3d(0,0,1)}, .25, 0.0);
+    Revelator detector(2);
+    const std::vector<double> energies = {.1,.2,.5,1,2,3,5,8};
+    const int N = static_cast<int>(energies.size());
+    unsigned long seed = 67;
+    double dt = 1e-9, proton_mean, proton_var, iron_mean, iron_var;
+    monteCarlo(field, detector, energies, "proton", amu, e_q, N, dt, seed, proton_mean, proton_var);
+    monteCarlo(field, detector, energies, "Fe56", 56*amu, 26*e_q, N, dt, seed, iron_mean, iron_var);
+    double total = 0.0, variance = 0.0;
+    std::mutex doseMutex;
+    runSimulation(field, detector, energies, "proton", amu, e_q, weights.at("proton"),
+                  N, dt, seed, total, variance, doseMutex);
+    runSimulation(field, detector, energies, "Fe56", 56*amu, 26*e_q, weights.at("Fe56"),
+                  N, dt, seed, total, variance, doseMutex);
+    const double expected = 15*proton_mean + 75*iron_mean;
+    const double expected_variance = (15*15*proton_var + 75*75*iron_var)/N;
+    require(proton_var > 0.0 && iron_var > 0.0, "Nonzero variance in weighting regression");
+    require(std::abs(total/expected - 1.0) < 1e-12, "Flux-weighted sum of species means");
+    require(std::abs(variance/expected_variance - 1.0) < 1e-12,
+            "Species variance must use squared flux weights and divide by N");
+    total = variance = 0.0;
+    runSimulation(field, detector, energies, "proton", amu, e_q, 0.0,
+                  N, dt, seed, total, variance, doseMutex);
+    require(total == 0.0 && variance == 0.0, "Zero flux gives zero mean and variance contribution");
+    std::cout << "PASS physical flux integration, species-weighted response and squared-weight variance\n";
+}
+
 int main() {
     try {
         testKinematics();
@@ -145,6 +204,7 @@ int main() {
         testHelices();
         testNonuniformField();
         testSimulatorEnergyScore();
+        testFluxWeights();
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n';
         return 1;

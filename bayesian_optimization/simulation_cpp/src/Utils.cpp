@@ -101,9 +101,59 @@ double evaluateExpression(const string& expr) {
     return std::stod(expr);
 }
 
+// Integrate each original spectrum before its normalization as a sampling PDF.
+unordered_map<string, double> readFluxWeights(const string& filename) {
+    ifstream file(filename);
+    if (!file.is_open()) throw runtime_error("Could not open flux file: " + filename);
+
+    string line, name;
+    if (!getline(file, line)) throw invalid_argument("Flux file is empty");
+    stringstream header(line);
+    getline(header, name, ',');
+    if (trim(name) != "Energy") throw invalid_argument("Flux file must start with Energy");
+
+    vector<string> names;
+    unordered_map<string, double> weights;
+    while (getline(header, name, ',')) {
+        name = trim(name);
+        if (name.empty() || weights.count(name)) throw invalid_argument("Invalid flux species name");
+        names.push_back(name);
+        weights[name] = 0.0;
+    }
+    if (names.empty()) throw invalid_argument("Flux file has no particle species");
+
+    vector<double> previousFlux(names.size());
+    double previousEnergy = 0.0;
+    int rows = 0;
+    while (getline(file, line)) {
+        if (trim(line).empty()) continue;
+        stringstream ss(line);
+        string value;
+        getline(ss, value, ',');
+        double energy = stod(value);
+        if (!isfinite(energy) || energy < 0.0 || (rows > 0 && energy <= previousEnergy))
+            throw invalid_argument("Flux energies must be finite and strictly increasing");
+        for (size_t i = 0; i < names.size(); ++i) {
+            if (!getline(ss, value, ',')) throw invalid_argument("Missing flux value");
+            double flux = stod(value);
+            if (!isfinite(flux) || flux < 0.0) throw invalid_argument("Invalid flux value");
+            if (rows > 0)
+                weights[names[i]] += 0.5 * (previousFlux[i] + flux) * (energy - previousEnergy);
+            previousFlux[i] = flux;
+        }
+        if (getline(ss, value, ',')) throw invalid_argument("Extra flux column");
+        previousEnergy = energy;
+        ++rows;
+    }
+    if (rows < 2) throw invalid_argument("Flux file needs at least two energy rows");
+    for (const auto& entry : weights)
+        if (!isfinite(entry.second)) throw invalid_argument("Non-finite integrated flux");
+    return weights;
+}
+
 // Thread worker function
 void runSimulation(BField field, Revelator revelator, const vector<double>& energy_samples,
-                   string name, double m, double q, int N, double dt, unsigned long seed,
+                   string name, double m, double q, double fluxWeight, int N, double dt, unsigned long seed,
                    double& totalExpectedDose, double& totalVariance, mutex& doseMutex) {
     double expectedDose = 0.0;
     double variance = 0.0;
@@ -111,8 +161,8 @@ void runSimulation(BField field, Revelator revelator, const vector<double>& ener
 
     if (ok) {
         lock_guard<mutex> lock(doseMutex);
-        totalExpectedDose += expectedDose;
-        totalVariance += variance / static_cast<double>(N);
+        totalExpectedDose += fluxWeight * expectedDose;
+        totalVariance += fluxWeight * fluxWeight * variance / static_cast<double>(N);
     }
 
     {
@@ -140,6 +190,13 @@ pair<double, double> runFromCSV_MT(const string& filename, BField field, Revelat
     string line;
     getline(file, line); // skip header
 
+    // Restore physical species abundances, not the visualization-scaled fluxes.
+    const unordered_map<string, double> fluxWeights = readFluxWeights("../data/flux_data_clean.csv");
+    for (const auto& entry : samples) {
+        if (!fluxWeights.count(entry.first))
+            throw invalid_argument("Missing integrated flux for " + entry.first);
+    }
+
     vector<thread> threads;
     double totalExpectedDose = 0.0;
     double totalVariance = 0.0;
@@ -165,9 +222,10 @@ pair<double, double> runFromCSV_MT(const string& filename, BField field, Revelat
             double m = amu * evaluateExpression(mStr);
             double q = e_q * evaluateExpression(qStr);
             const vector<double>& energy_samples = samples.at(name);
+            double fluxWeight = fluxWeights.at(name);
 
             // Launch one thread per simulation
-            threads.emplace_back(runSimulation, field, revelator, ref(energy_samples), name, m, q, N, dt, seed, ref(totalExpectedDose), ref(totalVariance), ref(doseMutex));
+            threads.emplace_back(runSimulation, field, revelator, ref(energy_samples), name, m, q, fluxWeight, N, dt, seed, ref(totalExpectedDose), ref(totalVariance), ref(doseMutex));
         }
         catch (const std::exception& e) {
             lock_guard<mutex> lock(io_mutex);
