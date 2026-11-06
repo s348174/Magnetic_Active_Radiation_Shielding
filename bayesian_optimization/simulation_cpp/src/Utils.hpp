@@ -11,6 +11,7 @@
 using namespace std;
 using namespace Eigen;
 
+// energy_samples: kinetic energy in MeV/amu; expectedDose: energy-weighted score in eV.
 bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& energy_samples,
                 const string& particleName, const double& m, const double& q, const int& N,
                 double& dt, unsigned long& seed, double& expectedDose, double& variance);

@@ -43,27 +43,30 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& energ
     double expectedEVCounter = 0.0; // Counter for how may eV received
     vector<double> energyValues;
     energyValues.reserve(N);
-    const double conversionEV = 2 * e_q / m;
     for (size_t i = 0; i < N; ++i) {
         Vector3d X0 = startPoints[i];
         // Set target as center of particle detector
         const Vector3d target = - X0;
-        const double v_abs = sqrt(energy_samples[i] * conversionEV);
-        Vector3d v0 = v_abs * target.normalized();
+        // Input: MeV/amu. Score: total nuclear kinetic energy in eV.
+        const auto kinematics = nuclearKinematics(energy_samples[i], m);
+        const double v_abs = kinematics.speed;
+        if (v_abs <= 0.0)
+            throw invalid_argument("Trajectory energy must be positive");
 
         // Define particle
         double T_max = 1.5 * target.norm() / v_abs;
-        Particle part(m, q, X0, v0, T_max, dt);
+        Particle part = Particle::fromKineticEnergyMeVPerAmu(
+            m, q, X0, target, energy_samples[i], T_max, dt);
 
         // Start trajectory computation
         double t = 0;
         while (t < T_max) {
-            part.updatePosition(field, revelator);
+            part.updatePosition(field, revelator, T_max - t);
             t += part.dt;
         }
         // Update probablity estimation of hits
         double partHitProb = v_abs * part.hit_prob;
-        double exptEVPart = energy_samples[i] * partHitProb;
+        double exptEVPart = kinematics.energy_eV * partHitProb;
         expectedEVCounter += exptEVPart;
         energyValues.push_back(exptEVPart);
     }

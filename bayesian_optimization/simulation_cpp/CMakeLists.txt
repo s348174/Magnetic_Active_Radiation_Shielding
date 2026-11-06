@@ -85,3 +85,15 @@ target_link_libraries(main_exec
 )
 
 target_include_directories(main_exec PRIVATE src)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(relativistic_tests
+        tests/relativistic_tests.cpp
+        src/Utils.cpp
+        src/Sobol.cpp
+    )
+    target_include_directories(relativistic_tests PRIVATE src)
+    target_link_libraries(relativistic_tests PRIVATE Eigen3::Eigen Threads::Threads)
+    add_test(NAME relativistic_numerics COMMAND relativistic_tests)
+endif()
