@@ -16,6 +16,36 @@ from TurBo import bo_turbo_matern
 
 from input import K, SEED, device
 
+import re, warnings, traceback
+from collections import Counter
+from gpytorch.utils.warnings import NumericalWarning
+
+# 1) silence ONLY the harmless "copy construct" UserWarning (matched by message prefix);
+#    every other UserWarning (e.g. your "Non-finite energy" one) still shows
+warnings.filterwarnings("ignore", message="To copy construct from a tensor", category=UserWarning)
+
+# 2) NumericalWarning hook: count silently, print the call stack only if jitter escalates (>= 1e-7)
+JITTER_COUNTS = Counter()
+_orig_show = warnings.showwarning
+
+def _show(message, category, filename, lineno, file=None, line=None):
+    if issubclass(category, NumericalWarning):
+        m = re.search(r"jitter of ([0-9.e+-]+)", str(message))
+        try:
+            level = float(m.group(1))
+        except (AttributeError, ValueError):
+            level = float("nan")
+        JITTER_COUNTS[f"{level:.0e}"] += 1
+        if level >= 1e-7:
+            print(f"\n[NumericalWarning] {message}")
+            for f in [f for f in traceback.extract_stack()[:-1] if "site-packages" not in f.filename][-6:]:
+                print(f"    {f.filename.split('/')[-1]}:{f.lineno} in {f.name}")
+    else:
+        _orig_show(message, category, filename, lineno, file, line)
+
+warnings.showwarning = _show
+warnings.simplefilter("always", NumericalWarning)
+
 def main():
     print(f"Using device: {device}")
     start_clock = time.time()
