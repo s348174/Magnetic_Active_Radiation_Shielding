@@ -197,6 +197,61 @@ void testFluxWeights() {
     std::cout << "PASS physical flux integration, species-weighted response and squared-weight variance\n";
 }
 
+// Independent midpoint quadrature of the filament Biot-Savart law, outside the wire.
+Vector3d referenceCoilField(const Vector3d& X, double R, double I) {
+    const int steps = 20000;
+    const double h = 2 * PI / steps;
+    Vector3d sum = Vector3d::Zero();
+    for (int i = 0; i < steps; ++i) {
+        double angle = (i + 0.5) * h;
+        Vector3d source(R*cos(angle), R*sin(angle), 0);
+        Vector3d tangent(-R*sin(angle), R*cos(angle), 0);
+        Vector3d distance = X - source;
+        sum += tangent.cross(distance) / pow(distance.norm(), 3);
+    }
+    return mu0 * I * h / (4 * PI) * sum;
+}
+
+void testFiniteWireCore() {
+    const double R = .25, I = 72000, a = BField::wireRadius;
+    BField field(1, {Vector3d::Zero()}, {Vector3d(0,0,1)}, R, I);
+    const double surfaceField = mu0 * I / (2 * PI * a);
+    for (double angle : {0.0, PI/3, PI}) {
+        const Vector3d radial(cos(angle), sin(angle), 0);
+        const Vector3d tangent(-sin(angle), cos(angle), 0);
+        const std::vector<Vector3d> offsets = {Vector3d::Zero(), .5*a*radial,
+            -.5*a*radial, Vector3d(0,0,.5*a), Vector3d(0,0,-.5*a),
+            .3*a*radial + Vector3d(0,0,.4*a)};
+        for (const Vector3d& offset : offsets) {
+            const Vector3d X = R*radial + offset;
+            const Vector3d expected = surfaceField/a * tangent.cross(offset);
+            const Vector3d sam = field.computeSAM(X), bs = field.computeBS(X);
+            require(sam.allFinite() && bs.allFinite(), "Finite field inside conductor, including centreline");
+            require((sam-expected).norm() < 1e-10*surfaceField, "Straight-wire interior field and direction");
+            require((bs-sam).norm() < 1e-12*surfaceField, "Both field evaluators share the same wire core");
+        }
+    }
+    // Exactly on the boundary and just outside it, retain the original circular-coil field.
+    for (const Vector3d& X : {Vector3d(R,0,a), Vector3d(R+1.01*a,0,0), Vector3d(.1,.2,.3)}) {
+        const Vector3d expected = referenceCoilField(X,R,I);
+        const Vector3d actual = field.computeSAM(X);
+        require(actual.allFinite(), "Finite exterior field near the wire surface");
+        require((actual-expected).norm() / expected.norm() < 1e-8, "Exterior elliptic field remains unchanged");
+    }
+    const Vector3d centerField = field.computeSAM(Vector3d::Zero());
+    require(std::abs(centerField.z() / (mu0*I/(2*R)) - 1.0) < 1e-14,
+            "Field in coil aperture retains its analytic axis value");
+
+    BField rotated(1, {Vector3d(1,2,3)}, {Vector3d(1,0,0)}, R, I);
+    const Vector3d X = Vector3d(1,2,3) + Vector3d(.5*a,0,R);
+    const Vector3d expected(0,0,.5*surfaceField);
+    require((rotated.totalBField(X)-expected).norm() < 1e-10*surfaceField,
+            "Wire-core field rotates and translates with the coil");
+    require((rotated.totalBS(X)-expected).norm() < 1e-10*surfaceField,
+            "Biot-Savart comparison uses the same rotated conductor core");
+    std::cout << "PASS 1 mm conductor core, centreline, orientations and unchanged exterior field\n";
+}
+
 int main() {
     try {
         testKinematics();
@@ -205,6 +260,7 @@ int main() {
         testNonuniformField();
         testSimulatorEnergyScore();
         testFluxWeights();
+        testFiniteWireCore();
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n';
         return 1;

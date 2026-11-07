@@ -12,6 +12,7 @@ using namespace std;
 using namespace Eigen;
 
 struct BField {
+    static constexpr double wireRadius = 1e-3; // Conductor core radius: 1 mm.
     size_t k; // Number of coils
     vector<Vector3d> centers; // Coils centers
     vector<Vector3d> normals; // Coils normals
@@ -59,6 +60,8 @@ struct BField {
     }
 
     BField(size_t k_in, vector<Vector3d> centers_in, vector<Vector3d> normals_in, double R_in, double I_in) {
+        if (!std::isfinite(R_in) || R_in <= wireRadius)
+            throw invalid_argument("Coil radius must exceed the 1 mm wire radius.");
         if(k_in != centers_in.size() || k_in != normals_in.size()) {
             throw invalid_argument("Error in generating BField.");
             return;
@@ -87,11 +90,26 @@ struct BField {
         }
     }
 
+    // Local straight-wire approximation with uniform current density inside the conductor.
+    // A jump at the wire surface is allowed; the curved coil's background field is omitted here.
+    bool computeWireField(const Vector3d& X, Vector3d& B) const {
+        const double rho = std::hypot(X(0), X(1));
+        const double dr = rho - R;
+        if (dr * dr + X(2) * X(2) >= wireRadius * wireRadius) return false;
+        // R > wireRadius guarantees rho > 0 inside this tube.
+        const double factor = mu0 * I / (2.0 * PI * wireRadius * wireRadius);
+        B << factor * X(2) * X(0) / rho,
+             factor * X(2) * X(1) / rho,
+            -factor * dr;
+        return true;
+    }
+
     Vector3d computeBS(const Vector3d& X) {
         // This mehod computes the magnetic field of a single coil in a given point X with Biot-Savart law
+        Vector3d B;
+        if (computeWireField(X, B)) return B;
         // Precompute static variables
         precomputeTablesBS();
-        Vector3d B;
 
         ArrayXd base = (X(0) * X(0) + X(1) * X(1) + X(2) * X(2) + R * R
                         - 2 * R * X(0) * cosT
@@ -115,6 +133,8 @@ struct BField {
 
     Vector3d computeSAM(const Vector3d& X) {
         // Compute magnetic field with SAM algorithm
+        Vector3d B;
+        if (computeWireField(X, B)) return B;
         precomputeTablesSAM();
 
         // Conversion to cylindrical coordinates
@@ -137,8 +157,7 @@ struct BField {
         // Constants for integration
         const double a2 = R2 + rho2 + z2 - 2*R*rho;
         const double b2 = R2 + rho2 + z2 + 2*R*rho;
-        // The closed-form expression becomes singular at the wire location.
-        // Return a finite fallback there instead of propagating NaNs.
+        // Retain numerical guards outside the finite conductor core.
         if (a2 < 1e-12 || b2 < 1e-12 || !std::isfinite(a2) || !std::isfinite(b2)) {
             return Vector3d::Zero();
         }
@@ -163,7 +182,6 @@ struct BField {
         // B_phi is 0
 
         // Transform back in cartesian
-        Vector3d B;
         const double rho_safe = std::max(rho, 1e-12);
         B << B_rho * (x / rho_safe), B_rho * (y / rho_safe), B_z;
 
