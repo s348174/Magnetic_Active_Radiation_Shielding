@@ -1,15 +1,13 @@
 """
 Sample energies from particle flux distributions.
 
-Each particle has a discrete (Energy, Flux) spectrum. This script treats the
-flux as proportional to a probability density function (PDF) and draws random
-energy samples via inverse-CDF sampling on the piecewise-linear interpolation
-of that PDF.
+Physical energy remains in MeV/amu. The optimizer samples every nonempty
+logarithmic energy bin and passes its integrated flux to the C++ estimator.
+Within bins, inverse-CDF sampling is exact for the piecewise-linear spectrum.
 """
 
 import numpy as np
 import pandas as pd
-from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 from input import rng
 
@@ -63,7 +61,7 @@ def diagnose_sampling_input(df: pd.DataFrame) -> None:
             "Fix data issues to avoid incomplete sampling:" + report
         )
 
-def build_sampler(energy: np.ndarray, flux: np.ndarray) -> callable:
+def build_sampler(energy: np.ndarray, flux: np.ndarray, generator=None) -> callable:
     """
     Build an inverse-CDF sampler for a single particle's energy distribution.
 
@@ -84,33 +82,79 @@ def build_sampler(energy: np.ndarray, flux: np.ndarray) -> callable:
     energy = np.asarray(energy, dtype=float)
     flux   = np.asarray(flux,   dtype=float)
 
-    # Safety: clip any tiny negatives that might arise from floating-point noise
-    flux = np.clip(flux, 0.0, None)
+    if (energy.ndim != 1 or flux.shape != energy.shape or len(energy) < 2
+            or not np.isfinite(energy).all() or not np.isfinite(flux).all()
+            or np.any(np.diff(energy) <= 0) or np.any(flux < 0)):
+        raise ValueError("Expected an increasing energy grid and finite nonnegative flux.")
 
     # Trapezoidal cumulative integral → CDF
     cdf = np.concatenate([[0.0], np.cumsum(np.diff(energy) * 0.5 * (flux[:-1] + flux[1:]))])
     total = cdf[-1]
 
-    if total == 0:
+    if total <= 0 or not np.isfinite(total):
         raise ValueError("Flux is identically zero — cannot define a distribution.")
-
-    cdf_norm = cdf / total  # normalise to [0, 1]
-
-    # Remove duplicate CDF values (needed for monotone interpolation)
-    _, unique_idx = np.unique(cdf_norm, return_index=True)
-    cdf_unique    = cdf_norm[unique_idx]
-    energy_unique = energy[unique_idx]
-
-    # Inverse CDF: uniform → energy
-    inv_cdf = interp1d(cdf_unique, energy_unique, kind="linear",
-                       bounds_error=False,
-                       fill_value=(energy_unique[0], energy_unique[-1]))
+    random = rng if generator is None else generator
+    slope = np.diff(flux) / np.diff(energy)
 
     def sampler(n_samples: int = 1) -> np.ndarray:
-        u = rng.uniform(0.0, 1.0, size=n_samples)
-        return inv_cdf(u)
+        mass = random.uniform(0.0, total, size=n_samples)
+        # Repeated cumulative masses skip zero-density intervals without bridging them.
+        idx = np.searchsorted(cdf, mass, side="right") - 1
+        idx = np.minimum(idx, len(energy) - 2)
+        local_mass = mass - cdf[idx]
+        # Solve f0*x + slope*x^2/2 = local_mass without subtractive cancellation.
+        root = np.sqrt(np.maximum(flux[idx]**2 + 2*slope[idx]*local_mass, 0.0))
+        denominator = flux[idx] + root
+        offset = np.divide(2*local_mass, denominator, out=np.zeros_like(local_mass),
+                           where=denominator > 0)
+        return energy[idx] + np.clip(offset, 0.0, energy[idx+1] - energy[idx])
 
     return sampler
+
+
+def sample_all_particles_stratified(df: pd.DataFrame, n_samples: int = 1000,
+                                    n_bins: int = 8, generator=None) -> tuple:
+    """Return energy arrays and per-species rows [sample_count, integrated_flux].
+
+    Arrays contain consecutive bin blocks. Counts sum to n_samples per species;
+    empty bins are omitted. At least two samples per active bin permit variance
+    estimation. Bin fluxes have their original normalization, not probabilities.
+    """
+    diagnose_sampling_input(df)
+    energy = df["Energy"].to_numpy(dtype=float)
+    if len(energy) < 2 or energy[0] <= 0:
+        raise ValueError("Logarithmic bins require at least two positive energy coordinates.")
+    if not isinstance(n_bins, (int, np.integer)) or n_bins < 1:
+        raise ValueError("n_bins must be a positive integer.")
+    if not isinstance(n_samples, (int, np.integer)) or n_samples < 2:
+        raise ValueError("n_samples must be an integer of at least two.")
+    edges = np.geomspace(energy[0], energy[-1], n_bins + 1)
+    samples, strata = {}, {}
+    for particle in df.columns[1:]:
+        flux = df[particle].to_numpy(dtype=float)
+        bins = []
+        for lower, upper in zip(edges[:-1], edges[1:]):
+            interior = energy[(energy > lower) & (energy < upper)]
+            grid = np.concatenate(([lower], interior, [upper]))
+            values = np.interp(grid, energy, flux)
+            weight = np.sum(np.diff(grid) * 0.5 * (values[:-1] + values[1:]))
+            if not np.isfinite(weight):
+                raise ValueError(f"Non-finite integrated flux for {particle}.")
+            if weight > 0:
+                bins.append((grid, values, weight))
+        if n_samples < 2 * len(bins):
+            raise ValueError(f"{particle}: at least {2*len(bins)} samples are needed for {len(bins)} nonempty bins.")
+        if not bins:
+            raise ValueError(f"{particle}: no positive integrated flux.")
+        counts = np.full(len(bins), n_samples // len(bins), dtype=int)
+        counts[:n_samples % len(bins)] += 1
+        blocks, metadata = [], []
+        for count, (grid, values, weight) in zip(counts, bins):
+            blocks.append(build_sampler(grid, values, generator)(int(count)))
+            metadata.append((int(count), weight))
+        samples[particle] = np.concatenate(blocks)
+        strata[particle] = np.asarray(metadata, dtype=float)
+    return samples, strata
 
 
 def sample_particle(df: pd.DataFrame, particle: str, n_samples: int = 1000) -> np.ndarray:
@@ -209,7 +253,7 @@ def plot_samples(df: pd.DataFrame,
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    DATA_PATH = "../data/log_scaled_flux_data.csv"
+    DATA_PATH = "../data/flux_data_clean.csv"
     N_SAMPLES = 100_000
 
     print(f"Loading data from '{DATA_PATH}' …")

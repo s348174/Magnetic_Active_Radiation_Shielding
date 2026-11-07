@@ -9,6 +9,7 @@ device = torch.device("cpu")
 # Field parameters (fixed for this optimization)
 K = 10 # Number of coils
 N = int(1e3) # Number of particles
+ENERGY_BINS = 8 # Logarithmic energy strata; at least two samples per nonempty bin
 I = 7.2E4 # Current in Amperes
 R = 0.25 # Coil radius in meters
 
@@ -56,6 +57,7 @@ if USE_FEATURE_MAPPING:
 else:
     MAPPED_D = D
 
-# Read initial data from log files
-FILEPATH = "../data/log_scaled_flux_data.csv"
-LOG_DATA = pd.read_csv(FILEPATH)
+# Physical energies stay in MeV/amu; logarithmic bins control tail coverage.
+FILEPATH = "../data/flux_data_clean.csv"
+FLUX_DATA = pd.read_csv(FILEPATH)
+LOG_DATA = FLUX_DATA # Compatibility with existing analysis scripts

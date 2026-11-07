@@ -6,8 +6,8 @@ import simulator
 
 import numpy as np
 
-from LogDataSampler import sample_all_particles
-from input import K, N, I, R, LOG_DATA, rng
+from LogDataSampler import sample_all_particles_stratified
+from input import K, N, I, R, FLUX_DATA, ENERGY_BINS, rng
 
 def spherical_to_cartesian(r, theta, phi):
     """
@@ -41,20 +41,22 @@ def objective_function(seed, centers, normals):
     centers_cart = spherical_to_cartesian(centers[:, 0], centers[:, 1], centers[:, 2]) # shape: (K, 3)
     normals_cart = spherical_to_cartesian(np.ones(K), normals[:, 0], normals[:, 1]) # shape: (K, 3) - unit vectors for normals
     
-    # Sample particle energies from the log data distribution (for all particles, but we can choose one if needed)
-    samples_dict = sample_all_particles(LOG_DATA, n_samples=N)
+    # Cover logarithmic energy bins while retaining physical energies and fluxes.
+    samples_dict, strata_dict = sample_all_particles_stratified(
+        FLUX_DATA, n_samples=N, n_bins=ENERGY_BINS)
     
     # Call the C++ simulator
-    meanVar = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict)
+    meanVar = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict, strata_dict)
     # Take the log of energy to stabilize optimization and handle wide range of values
     log_energy = np.log(meanVar[0])
     log_var = meanVar[1] / (meanVar[0] ** 2 + 1e-6) + 1e-6 # Variance of log(energy) using delta method
     if np.isnan(log_energy) or np.isinf(log_energy):
         print(f"Warning: Non-finite energy encountered. Expected energy: {meanVar[0]}. Try again with a different seed or check the simulator for issues.")
-        samples_dict = sample_all_particles(LOG_DATA, n_samples=N)  # Debug: print some samples to check distribution
+        samples_dict, strata_dict = sample_all_particles_stratified(
+            FLUX_DATA, n_samples=N, n_bins=ENERGY_BINS)
         seed = rng.integers(1e6)
         print(f"New seed: {seed}")
-        meanVar = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict)
+        meanVar = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict, strata_dict)
         # Take the log of energy to stabilize optimization and handle wide range of values
         log_energy = np.log(meanVar[0])
         log_var = meanVar[1] / (meanVar[0] ** 2 + 1e-6) + 1e-6 # Variance of log(energy) using delta method

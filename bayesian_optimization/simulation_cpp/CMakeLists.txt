@@ -96,4 +96,16 @@ if(BUILD_TESTING)
     target_include_directories(relativistic_tests PRIVATE src)
     target_link_libraries(relativistic_tests PRIVATE Eigen3::Eigen Threads::Threads)
     add_test(NAME relativistic_numerics COMMAND relativistic_tests)
+    add_test(NAME stratified_sampling
+        COMMAND ${CMAKE_COMMAND} -E env
+            "PYTHONPATH=$<TARGET_FILE_DIR:simulator>:${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py"
+            "PYTHONDONTWRITEBYTECODE=1"
+            "MPLBACKEND=Agg"
+            "MPLCONFIGDIR=${CMAKE_CURRENT_BINARY_DIR}/matplotlib-cache"
+            "XDG_CACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/cache"
+            ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py/tests/test_stratified_sampling.py
+    )
+    set_tests_properties(stratified_sampling PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py")
 endif()

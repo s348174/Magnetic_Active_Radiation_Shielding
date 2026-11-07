@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <string>
 #include <utility>
+#include <limits>
 
 using namespace std;
 using namespace Eigen;
@@ -21,6 +22,8 @@ namespace py = pybind11;
 std::vector<Eigen::Vector3d> numpy_to_vector3d(py::array_t<double> np_array)
 {
     // Convert numpy to Eigen
+    if (np_array.ndim() != 2 || np_array.shape(1) != 3)
+        throw invalid_argument("Coil coordinates must have shape (K, 3)");
     auto r = np_array.unchecked<2>();
     std::vector<Eigen::Vector3d> vector_eigen;
     vector_eigen.reserve(r.shape(0));
@@ -33,6 +36,7 @@ std::vector<Eigen::Vector3d> numpy_to_vector3d(py::array_t<double> np_array)
 std::vector<double> numpy_to_vector(py::array_t<double> np_array)
 {
     // Copy a NumPy array to std::vector
+    if (np_array.ndim() != 1) throw invalid_argument("Energy samples must be one-dimensional");
     auto r = np_array.unchecked<1>();
     std::vector<double> vector_cpp;
     vector_cpp.reserve(r.shape(0));
@@ -57,7 +61,7 @@ std::unordered_map<std::string, std::vector<double>> dict_to_map(py::dict py_dic
 
 pair<double, double> launch_simulation(unsigned long seed, int N, size_t K, double I, double R,
                          py::array_t<double> centers_np, py::array_t<double> normals_np,
-                         py::dict samples_np)
+                         py::dict samples_np, py::dict strata_np)
 {
     // Run main simulation
     chrono::steady_clock::time_point t_begin = chrono::steady_clock::now();
@@ -78,22 +82,35 @@ pair<double, double> launch_simulation(unsigned long seed, int N, size_t K, doub
     // Convert the samples dictionary
     unordered_map<string, vector<double>> samples = dict_to_map(samples_np);
 
-    // Try to run simulation
-    try {
-        // Build magnetic field
-        BField field(K, centers, normals, R, I);
-
-        // Run multithread simulation from CSV input (for particles phyisics data)
-        meanVariance = runFromCSV_MT("../data/particles_input.csv", field, revelator, samples, N, dt, seed);
-
-        chrono::steady_clock::time_point t_end = chrono::steady_clock::now();
-        double elapsedTime = chrono::duration_cast<chrono::seconds>(t_end-t_begin).count();
-        cout << "Seed " << seed << ". Elapsed simulation time: " << elapsedTime << "s." << endl;
-        cout << "Seed " << seed << ". Total expected dose: " << meanVariance.first << endl;
-        cout << "Seed " << seed << ". Total variance: " << meanVariance.second << endl;
-    } catch (const invalid_argument e){
-        cerr << "Seed " << seed << ". Error: number of coils and number of coils parameters provided do not match!" << endl;
+    // Each row contains the count and integrated flux of one consecutive sample block.
+    unordered_map<string, vector<EnergyBin>> strata;
+    for (auto item : strata_np) {
+        string name = py::cast<string>(item.first);
+        auto bins = py::cast<py::array_t<double>>(item.second);
+        if (bins.ndim() != 2 || bins.shape(1) != 2)
+            throw invalid_argument("Energy bin metadata must have shape (bins, 2)");
+        auto rows = bins.unchecked<2>();
+        vector<EnergyBin> values;
+        for (ssize_t i = 0; i < rows.shape(0); ++i) {
+            double count = rows(i, 0);
+            if (!isfinite(count) || count < 2 || count > numeric_limits<int>::max() || floor(count) != count)
+                throw invalid_argument("Energy bin counts must be integers of at least two");
+            values.push_back({static_cast<int>(count), rows(i, 1)});
+        }
+        strata[name] = std::move(values);
     }
+
+    // Build magnetic field
+    BField field(K, centers, normals, R, I);
+
+    // Run multithread simulation from CSV input (for particle physics data).
+    meanVariance = runFromCSV_MT("../data/particles_input.csv", field, revelator, samples, N, dt, seed, strata);
+
+    chrono::steady_clock::time_point t_end = chrono::steady_clock::now();
+    double elapsedTime = chrono::duration_cast<chrono::seconds>(t_end-t_begin).count();
+    cout << "Seed " << seed << ". Elapsed simulation time: " << elapsedTime << "s." << endl;
+    cout << "Seed " << seed << ". Total expected dose: " << meanVariance.first << endl;
+    cout << "Seed " << seed << ". Total variance: " << meanVariance.second << endl;
 
     return meanVariance;
 }

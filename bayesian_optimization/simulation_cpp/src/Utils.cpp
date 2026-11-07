@@ -154,15 +154,35 @@ unordered_map<string, double> readFluxWeights(const string& filename) {
 // Thread worker function
 void runSimulation(BField field, Revelator revelator, const vector<double>& energy_samples,
                    string name, double m, double q, double fluxWeight, int N, double dt, unsigned long seed,
-                   double& totalExpectedDose, double& totalVariance, mutex& doseMutex) {
+                   double& totalExpectedDose, double& totalVariance, mutex& doseMutex,
+                   const vector<EnergyBin>& bins) {
     double expectedDose = 0.0;
     double variance = 0.0;
-    bool ok = monteCarlo(field, revelator, energy_samples, name, m, q, N, dt, seed, expectedDose, variance);
+    bool ok = true;
+    if (bins.empty()) {
+        // Compatibility with callers sampling the entire species spectrum.
+        ok = monteCarlo(field, revelator, energy_samples, name, m, q, N, dt, seed, expectedDose, variance);
+        expectedDose *= fluxWeight;
+        variance *= fluxWeight * fluxWeight / static_cast<double>(N);
+    } else {
+        size_t offset = 0;
+        for (const auto& bin : bins) {
+            vector<double> binSamples(energy_samples.begin() + offset,
+                                      energy_samples.begin() + offset + bin.count);
+            double binMean = 0.0, binVariance = 0.0;
+            ok = monteCarlo(field, revelator, binSamples, name, m, q, bin.count,
+                           dt, seed, binMean, binVariance);
+            if (!ok) break;
+            expectedDose += bin.flux * binMean;
+            variance += bin.flux * bin.flux * binVariance / static_cast<double>(bin.count);
+            offset += bin.count;
+        }
+    }
 
     if (ok) {
         lock_guard<mutex> lock(doseMutex);
-        totalExpectedDose += fluxWeight * expectedDose;
-        totalVariance += fluxWeight * fluxWeight * variance / static_cast<double>(N);
+        totalExpectedDose += expectedDose;
+        totalVariance += variance;
     }
 
     {
@@ -176,7 +196,9 @@ void runSimulation(BField field, Revelator revelator, const vector<double>& ener
 // Main reader & dispatcher
 pair<double, double> runFromCSV_MT(const string& filename, BField field, Revelator revelator,
                      unordered_map<string, vector<double>> samples, int N,
-                     double dt, unsigned long seed) {
+                     double dt, unsigned long seed,
+                     const unordered_map<string, vector<EnergyBin>>& strata) {
+    if (N < 2) throw invalid_argument("At least two particles per species are required");
     ifstream file(filename);
     if (!file.is_open()) {
         cerr << "Seed " << seed << ". Error: Could not open " << filename << endl;
@@ -195,7 +217,42 @@ pair<double, double> runFromCSV_MT(const string& filename, BField field, Revelat
     for (const auto& entry : samples) {
         if (!fluxWeights.count(entry.first))
             throw invalid_argument("Missing integrated flux for " + entry.first);
+        if (entry.second.size() != static_cast<size_t>(N))
+            throw invalid_argument("Sample count does not match N for " + entry.first);
+        for (double energy : entry.second)
+            if (!isfinite(energy) || energy <= 0.0) throw invalid_argument("Invalid sampled energy");
+        if (!strata.empty()) {
+            if (!strata.count(entry.first) || strata.at(entry.first).empty())
+                throw invalid_argument("Missing energy bins for " + entry.first);
+            size_t count = 0;
+            double flux = 0.0;
+            for (const auto& bin : strata.at(entry.first)) {
+                if (bin.count < 2 || !isfinite(bin.flux) || bin.flux <= 0.0)
+                    throw invalid_argument("Each nonempty bin needs positive flux and at least two samples");
+                count += bin.count;
+                flux += bin.flux;
+            }
+            if (count != entry.second.size()) throw invalid_argument("Energy bin counts do not match samples");
+            if (!isfinite(flux) || abs(flux - fluxWeights.at(entry.first)) > 1e-8 * fluxWeights.at(entry.first))
+                throw invalid_argument("Bin fluxes do not sum to the physical species flux");
+        }
     }
+    for (const auto& entry : strata)
+        if (!samples.count(entry.first)) throw invalid_argument("Energy bins have no matching samples");
+
+    // Parse all particle rows before starting threads so missing species cannot be skipped.
+    vector<string> particleRows;
+    while (getline(file, line)) {
+        if (trim(line).empty()) continue;
+        stringstream row(line);
+        string index, name;
+        getline(row, index, ',');
+        getline(row, name, ',');
+        name = trim(name);
+        if (!samples.count(name)) throw invalid_argument("Missing samples for " + name);
+        particleRows.push_back(line);
+    }
+    BField::precomputeTablesSAM(); // Initialize the shared field cache before workers use it.
 
     vector<thread> threads;
     double totalExpectedDose = 0.0;
@@ -204,17 +261,17 @@ pair<double, double> runFromCSV_MT(const string& filename, BField field, Revelat
 
     cout << "Starting simulations with seed " << seed << "..." << endl;
 
-    while (getline(file, line)) {
+    const vector<EnergyBin> noBins;
+    for (const string& particleRow : particleRows) {
 
-        if (line.empty()) continue;
-
-        stringstream ss(line);
+        stringstream ss(particleRow);
         string idxStr, name, mStr, qStr;
         getline(ss, idxStr, ',');
         getline(ss, name, ',');
         getline(ss, mStr, ',');
         getline(ss, qStr, ',');
 
+        name = trim(name);
         mStr = trim(mStr);
         qStr = trim(qStr);
 
@@ -223,13 +280,14 @@ pair<double, double> runFromCSV_MT(const string& filename, BField field, Revelat
             double q = e_q * evaluateExpression(qStr);
             const vector<double>& energy_samples = samples.at(name);
             double fluxWeight = fluxWeights.at(name);
+            const vector<EnergyBin>& bins = strata.empty() ? noBins : strata.at(name);
 
             // Launch one thread per simulation
-            threads.emplace_back(runSimulation, field, revelator, ref(energy_samples), name, m, q, fluxWeight, N, dt, seed, ref(totalExpectedDose), ref(totalVariance), ref(doseMutex));
+            threads.emplace_back(runSimulation, field, revelator, ref(energy_samples), name, m, q, fluxWeight, N, dt, seed, ref(totalExpectedDose), ref(totalVariance), ref(doseMutex), cref(bins));
         }
         catch (const std::exception& e) {
             lock_guard<mutex> lock(io_mutex);
-            cerr << "Seed " << seed << ". Error parsing line: " << line << "\n" << e.what() << endl;
+            cerr << "Seed " << seed << ". Error parsing line: " << particleRow << "\n" << e.what() << endl;
         }
     }
 
