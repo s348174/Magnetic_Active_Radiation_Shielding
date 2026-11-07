@@ -47,14 +47,14 @@ def bo_matern_kernel(nu=2.5):
     train_yvar = torch.tensor(train_yvar, dtype=torch.double).unsqueeze(-1).to(device) # Convert to tensor for noise floor fitting
     train_yvar = torch.clamp(train_yvar, min=1e-6) # Avoid zero noise variance which can cause GP fitting issues
 
-    ## Step 2: Fit Gaussian Process model over centers and normals
+    ## Step 2: Map normalized designs once for GP training.
+    X_train_model = map_fn(X_train)
     covar_module = ScaleKernel(
         MaternKernel(
             nu=nu, # Smoothness parameter for Matern kernel (common choice for BO)
-            ard_num_dims=MAPPED_D, # Must match the feature-mapped input dimension
+            ard_num_dims=X_train_model.shape[-1], # Match the actual selected feature map
         )
     )
-    X_train_model = map_fn(X_train)
     gp = SingleTaskGP(
         X_train_model.detach().clone().to(device),
         torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
@@ -196,7 +196,7 @@ def bo_rbf_kernel():
         candidate_np = candidate.detach().cpu().numpy()
         candidate_unnorm = denormalize(candidate_np).detach().cpu().numpy() # Denormalize candidate to original scale
         # Check for duplicates in training data (can happen due to optimization tolerances)
-        if duplicate_safe_candidate(X_train, candidate_unnorm):
+        if duplicate_safe_candidate(X_train, cand):
             print("Duplicate candidate returned by optimizer — skipping this iteration")
             continue
         centers_next, normals_next = unpack_configuration(candidate_unnorm[0])

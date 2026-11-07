@@ -45,15 +45,12 @@ unit_bounds[1] = 1.0  # upper bounds all 1
 # We map these dimensions to sin/cos pairs to avoid wrap-around discontinuities.
 PERIODIC_IDXS = list(range(2 * K, 3 * K)) + list(range(4 * K, 5 * K))
 
-# Quick toggle to enable/disable periodic feature mapping.
-# Set environment variable `USE_FEATURE_MAPPING=0` or `USE_FEATURE_MAPPING=false` to disable.
-os.environ["USE_FEATURE_MAPPING"] = "0" # Default to enabled for better performance, but can be turned off for testing
-USE_FEATURE_MAPPING = os.getenv("USE_FEATURE_MAPPING", "1").lower() not in ("0", "false", "f", "no")
+# Optional periodic map for the global loops; Cartesian maps always convert physical geometry.
+USE_FEATURE_MAPPING = os.getenv("USE_FEATURE_MAPPING", "0").lower() not in ("0", "false", "f", "no")
 
 # Input dimension seen by the GP after feature mapping.
 if USE_FEATURE_MAPPING:
-    #MAPPED_D = D + len(PERIODIC_IDXS)
-    MAPPED_D = D + K
+    MAPPED_D = D + len(PERIODIC_IDXS)
 else:
     MAPPED_D = D
 

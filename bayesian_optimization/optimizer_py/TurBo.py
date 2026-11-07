@@ -216,7 +216,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
                     # + ScaleKernel(CoilMomentKernel(n_coils=K)) -> to be added later if Turbo plateaus
     likelihood = GaussianLikelihood(noise_constraint=Interval(1e-8, 1e-3))
 
-    X_train_model = map_coilwise(X_train)
+    X_train_model = map_coilwise(X_train) # Normalized designs -> physical coil features
     assert X_train_model.shape[-1] == K * 6, f"got {X_train_model.shape[-1]}, expected {K*6} -- check mapping call sites"
     gp = SingleTaskGP(
         X_train_model.detach().clone().to(device),
@@ -264,10 +264,9 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
         else:
             # Log-EI optimised within the TR bounds
             tr_bounds = _tr_bounds(state, X_train, y_train)
-            best_f = torch.tensor(y_train.max(), dtype=torch.double, device=device)
             log_ei = qLogNoisyExpectedImprovement(
                 model=InputMappedModel(gp, map_coilwise),
-                best_f=best_f,
+                X_baseline=X_train, # Wrapper maps normalized baseline and candidates once
             )
             candidate, acq_value = optimize_acqf(
                 acq_function=log_ei,

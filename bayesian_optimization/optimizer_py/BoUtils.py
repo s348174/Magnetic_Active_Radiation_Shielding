@@ -20,21 +20,14 @@ from input import K, device, LOWER, UPPER, D, USE_FEATURE_MAPPING, PERIODIC_IDXS
 # NORMALIZATION FUNCTIONS AND CONFIGURATION PACKING/UNPACKING
 ###################################################################
 def normalize(X):
-    """Scale X from original bounds to [0, 1]."""
-    # Move to numpy to avoid torch issues
-    UPPER_np = UPPER.cpu().numpy()
-    LOWER_np = LOWER.cpu().numpy()
-    scaled = (X - LOWER_np) / (UPPER_np - LOWER_np)
-    scaled = np.clip(scaled, 0.0, 1.0)
-    return torch.tensor(scaled, dtype=torch.double).to(device)
+    """Physical parameters -> unit cube, preserving tensor gradients."""
+    X = torch.as_tensor(X, dtype=torch.double, device=device)
+    return ((X - LOWER) / (UPPER - LOWER)).clamp(0.0, 1.0)
 
 def denormalize(X):
-    """Scale X from [0, 1] back to original bounds."""
-    # Move to numpy to avoid torch issues
-    UPPER_np = UPPER.cpu().numpy()
-    LOWER_np = LOWER.cpu().numpy()
-    scaled = X * (UPPER_np - LOWER_np) + LOWER_np
-    return torch.tensor(scaled, dtype=torch.double).to(device)
+    """Unit cube -> physical parameters, preserving tensor gradients."""
+    X = torch.as_tensor(X, dtype=torch.double, device=device)
+    return LOWER + X * (UPPER - LOWER)
 
 def pack_configuration(centers, normals):
     """Pack one sample with ordering consistent with LOWER/UPPER tensors."""
@@ -131,13 +124,10 @@ map_fn = periodic_feature_map if USE_FEATURE_MAPPING else identity_map
 
 def map_cart(X):
     """
-    Convert spherical parameters → Cartesian embedding for GP.
+    Normalized (..., 5K) -> physical Cartesian (..., 6K) features.
+    Output order: cx(K), cy(K), cz(K), nx(K), ny(K), nz(K).
     """
-
-    if not torch.is_tensor(X):
-        X = torch.tensor(X, dtype=torch.double, device=device)
-
-    X = X.to(dtype=torch.double, device=device)
+    X = denormalize(X)
 
     r = X[..., :K]
     theta = X[..., K:2*K]
@@ -164,46 +154,12 @@ def map_cart(X):
     ], dim=-1)
 
 def map_set(X):
-    """
-    X: (B, 5K) spherical parameters
-    returns: (B, D_out) permutation-invariant embedding
-    """
-
-    if not torch.is_tensor(X):
-        X = torch.tensor(X, dtype=torch.double, device=device)
-
-    r = X[..., :K]
-    theta = X[..., K:2*K]
-    phi = X[..., 2*K:3*K]
-
-    theta_n = X[..., 3*K:4*K]
-    phi_n = X[..., 4*K:5*K]
-
-    # centers cartesian
-    sin_phi = torch.sin(phi)
-    c = torch.stack([
-        r * sin_phi * torch.cos(theta),
-        r * sin_phi * torch.sin(theta),
-        r * torch.cos(phi)
-    ], dim=-1)  # (B,K,3)
-
-    # normals cartesian
-    sin_phi_n = torch.sin(phi_n)
-    n = torch.stack([
-        sin_phi_n * torch.cos(theta_n),
-        sin_phi_n * torch.sin(theta_n),
-        torch.cos(phi_n)
-    ], dim=-1)  # (B,K,3)
-
-    # per-coil embedding
-    h = torch.cat([c, n], dim=-1)  # (B,K,6)
-
-    # permutation invariant pooling
-    h_mean = h.mean(dim=-2)
-    h_std = h.std(dim=-2)
-    h_max = h.max(dim=-2).values
-
-    return torch.cat([h_mean, h_std, h_max], dim=-1)
+    """Pool physical Cartesian coil features from normalized (..., 5K) inputs."""
+    h = map_coilwise(X)
+    h = h.reshape(*h.shape[:-1], K, 6)
+    # Population standard deviation is also defined for a single coil.
+    return torch.cat([h.mean(dim=-2), h.std(dim=-2, unbiased=False),
+                      h.max(dim=-2).values], dim=-1)
 
 class InputMappedAcquisition(AcquisitionFunction):
     """Evaluate an acquisition on mapped inputs while optimizing in original space."""
@@ -300,10 +256,10 @@ def map_coilwise(X):
     """
     Reshape map_cart's per-component layout (B, 6K) = [cx(K),cy(K),cz(K),nx(K),ny(K),nz(K)]
     into per-coil layout (B, K*6) = [cx_1,cy_1,cz_1,nx_1,ny_1,nz_1, cx_2,...].
-    Reuses map_cart's existing periodicity-safe Cartesian conversion — no new trig.
+    Input is normalized; map_cart performs the physical conversion exactly once.
     """
     h = map_cart(X)                          # (B, 6K)
-    h = h.view(*h.shape[:-1], 6, K)           # (B, 6, K) -- recovers the 6 original blocks
+    h = h.reshape(*h.shape[:-1], 6, K)        # (B, 6, K) -- recovers the 6 original blocks
     h = h.transpose(-2, -1)                   # (B, K, 6) -- group by coil
     return h.reshape(*h.shape[:-2], K * 6)    # (B, K*6)
     
@@ -344,16 +300,10 @@ def stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
     return False
 
 def duplicate_safe_candidate(X_train, candidate, tol=1e-6):
-    """Return True when candidate is already present in X_train."""
-    #cand = torch.tensor(candidate, dtype=torch.double, device=device).unsqueeze(0) # shape: (1, D)
-    cand = candidate.clone().detach().to(dtype=torch.double, device=device).unsqueeze(0) # shape: (1, D)
-    cand = map_set(cand) if USE_FEATURE_MAPPING else cand
-    X_train_denorm = denormalize(X_train) if not USE_FEATURE_MAPPING else X_train
-    X_train_mapped = map_set(X_train_denorm) if USE_FEATURE_MAPPING else X_train
-    dists = torch.max(
-        torch.abs(X_train_mapped - cand),
-        dim=1
-    ).values
+    """Check rowwise distances in normalized design space for every map choice."""
+    X_train = torch.as_tensor(X_train, dtype=torch.double, device=device)
+    cand = torch.as_tensor(candidate, dtype=torch.double, device=device).reshape(-1, X_train.shape[-1])
+    dists = (X_train[:, None, :] - cand[None, :, :]).abs().amax(dim=-1)
     return bool((dists < tol).any())
 
 

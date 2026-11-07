@@ -108,4 +108,16 @@ if(BUILD_TESTING)
     )
     set_tests_properties(stratified_sampling PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py")
+    add_test(NAME physical_input_maps
+        COMMAND ${CMAKE_COMMAND} -E env
+            "PYTHONPATH=$<TARGET_FILE_DIR:simulator>:${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py"
+            "PYTHONDONTWRITEBYTECODE=1"
+            "MPLBACKEND=Agg"
+            "MPLCONFIGDIR=${CMAKE_CURRENT_BINARY_DIR}/matplotlib-cache"
+            "XDG_CACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/cache"
+            ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py/tests/test_input_maps.py
+    )
+    set_tests_properties(physical_input_maps PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py")
 endif()
