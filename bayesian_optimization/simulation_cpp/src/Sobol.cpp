@@ -2,6 +2,8 @@
 #include <cmath>
 #include <stdexcept>
 #include <Eigen/Dense>
+#include <array>
+#include <cstdint>
 
 using Vector3d = Eigen::Vector3d;
 using namespace std;
@@ -39,11 +41,20 @@ inline void sobol_init(uint32_t V[2][MAX_BITS]) {
     }
 }
 
-// XOR-shift hash for Owen scrambling (fast, good avalanche)
+// Nested binary Owen scramble: each digit flip depends only on its original
+// preceding digits, the level and the seed. Hashing supplies reproducible tree flips.
 static uint32_t owenHash(uint32_t x, uint32_t seed) {
-    x ^= seed;
-    x ^= x >> 17; x ^= x << 31; x ^= x >> 8;
-    return x;
+    uint32_t result = 0, prefix = 0;
+    for (int bit = 31; bit >= 0; --bit) {
+        uint32_t h = seed ^ prefix ^ (0x9e3779b9u * static_cast<uint32_t>(32-bit));
+        h ^= h >> 16; h *= 0x7feb352du;
+        h ^= h >> 15; h *= 0x846ca68bu;
+        h ^= h >> 16;
+        uint32_t digit = (x >> bit) & 1u;
+        result = (result << 1) | (digit ^ (h & 1u));
+        prefix = (prefix << 1) | digit;
+    }
+    return result;
 }
 
 // Fill `n` 2D Sobol points into out[][2] as doubles in [0,1)
@@ -54,16 +65,16 @@ inline void sobol2d(int n, std::vector<std::array<double, 2>>& out, uint32_t see
     out.resize(n);
     uint32_t x[2] = {0, 0};
     for (int i = 0; i < n; ++i) {
-        // Gray-code index trick: find rightmost zero bit of i
-        int c = 0;
-        int val = i;
-        while (val & 1) { ++c; val >>= 1; }
-        x[0] ^= V[0][c];
-        x[1] ^= V[1][c];
+        // Include index zero so prefixes of length 2^m retain their net balance.
+        if (i > 0) {
+            int c = 0;
+            int val = i - 1;
+            while (val & 1) { ++c; val >>= 1; }
+            x[0] ^= V[0][c];
+            x[1] ^= V[1][c];
+        }
         out[i][0] = owenHash(x[0], seed)        * (1.0 / (1ull << MAX_BITS));
-        out[i][1] = owenHash(x[1], seed * 2654435761u) * (1.0 / (1ull << MAX_BITS));
-        out[i][0] = x[0] * (1.0 / (1ull << MAX_BITS));
-        out[i][1] = x[1] * (1.0 / (1ull << MAX_BITS));
+        out[i][1] = owenHash(x[1], seed ^ 0x9e3779b9u) * (1.0 / (1ull << MAX_BITS));
     }
 }
 

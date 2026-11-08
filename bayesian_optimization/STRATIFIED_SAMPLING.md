@@ -38,10 +38,11 @@ the sample array and the original physical spectrum before threads start.
 Invalid bin metadata or missing species raises an error in Python.
 
 The outer Bayesian optimizer still fits the negative logarithm of the response.
-The variance formula is the usual stratified sample-mean estimate. The existing
-deterministic spatial Sobol points remain unchanged, so this is not a new
-calibrated randomized-QMC uncertainty estimate. Existing GP noise handling is
-also unchanged. Historical optimization values from the rescaled spectra are
+The variance formula is the usual stratified sample-mean estimate, not a
+calibrated randomized-QMC uncertainty estimate. Spatial Sobol points now use
+seeded nested Owen scrambling. Final validation estimates uncertainty between
+independent complete replicates; see `MULTI_TURBO.md`. GP noise handling is
+unchanged. Historical optimization values from the rescaled spectra are
 not directly comparable and should be regenerated for this sampling model.
 
 After configuring and building `simulation_cpp`, run both suites with:

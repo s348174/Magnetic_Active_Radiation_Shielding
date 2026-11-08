@@ -1,7 +1,7 @@
 # Import libraries for optimization
 import math
 import torch
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 # BoTorch imports
 from botorch.models import SingleTaskGP
@@ -73,17 +73,14 @@ class TurboState:
     success_tolerance: int = 10            # original paper uses 3; 10 is more conservative
     best_value: float = -float("inf")
     restart_triggered: bool = False
+    best_index: int | None = None # Index of this region's own incumbent in X_train
 
     def __post_init__(self):
         self.failure_tolerance = math.ceil(
             max(4.0 / self.batch_size, float(self.dim) / self.batch_size)
         )
 
-# Re-declare so the field() call is resolved correctly at class-definition time.
-TurboState = dataclass(TurboState)  # re-apply decorator after fixing imports
-
-
-def update_state(state: TurboState, Y_next: torch.Tensor) -> TurboState:
+def update_state(state: TurboState, Y_next: torch.Tensor, new_index=None) -> TurboState:
     """Expand or shrink the trust region based on the latest batch outcome."""
     if max(Y_next) > state.best_value + 1e-3 * math.fabs(state.best_value):
         state.success_counter += 1
@@ -99,7 +96,10 @@ def update_state(state: TurboState, Y_next: torch.Tensor) -> TurboState:
         state.length /= 2.0
         state.failure_counter = 0
 
-    state.best_value = max(state.best_value, max(Y_next).item())
+    if max(Y_next).item() > state.best_value:
+        state.best_value = max(Y_next).item()
+        if new_index is not None:
+            state.best_index = new_index
     if state.length < state.length_min:
         state.restart_triggered = True
     return state
@@ -116,7 +116,7 @@ def _tr_bounds(state: TurboState, X_train: torch.Tensor, y_train: np.ndarray) ->
     The TR is a hypercube of side-length `state.length` clipped to [0, 1]^D,
     matching the normalised unit-cube convention used throughout BoLoop.py.
     """
-    best_idx = int(np.argmax(y_train))
+    best_idx = state.best_index if state.best_index is not None else int(np.argmax(y_train))
     x_centre = X_train[best_idx]                  # shape (D,)
     D = x_centre.shape[0]
     half = state.length / 2.0
@@ -166,9 +166,13 @@ def _generate_batch_ts(
 # Main TuRBO loop — Matérn kernel variant (mirrors bo_matern_kernel style)
 # ---------------------------------------------------------------------------
 
-def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
+def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts", initial_data=None,
+                    start_index=None, max_iter=None) -> tuple:
     """
-    TuRBO-1 loop using a Matérn-5/2 ARD kernel.
+    One trust-region run using the active permutation-invariant coil kernel.
+    The legacy name and nu argument are retained for existing callers.
+    Optional initial_data reuses a shared initial design without reevaluating it;
+    start_index chooses this region's incumbent, independently of other regions.
 
     Parameters
     ----------
@@ -185,12 +189,17 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
     variance_hist  : list  — mean posterior variance per iteration.
     """
     warnings_counter = 0
+    iterations = MAX_ITER if max_iter is None else int(max_iter)
+    if iterations < 1 or Q != 1 or acqf not in ('ts','ei'):
+        raise ValueError("Use a positive budget, Q=1 and acqf='ts' or 'ei'.")
     warnings.filterwarnings("ignore", category=InputDataWarning)
 
     # ------------------------------------------------------------------
     # Step 1: Sobol initialisation (reuses your existing helper)
     # ------------------------------------------------------------------
-    X_train, y_train, train_yvar = sobol_sample()
+    X_train, y_train, train_yvar = sobol_sample() if initial_data is None else initial_data
+    X_train = X_train.detach().clone()
+    y_train = np.asarray(y_train).copy()
     train_yvar = torch.tensor(train_yvar, dtype=torch.double).unsqueeze(-1).to(device)
     train_yvar = torch.clamp(train_yvar, min=1e-6)
 
@@ -231,8 +240,11 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
     # Step 3: Initialise TuRBO state
     # ------------------------------------------------------------------
     state = TurboState(dim=D, batch_size=Q)
-    # Seed best_value from Sobol observations
-    state.best_value = float(y_train.max())
+    # A region may use all initial observations to fit its GP, but follows its own incumbent.
+    state.best_index = int(np.argmax(y_train)) if start_index is None else int(start_index)
+    if state.best_index < 0 or state.best_index >= len(y_train):
+        raise ValueError("Invalid initial region index.")
+    state.best_value = float(y_train[state.best_index])
 
     ei_array       = np.empty(0)
     best_mean_hist = []
@@ -241,7 +253,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
     # ------------------------------------------------------------------
     # Step 4: TuRBO loop — runs until restart triggered or MAX_ITER reached
     # ------------------------------------------------------------------
-    for iteration in range(MAX_ITER):
+    for iteration in range(iterations):
         if state.restart_triggered:
             print(f"TuRBO restart triggered at iteration {iteration+1} "
                   f"(TR length={state.length:.4f} < min={state.length_min:.4f}).")
@@ -289,23 +301,20 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
 
         # 3. Evaluate the simulator
         energy_next, var_next = objective_function(rng.integers(1e6), centers_next, normals_next)
-        train_yvar = torch.cat(
-            (train_yvar, torch.tensor([[var_next]], dtype=torch.double).to(device)), dim=0
-        )
-        train_yvar = torch.clamp(train_yvar, min=1e-6)
-
         if np.isnan(energy_next) or np.isinf(energy_next):
             warnings.warn(
                 f"Non-finite energy at iteration {iteration+1}. Skipping."
             )
             warnings_counter += 1
-            if warnings_counter > MAX_ITER // 3:
+            if warnings_counter > iterations // 3:
                 raise ValueError("Too many non-finite energies — aborting.")
             continue
 
         # 4. Append new observation
         X_train = torch.vstack((X_train, cand))
         y_train = np.append(y_train, float(-energy_next))     # negate for maximisation
+        train_yvar = torch.cat((train_yvar, torch.tensor([[var_next]], dtype=torch.double, device=device)))
+        train_yvar = torch.clamp(train_yvar, min=1e-6)
         assert X_train.shape[0] == y_train.shape[0], \
             f"Shape mismatch: X={X_train.shape}, y={y_train.shape}"
 
@@ -313,7 +322,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
         Y_next_tensor = torch.tensor(
             [-energy_next], dtype=torch.double, device=device
         ).unsqueeze(-1)
-        state = update_state(state=state, Y_next=Y_next_tensor)
+        state = update_state(state=state, Y_next=Y_next_tensor, new_index=len(y_train)-1)
 
         # 6. Refit GP on all data collected so far
         X_train_model = map_coilwise(X_train)
@@ -327,7 +336,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
         fit_gp_with_noise_floor(gp)
 
         # 7. Convergence diagnostics (mirrors bo_matern_kernel exactly)
-        acq_scalar = acq_value.item() if not torch.isnan(acq_value) else 0.0
+        acq_scalar = acq_value.item() # TS has no scalar acquisition; retain NaN in the report.
         ei_array = np.append(ei_array, acq_scalar)
 
         from botorch.acquisition import PosteriorMean  # local import avoids circular issues
@@ -360,7 +369,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts") -> tuple:
             break"""
 
         print(
-            f"Iter {iteration+1}/{MAX_ITER} | "
+            f"Iter {iteration+1}/{iterations} | "
             f"Energy={np.exp(energy_next):.4f} | "
             f"TR_length={state.length:.4f} | "
             f"best={state.best_value:.4f}"

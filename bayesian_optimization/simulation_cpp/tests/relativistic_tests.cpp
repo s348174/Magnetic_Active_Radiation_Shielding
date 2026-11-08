@@ -1,5 +1,6 @@
 #include "Particle.hpp"
 #include "Utils.hpp"
+#include "Sobol.hpp"
 #include <array>
 #include <filesystem>
 #include <fstream>
@@ -252,6 +253,35 @@ void testFiniteWireCore() {
     std::cout << "PASS 1 mm conductor core, centreline, orientations and unchanged exterior field\n";
 }
 
+void testScrambledSphere() {
+    const int N = 1024, bins = 64;
+    const double radius = 50;
+    const auto first = sampleSphereSobol(N,radius,67);
+    const auto repeat = sampleSphereSobol(N,radius,67);
+    const auto other = sampleSphereSobol(N,radius,68);
+    std::array<int,bins> azimuth{},height{};
+    double seedDifference = 0.0;
+    Vector3d mean = Vector3d::Zero();
+    for (int i=0; i<N; ++i) {
+        require(first[i].allFinite(), "Finite scrambled sphere coordinates");
+        require(std::abs(first[i].norm()/radius-1) < 1e-14, "Sphere radius after scrambling");
+        require((first[i]-repeat[i]).norm() == 0.0, "Same scrambling seed must reproduce points");
+        seedDifference += (first[i]-other[i]).norm();
+        double u = atan2(first[i].y(),first[i].x())/(2*PI);
+        if (u < 0) u += 1;
+        double v = .5*(1-first[i].z()/radius);
+        ++azimuth[std::min(bins-1,int(u*bins))];
+        ++height[std::min(bins-1,int(v*bins))];
+        mean += first[i]/N;
+    }
+    require(seedDifference > radius, "Different scrambling seeds must change spatial points");
+    for (int i=0; i<bins; ++i)
+        require(azimuth[i] == N/bins && height[i] == N/bins,
+                "Nested scrambling must preserve dyadic marginal balance");
+    require(mean.norm() < .01*radius, "Scrambled sphere remains spatially balanced");
+    std::cout << "PASS seeded nested Owen scrambling, sphere geometry and dyadic balance\n";
+}
+
 int main() {
     try {
         testKinematics();
@@ -261,6 +291,7 @@ int main() {
         testSimulatorEnergyScore();
         testFluxWeights();
         testFiniteWireCore();
+        testScrambledSphere();
     } catch (const std::exception& error) {
         std::cerr << "FAIL: " << error.what() << '\n';
         return 1;

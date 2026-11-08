@@ -1,13 +1,12 @@
 # Import C++ bindings
 import sys
-from xml.parsers.expat import model
 sys.path.append('../Release')
 import simulator
 
 import numpy as np
 
 from LogDataSampler import sample_all_particles_stratified
-from input import K, N, I, R, FLUX_DATA, ENERGY_BINS, rng
+from input import K, N, I, R, FLUX_DATA, ENERGY_BINS
 
 def spherical_to_cartesian(r, theta, phi):
     """
@@ -29,35 +28,30 @@ def spherical_to_cartesian(r, theta, phi):
     z = r * np.cos(phi)
     return np.stack([x, y, z], axis=-1)
 
+def evaluate_configuration(seed, centers, normals, n_particles=None):
+    """Return the raw flux-weighted response and within-run variance estimate.
+
+    A supplied seed controls both energy sampling and spatial scrambling.
+    n_particles is per species, split over the logarithmic energy bins.
+    """
+    count = N if n_particles is None else int(n_particles)
+    centers_cart = spherical_to_cartesian(centers[:, 0], centers[:, 1], centers[:, 2])
+    normals_cart = spherical_to_cartesian(np.ones(K), normals[:, 0], normals[:, 1])
+    samples, strata = sample_all_particles_stratified(
+        FLUX_DATA, n_samples=count, n_bins=ENERGY_BINS,
+        generator=np.random.default_rng(int(seed)))
+    mean, variance = simulator.launch_simulation(
+        int(seed), count, K, I, R, centers_cart, normals_cart, samples, strata)
+    if not np.isfinite([mean, variance]).all() or mean <= 0 or variance < 0:
+        raise FloatingPointError("Simulator returned an invalid response or variance.")
+    return float(mean), float(variance)
+
+
 def objective_function(seed, centers, normals):
-    """
-    Calls the C++ simulator to compute the energy hitting the detector.
-    R: is coils radius
-    centers: list of coil centers (spherical coordinates: r, theta, phi)
-    normals: list of coil normal vectors (spherical coordinates: theta, phi)
-    Returns: energy hitting the detector (lower is better)
-    """
-    # Change coordinates from spherical to cartesian for simulator input
-    centers_cart = spherical_to_cartesian(centers[:, 0], centers[:, 1], centers[:, 2]) # shape: (K, 3)
-    normals_cart = spherical_to_cartesian(np.ones(K), normals[:, 0], normals[:, 1]) # shape: (K, 3) - unit vectors for normals
-    
-    # Cover logarithmic energy bins while retaining physical energies and fluxes.
-    samples_dict, strata_dict = sample_all_particles_stratified(
-        FLUX_DATA, n_samples=N, n_bins=ENERGY_BINS)
-    
-    # Call the C++ simulator
-    meanVar = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict, strata_dict)
-    # Take the log of energy to stabilize optimization and handle wide range of values
-    log_energy = np.log(meanVar[0])
-    log_var = meanVar[1] / (meanVar[0] ** 2 + 1e-6) + 1e-6 # Variance of log(energy) using delta method
-    if np.isnan(log_energy) or np.isinf(log_energy):
-        print(f"Warning: Non-finite energy encountered. Expected energy: {meanVar[0]}. Try again with a different seed or check the simulator for issues.")
-        samples_dict, strata_dict = sample_all_particles_stratified(
-            FLUX_DATA, n_samples=N, n_bins=ENERGY_BINS)
-        seed = rng.integers(1e6)
-        print(f"New seed: {seed}")
-        meanVar = simulator.launch_simulation(seed, N, K, I, R, centers_cart, normals_cart, samples_dict, strata_dict)
-        # Take the log of energy to stabilize optimization and handle wide range of values
-        log_energy = np.log(meanVar[0])
-        log_var = meanVar[1] / (meanVar[0] ** 2 + 1e-6) + 1e-6 # Variance of log(energy) using delta method
-    return log_energy, log_var
+    """Log-response and delta-method variance used during optimization."""
+    try:
+        mean, variance = evaluate_configuration(seed, centers, normals)
+    except FloatingPointError:
+        print(f"Retrying non-finite response with seed {int(seed)+1}.")
+        mean, variance = evaluate_configuration(int(seed)+1, centers, normals)
+    return np.log(mean), variance / (mean**2 + 1e-6) + 1e-6

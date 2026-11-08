@@ -1,54 +1,65 @@
-# Import libraries for optimization
+"""Run several TuRBO regions, then independently validate their finalists."""
+import argparse
+import json
+from pathlib import Path
+import tempfile
+import time
+import numpy as np
 import torch
 
-# Import standard libraries
-import numpy as np
-import os
-import csv
-import time
+from MultiTurbo import bo_multi_turbo
+from FinalEvaluation import evaluate_finalists
+from input import K, SEED, device, ENERGY_BINS, TURBO_MAX_REGIONS, FINAL_PARTICLES, FINAL_REPEATS
 
-# Import externals functions
-from PlotResults import interactive_plot, plot_convergence_metrics
-from BoUtils import unpack_configuration, denormalize
-from BoLoop import bo_matern_kernel, bo_rbf_kernel
-from Objective import spherical_to_cartesian
-from TurBo import bo_turbo_matern
 
-from input import K, SEED, device
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--regions',type=int,default=None,help='0: automatic; or request 4/5 regions')
+    parser.add_argument('--iterations',type=int,default=None,help='Total refinement iterations across regions')
+    parser.add_argument('--final-particles',type=int,default=FINAL_PARTICLES,help='Particles per species per validation MC')
+    parser.add_argument('--validation-repeats',type=int,default=FINAL_REPEATS)
+    parser.add_argument('--output-dir',default=None,help='A new directory for this run')
+    parser.add_argument('--plot',action='store_true',help='Show optional interactive plots after saving results')
+    args = parser.parse_args(argv)
+    if args.final_particles < 2*ENERGY_BINS or args.validation_repeats < 2:
+        parser.error(f'Validation requires at least {2*ENERGY_BINS} particles and two replicates.')
+    if args.regions is not None and not 0 <= args.regions <= TURBO_MAX_REGIONS:
+        parser.error(f'--regions must be between 0 and {TURBO_MAX_REGIONS}.')
+    if args.iterations is not None and args.iterations < max(1,args.regions or 0):
+        parser.error('--iterations must allow at least one step per requested region.')
+    if args.output_dir is None:
+        Path('results').mkdir(exist_ok=True)
+        directory = Path(tempfile.mkdtemp(prefix=f'turbo_K{K}_seed{SEED}_',dir='results'))
+    else:
+        directory = Path(args.output_dir)
+        directory.mkdir(parents=True,exist_ok=False)
 
-def main():
-    print(f"Using device: {device}")
-    start_clock = time.time()
+    torch.manual_seed(SEED)
+    print(f"Using device: {device}. Results: {directory}")
+    start = time.time()
+    search = bo_multi_turbo(total_iterations=args.iterations,n_regions=args.regions)
+    X,y,variance = search['initial']
+    np.savez(directory/'initial_design.npz',X=X.cpu().numpy(),y=y,variance=variance)
+    with open(directory/'region_selection.json','w') as file:
+        json.dump(dict(search['selection'],seed_indices=search['seed_indices'].tolist(),
+                       seed=SEED,initial_evaluations=len(y),
+                       total_refinement_budget=sum(r['budget'] for r in search['regions'])),file,indent=2)
+    for region in search['regions']:
+        np.savez(directory/f"region_{region['region']}.npz",**region)
+    # This stage is automatic: finalists are ranked by fresh raw responses at high N.
+    validation = evaluate_finalists(search['finalists'],n_particles=args.final_particles,
+                                    repeats=args.validation_repeats,output_dir=directory)
+    best = validation[0]
+    print(f"Best validation mean: {best['mean_response']:.8g}; "
+          f"95% replicate interval [{best['ci95_lower']:.8g}, {best['ci95_upper']:.8g}].")
+    print(f"Elapsed time: {time.time()-start:.1f}s. Saved reports and best_configuration.csv in {directory}.")
+    if args.plot:
+        from PlotResults import interactive_plot, plot_convergence_metrics
+        for region in search['regions']:
+            plot_convergence_metrics(region['acquisition'],region['posterior_mean'],region['posterior_variance'])
+        interactive_plot(str(directory/'best_configuration.csv'))
+    return search,validation
 
-    # Run BO optimization loop
-    #X_train, y_train, ei_array, best_mean_hist, variance_hist = bo_matern_kernel(nu=2.5)
-    X_train, y_train, ei_array, best_mean_hist, variance_hist = bo_turbo_matern()
-    
-    end_clock = time.time() - start_clock
-    print(f'Elapsed time: {end_clock:.4f} s')
 
-    # Final results
-    best_index = np.argmin(-y_train) # Get index of best energy (negate back)
-    best_X_norm = X_train[best_index]
-    best_X = denormalize(best_X_norm[np.newaxis, :]).detach().cpu().numpy()[0]
-    best_centers, best_normals = unpack_configuration(best_X)
-    # Create folder if it doesn't exist and print to csv
-    os.makedirs("configurations", exist_ok=True)
-    with open(f"configurations/best_configuration_K{K}_{SEED}.csv", "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["cX", "cY", "cZ", "nX", "nY", "nZ"])
-        for i in range(K):
-            center_xyz = spherical_to_cartesian(best_centers[i, 0], best_centers[i, 1], best_centers[i, 2])
-            normal_xyz = spherical_to_cartesian(1.0, best_normals[i, 0], best_normals[i, 1])
-            center_xyz = center_xyz[0] if np.ndim(center_xyz) > 1 else center_xyz
-            normal_xyz = normal_xyz[0] if np.ndim(normal_xyz) > 1 else normal_xyz
-            writer.writerow([center_xyz[0], center_xyz[1], center_xyz[2], normal_xyz[0], normal_xyz[1], normal_xyz[2]])
-        print(f"Best configuration saved to configurations/best_configuration_K{K}_{SEED}.csv")
-    
-    # Plot convergence metrics
-    plot_convergence_metrics(ei_array, best_mean_hist, variance_hist)
-
-    # Plot the best configuration
-    interactive_plot(result_file=f"configurations/best_configuration_K{K}_{SEED}.csv")
-
-if __name__ == "__main__":    main()
+if __name__ == '__main__':
+    main()

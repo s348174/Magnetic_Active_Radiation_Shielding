@@ -22,6 +22,13 @@ Q = 1 # Batch size: this pipeline optimizes one configuration at a time
 SEED = 67
 rng = np.random.default_rng(SEED)
 
+# Multiple independent trust-region runs share the initial design and MAX_ITER budget.
+TURBO_REGIONS = 0       # 0: automatic effective-rank choice; set 4 or 5 to fix the count
+TURBO_MAX_REGIONS = 5
+FINAL_PARTICLES = 100000 # Per species, in each independent validation Monte Carlo
+FINAL_REPEATS = 3
+FINALISTS = 5
+
 # FIELD HYPERPARAMETERS SETUP
 X_BOUNDS = (1.0, 4.0) # Bound for distance of coil centers from origin in meters
 THETA_BOUNDS = (0, np.pi) # Bounds for azimuthal angles in spherical coordinates

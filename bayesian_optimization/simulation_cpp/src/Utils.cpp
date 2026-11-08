@@ -38,6 +38,8 @@ bool monteCarlo(BField& field, Revelator& revelator, const vector<double>& energ
     // Monte Carlo simulation
     // Sobol sample of initial positions
     uint32_t seed32 = static_cast<uint32_t>(seed ^ (seed >> 32)); // Fold a 64 seed in half
+    // Stable species-specific scrambling (avoid shared random spatial errors).
+    for (unsigned char letter : particleName) seed32 = (seed32 ^ letter) * 16777619u;
     vector<Vector3d> startPoints = sampleSphereSobol(N, 50, seed32);
 
     double expectedEVCounter = 0.0; // Counter for how may eV received
@@ -166,12 +168,14 @@ void runSimulation(BField field, Revelator revelator, const vector<double>& ener
         variance *= fluxWeight * fluxWeight / static_cast<double>(N);
     } else {
         size_t offset = 0;
+        unsigned long binIndex = 0;
         for (const auto& bin : bins) {
             vector<double> binSamples(energy_samples.begin() + offset,
                                       energy_samples.begin() + offset + bin.count);
             double binMean = 0.0, binVariance = 0.0;
+            unsigned long binSeed = seed + (++binIndex) * 0x9e3779b9UL;
             ok = monteCarlo(field, revelator, binSamples, name, m, q, bin.count,
-                           dt, seed, binMean, binVariance);
+                           dt, binSeed, binMean, binVariance);
             if (!ok) break;
             expectedDose += bin.flux * binMean;
             variance += bin.flux * bin.flux * binVariance / static_cast<double>(bin.count);
