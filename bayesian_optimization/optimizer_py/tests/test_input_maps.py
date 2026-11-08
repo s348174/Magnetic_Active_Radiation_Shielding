@@ -18,6 +18,41 @@ import BoLoop
 import TurBo
 from input import D, K, LOWER, UPPER
 from Objective import spherical_to_cartesian
+from Kernels_v3 import CoilSetKernel
+
+
+class KernelDiagonalTests(unittest.TestCase):
+    def test_cross_diagonals_and_gradients(self):
+        for features in (None, 64):
+            for normalize in (False, True):
+                with self.subTest(features=features, normalize=normalize):
+                    generator = torch.Generator().manual_seed(67)
+                    X = torch.randn(2,4,18,dtype=torch.double,generator=generator).requires_grad_()
+                    Y = torch.randn(2,4,18,dtype=torch.double,generator=generator).requires_grad_()
+                    kernel = CoilSetKernel(n_coils=3, normalize=normalize,
+                                           n_features=features, chunk_size=2).double()
+                    paired = kernel.forward(X,Y,diag=True)
+                    expected = kernel.forward(X,Y).diagonal(dim1=-2,dim2=-1)
+                    torch.testing.assert_close(paired, expected, atol=1e-11, rtol=1e-10)
+                    if normalize:
+                        self.assertFalse(torch.allclose(paired, torch.ones_like(paired)))
+                    inputs = (X,Y,kernel.raw_lengthscale,kernel.raw_kappa)
+                    paired_grad = torch.autograd.grad(paired.sum(),inputs)
+                    full_grad = torch.autograd.grad(expected.sum(),inputs)
+                    for actual, reference in zip(paired_grad, full_grad):
+                        torch.testing.assert_close(actual, reference, atol=1e-10, rtol=1e-8)
+
+    def test_self_diagonals(self):
+        X = torch.randn(2,4,18,dtype=torch.double,generator=torch.Generator().manual_seed(67))
+        for features in (None,64):
+            for normalize in (False,True):
+                with self.subTest(features=features, normalize=normalize):
+                    kernel = CoilSetKernel(n_coils=3, normalize=normalize, n_features=features).double()
+                    paired = kernel.forward(X,X,diag=True)
+                    expected = kernel.forward(X,X).diagonal(dim1=-2,dim2=-1)
+                    torch.testing.assert_close(paired, expected)
+                    if normalize:
+                        torch.testing.assert_close(paired, torch.ones_like(paired))
 
 
 class CoordinateTests(unittest.TestCase):

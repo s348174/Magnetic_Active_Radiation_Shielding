@@ -176,9 +176,6 @@ class CoilSetKernel(Kernel):
 
     # -- forward ----------------------------------------------------------------
     def forward(self, x1, x2, diag=False, **params):
-        if diag and self.normalize:
-            return torch.ones(*x1.shape[:-1], device=x1.device, dtype=x1.dtype)
-
         z1 = self._coil_z(x1)
         # [NEW] K(X,X) is the common case during fitting: reuse features instead of recomputing
         same = (x1 is x2) or (x1.shape == x2.shape and torch.equal(x1, x2))
@@ -187,22 +184,21 @@ class CoilSetKernel(Kernel):
         if self.n_features is not None:                                   # ---- RFF path
             p1 = self._phi(z1)
             p2 = p1 if same else self._phi(z2)
-            if diag:
-                return (p1 * p2).sum(-1)
             if self.normalize:                                            # cosine similarity of feature vectors
                 p1 = F.normalize(p1, dim=-1, eps=1e-12)
                 p2 = p1 if same else F.normalize(p2, dim=-1, eps=1e-12)
+            if diag:
+                return (p1 * p2).sum(-1)
             return p1 @ p2.transpose(-2, -1)
 
-        if diag:                                                          # ---- exact path
-            return self._diag_exact(z1, z2)
-        Kmat = self._full_exact(z1, z2)
+        # Paired cross-diagonals need the same normalization as the full matrix.
+        Kmat = self._diag_exact(z1, z2) if diag else self._full_exact(z1, z2)
         if not self.normalize:
             return Kmat
         d1 = self._diag_exact(z1, z1)
         d2 = d1 if same else self._diag_exact(z2, z2)
-        denom = torch.sqrt(d1.unsqueeze(-1) * d2.unsqueeze(-2)).clamp_min(1e-12)
-        return Kmat / denom
+        denom = torch.sqrt(d1 * d2) if diag else torch.sqrt(d1.unsqueeze(-1) * d2.unsqueeze(-2))
+        return Kmat / denom.clamp_min(1e-12)
 
 
 class CoilMomentKernel(Kernel):
