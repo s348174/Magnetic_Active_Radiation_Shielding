@@ -21,6 +21,7 @@ def main(argv=None):
     parser.add_argument('--output-dir',default=None,help='A new directory for this run')
     parser.add_argument('--plot',action='store_true',help='Show optional interactive plots after saving results')
     args = parser.parse_args(argv)
+    args.plot = True
     if args.final_particles < 2*ENERGY_BINS or args.validation_repeats < 2:
         parser.error(f'Validation requires at least {2*ENERGY_BINS} particles and two replicates.')
     if args.regions is not None and not 0 <= args.regions <= TURBO_MAX_REGIONS:
