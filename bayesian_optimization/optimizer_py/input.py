@@ -24,10 +24,10 @@ rng = np.random.default_rng(SEED)
 
 # Multiple independent trust-region runs share the initial design and MAX_ITER budget.
 TURBO_REGIONS = 0       # 0: automatic effective-rank choice; set 4 or 5 to fix the count
-TURBO_MAX_REGIONS = 5
+TURBO_MAX_REGIONS = 1
 FINAL_PARTICLES = int(1e5) # Per species, in each independent validation Monte Carlo
 FINAL_REPEATS = 3
-FINALISTS = 5
+FINALISTS = 3
 
 # FIELD HYPERPARAMETERS SETUP
 X_BOUNDS = (1.0, 4.0) # Bound for distance of coil centers from origin in meters
