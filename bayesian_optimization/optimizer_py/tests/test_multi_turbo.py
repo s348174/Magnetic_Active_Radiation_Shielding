@@ -71,7 +71,7 @@ class RegionTests(unittest.TestCase):
         with patch.object(multi,'sobol_sample',return_value=initial) as sample, \
              patch.object(multi,'select_initial_regions',return_value=(np.array([0,2]),selection)), \
              patch.object(multi,'bo_turbo_matern',side_effect=run):
-            result = multi.bo_multi_turbo(total_iterations=5,n_regions=2)
+            result = multi.bo_multi_turbo(total_iterations=5,n_regions=2,max_regions=5)
         sample.assert_called_once()
         self.assertEqual(seen,[(0,3),(2,2)])
         own = [p for p in result['finalists'] if p['region'] == 2][0]
@@ -146,7 +146,7 @@ class FinalValidationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root, \
              patch.object(bo_main,'bo_multi_turbo',return_value=search), \
              patch.object(bo_main,'evaluate_finalists',return_value=validation) as evaluate:
-            bo_main.main(['--output-dir',str(Path(root)/'new-run')])
+            bo_main.main(['--output-dir',str(Path(root)/'new-run'),'--no-plot'])
             self.assertEqual(evaluate.call_args.kwargs['n_particles'],100000)
             self.assertEqual(evaluate.call_args.kwargs['repeats'],3)
 

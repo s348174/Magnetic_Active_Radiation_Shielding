@@ -1,368 +1,155 @@
-# Import libraries for optimization
-import torch
-# BoTorch imports
-from botorch.models import SingleTaskGP # Gaussian Process model for single-task regression
-from botorch.models.transforms.outcome import Standardize # Outcome transform to standardize targets
-from botorch.fit import fit_gpytorch_mll # Model fitting utility
-from botorch.acquisition import qLogNoisyExpectedImprovement, PosteriorMean, qKnowledgeGradient # Acquisition functions for BO
-from botorch.optim.initializers import gen_one_shot_kg_initial_conditions
-from botorch.optim import optimize_acqf # Optimization utility for acquisition functions
-
-# GPyTorch imports
-from gpytorch.mlls import ExactMarginalLogLikelihood # Marginal log likelihood for GP fitting
-from gpytorch.kernels import MaternKernel, ScaleKernel # Kernels for GP (Matern with ARD + scaling)
-
-# Import standard libraries
-import numpy as np
+"""Single-loop Bayesian optimization with standard Matérn and RBF kernels."""
 import warnings
-from botorch.models.utils.assorted import InputDataWarning
+import numpy as np
+import torch
 
-# Import externals functions
+from botorch.models import SingleTaskGP
+from botorch.models.transforms.outcome import Standardize
+from botorch.fit import fit_gpytorch_mll
+from botorch.acquisition import qLogNoisyExpectedImprovement, PosteriorMean, qKnowledgeGradient
+from botorch.optim.initializers import gen_one_shot_kg_initial_conditions
+from botorch.optim import optimize_acqf
+from botorch.models.utils.assorted import InputDataWarning
+from gpytorch.mlls import ExactMarginalLogLikelihood
+from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
+
 from BoUtils import (
-    denormalize,
-    normalize,
-    unpack_configuration,
-    canonicalize_candidate,
-    map_fn,
-    map_cart,
-    map_set,
-    InputMappedAcquisition,
-    InputMappedModel,
-    sobol_sample,
-    stopping_criterion,
-    duplicate_safe_candidate,
-    fit_gp_with_noise_floor,
-    likelihood_noise_scalar
+    denormalize, unpack_configuration, map_fn, map_set,
+    InputMappedAcquisition, InputMappedModel, sobol_sample,
+    stopping_criterion, duplicate_safe_candidate,
 )
 from Objective import objective_function
-from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q, K
+from input import device, MAX_ITER, unit_bounds, rng, Q
 
-def bo_matern_kernel(nu=2.5):
-    warnings_counter = 0
-    # Suppress unit cube scaling warning (expected for feature-mapped inputs)
-    warnings.filterwarnings("ignore", category=InputDataWarning)
-    
-    # Step 1: Initialize BO with Sobol samples
-    X_train, y_train, train_yvar = sobol_sample()
-    train_yvar = torch.tensor(train_yvar, dtype=torch.double).unsqueeze(-1).to(device) # Convert to tensor for noise floor fitting
-    train_yvar = torch.clamp(train_yvar, min=1e-6) # Avoid zero noise variance which can cause GP fitting issues
 
-    ## Step 2: Map normalized designs once for GP training.
-    X_train_model = map_fn(X_train)
-    covar_module = ScaleKernel(
-        MaternKernel(
-            nu=nu, # Smoothness parameter for Matern kernel (common choice for BO)
-            ard_num_dims=X_train_model.shape[-1], # Match the actual selected feature map
-        )
-    )
-    gp = SingleTaskGP(
-        X_train_model.detach().clone().to(device),
-        torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
-        covar_module=covar_module,
-        outcome_transform=Standardize(m=1),
-    )
-    fit_gp_with_noise_floor(gp)
-
-    # Initialize empty list of best means and ei values
-    ei_array = np.empty(0)
-    best_mean_hist = []
-    variance_hist = []
-    # Step 3: BO loop
-    for iteration in range(MAX_ITER):
-        # 1. Optimize acquisition function to find next point
-        qKG = qKnowledgeGradient(model=InputMappedModel(gp, map_fn), num_fantasies=2) # More fantasies can give better performance but increase runtime
-        candidate, qkg_value = optimize_acqf(
-            acq_function=qKG,
-            bounds=unit_bounds,
-            q=Q,
-            num_restarts=40,
-            raw_samples=512,
-            ic_generator=gen_one_shot_kg_initial_conditions,
-        )
-        # Check for duplicates in training data (can happen due to optimization tolerances)
-        cand = candidate[0:1].detach().clone().to(device)  # Take only first from batch
-        if duplicate_safe_candidate(X_train, cand):
-            print("Duplicate candidate returned by optimizer — skipping this iteration")
-            continue
-        
-        # 2. Extract params from candidate and generate random centers and normals
-        candidate_np = candidate.detach().cpu().numpy()
-        candidate_unnorm = denormalize(candidate_np) # Denormalize candidate to original scale
-        centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
-        
-        # 3. Evaluate simulation at new point (parallelized)
-        energy_next, var_next = objective_function(rng.integers(1e6), centers_next, normals_next)                
-        train_yvar = torch.cat((train_yvar, torch.tensor([[var_next]], dtype=torch.double).to(device)), dim=0) # Append new variance to training noise variances
-        train_yvar = torch.clamp(train_yvar, min=1e-6) # Ensure noise variance doesn't go to zero 
-        if np.isnan(energy_next) or np.isinf(energy_next):
-            warnings.warn(f"Non-finite energy from simulator encountered at iteration {iteration+1}. Skipping.")
-            warnings_counter += 1
-            if warnings_counter > MAX_ITER // 3:
-                raise ValueError("Too many non-finite energies encountered.")
-            continue  # Skip this iteration and try again with a new candidate
-        
-        # 4. Update training data (skip duplicates)
-        X_train = torch.vstack((X_train, cand)) # candidate is already normalized
-        y_train = np.append(y_train, float(-energy_next)) # Negate energy for maximization
-        # Check shapes before fitting GP
-        assert X_train.shape[0] == y_train.shape[0], \
-            f"Shape mismatch: X={X_train.shape}, y={y_train.shape}"
-        
-        # 5. Refit GP model with new data
-        X_train_model = map_fn(X_train)
+def _fit_model(X_train, y_train, train_yvar, mapping, covar_module):
+    # Standardize transforms BOTH targets and their variances consistently.
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=InputDataWarning)
         gp = SingleTaskGP(
-            X_train_model.detach().clone().to(device),
-            torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
+            mapping(X_train).detach().clone(),
+            torch.as_tensor(y_train, dtype=torch.double, device=device).unsqueeze(-1),
+            train_Yvar=train_yvar,
             covar_module=covar_module,
             outcome_transform=Standardize(m=1),
         )
-        fit_gp_with_noise_floor(gp)
+    fit_gpytorch_mll(ExactMarginalLogLikelihood(gp.likelihood, gp))
+    return gp
 
-        # 6. Check convergence via best predicted value
-        max_ei = qkg_value.item()
-        ei_array = np.append(ei_array, max_ei)
-        post_mean = PosteriorMean(gp)
-        post_mean_on_original_space = InputMappedAcquisition(post_mean, map_fn)
-        _, current_best_mean = optimize_acqf(
-            acq_function=post_mean_on_original_space,
-            bounds=unit_bounds,
-            q=1,
-            num_restarts=60,
-            raw_samples=1024,
-        )
-        best_mean_hist.append(current_best_mean)
-        learned_noise_var = likelihood_noise_scalar(gp)
-        # Use top-5 observed points — more stable than a single noisy incumbent
-        top_k = min(5, X_train.shape[0])
-        top_idx = torch.as_tensor(
-            np.argsort(y_train)[-top_k:],
-            dtype=torch.long,
-            device=device,
-        )
-        eval_X = X_train_model[top_idx]
-        posterior = gp.posterior(eval_X)
-        posterior_var = posterior.variance.mean().item()
-        variance_hist.append(posterior_var)
-        if stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
-            print(f"Convergence reached at iteration {iteration+1} with EI={np.exp(max_ei):.6f}, predicted mean={current_best_mean:.4f}, and variance={posterior_var:.6f}")
-            break
-        print(f"Iteration {iteration+1}/{MAX_ITER}, Energy: {np.exp(energy_next):.4f}")
-    print(f"BO loop completed with {warnings_counter} non-finite energy warnings.")
-    return X_train.cpu().numpy(), y_train, ei_array, best_mean_hist, variance_hist
 
-def bo_rbf_kernel():
-    warnings_counter = 0
-    # Suppress unit cube scaling warning (expected for feature-mapped inputs)
-    warnings.filterwarnings("ignore", category=InputDataWarning)
-    
-    # Step 1: Initialize BO with Sobol samples
-    X_train, y_train, _ = sobol_sample()
-
-    # Step 2: Fit GP model
-    X_train_model = map_set(X_train)
-    gp = SingleTaskGP(
-        X_train_model.detach().clone().to(device),
-        torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
+def _best_posterior_mean(gp, mapping):
+    _, value = optimize_acqf(
+        acq_function=InputMappedAcquisition(PosteriorMean(gp), mapping),
+        bounds=unit_bounds,
+        q=1,
+        num_restarts=30,
+        raw_samples=256,
     )
-    mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
-    fit_gpytorch_mll(mll)
+    return value.detach().item()
 
-    # Initialize empty list of best means and ei values
-    ei_array = np.empty(0)
-    best_mean_hist = []
-    variance_hist = []
-    # Step 3: BO loop
-    for iteration in range(MAX_ITER):
-        # 1. Optimize acquisition function to find next point
-        #ei = LogExpectedImprovement(gp, best_f=torch.tensor(y_train.max(), dtype=torch.double).to(device))
-        # Wrap the GP with InputMappedModel so the acquisition sees inputs
-        # in the original (pre-mapped) space. This ensures `X_baseline`
-        # is compatible with the model and avoids shape mismatches.
-        qLogNEI = qLogNoisyExpectedImprovement(
-            model=InputMappedModel(gp, map_set),
-            X_baseline=X_train,
-        )
-        #qKG = qKnowledgeGradient(model=InputMappedModel(gp, map_cart), num_fantasies=2) # More fantasies can give better performance but increase runtime
-        candidate, _ = optimize_acqf(
-            acq_function=qLogNEI,
-            bounds=unit_bounds,
-            q=Q,
-            num_restarts=60,
-            raw_samples=1024,
-        )
-        cand = candidate[0:1].detach().clone().to(device)  # Take only first from batch
-        
-        # 2. Extract params from candidate and generate random centers and normals
-        candidate_np = candidate.detach().cpu().numpy()
-        candidate_unnorm = denormalize(candidate_np).detach().cpu().numpy() # Denormalize candidate to original scale
-        # Check for duplicates in training data (can happen due to optimization tolerances)
+
+def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5):
+    iterations = MAX_ITER if max_iter is None else int(max_iter)
+    if iterations < 1 or Q != 1:
+        raise ValueError("Use a positive iteration budget and Q=1 for these single-point loops.")
+
+    # Initial observations may be shared with the driver without simulating twice.
+    X_train, y_train, train_yvar = sobol_sample() if initial_data is None else initial_data
+    X_train = torch.as_tensor(X_train, dtype=torch.double, device=device).detach().clone()
+    y_train = np.asarray(y_train, dtype=float).copy()
+    train_yvar = np.asarray(train_yvar, dtype=float)
+    valid = np.isfinite(y_train) & np.isfinite(train_yvar) & (train_yvar >= 0)
+    valid &= torch.isfinite(X_train).all(dim=-1).cpu().numpy()
+    X_train, y_train = X_train[valid], y_train[valid]
+    train_yvar = torch.as_tensor(train_yvar[valid], dtype=torch.double, device=device).unsqueeze(-1)
+    train_yvar = train_yvar.clamp_min(1e-6)
+    if len(y_train) < 2:
+        raise ValueError("At least two finite initial observations and variances are required.")
+
+    n_features = mapping(X_train).shape[-1]
+    base_kernel = (MaternKernel(nu=nu, ard_num_dims=n_features) if kernel == 'matern'
+                   else RBFKernel(ard_num_dims=n_features))
+    covar_module = ScaleKernel(base_kernel)
+    gp = _fit_model(X_train, y_train, train_yvar, mapping, covar_module)
+
+    acquisition_hist, best_mean_hist, variance_hist = [], [], []
+    warnings_counter = 0
+    # Matérn retains the original KG acquisition. Subtract the current optimum
+    # so its reported value is an improvement, rather than a future value level.
+    current_best_mean = _best_posterior_mean(gp, mapping) if kernel == 'matern' else None
+    for iteration in range(iterations):
+        model = InputMappedModel(gp, mapping)
+        if kernel == 'matern':
+            acquisition = qKnowledgeGradient(
+                model=model, num_fantasies=2,
+                current_value=torch.tensor(current_best_mean, dtype=torch.double, device=device),
+            )
+            candidate, acquisition_value = optimize_acqf(
+                acq_function=acquisition, bounds=unit_bounds, q=Q,
+                num_restarts=40, raw_samples=512,
+                ic_generator=gen_one_shot_kg_initial_conditions,
+            )
+        else:
+            acquisition = qLogNoisyExpectedImprovement(model=model, X_baseline=X_train)
+            candidate, acquisition_value = optimize_acqf(
+                acq_function=acquisition, bounds=unit_bounds, q=Q,
+                num_restarts=60, raw_samples=1024,
+            )
+        # Retain the acquisition value BEFORE fitting the updated GP.
+        acquisition_scalar = acquisition_value.detach().item()
+        cand = candidate[:1].detach().clone()
         if duplicate_safe_candidate(X_train, cand):
             print("Duplicate candidate returned by optimizer — skipping this iteration")
             continue
-        centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
-        
-        # 3. Evaluate simulation at new point
-        energy_next, _ = objective_function(rng.integers(1e6), centers_next, normals_next)
-        if np.isnan(energy_next) or np.isinf(energy_next):
-            warnings.warn(f"Non-finite energy from simulator encountered at iteration {iteration+1}. Skipping.")
+
+        physical = denormalize(cand).detach().cpu().numpy()
+        centers_next, normals_next = unpack_configuration(physical[0])
+        energy_next, var_next = objective_function(rng.integers(1e6), centers_next, normals_next)
+        if not np.isfinite([energy_next, var_next]).all() or var_next < 0:
+            warnings.warn(f"Invalid response or variance at iteration {iteration+1}. Skipping.")
             warnings_counter += 1
-            if warnings_counter >= MAX_ITER // 3:
-                raise ValueError("Too many non-finite energies encountered.")
-            continue  # Skip this iteration and try again with a new candidate
-        
-        # 4. Update training data
-        X_train = torch.vstack((X_train, cand)) # candidate is already normalized, take only first from batch
-        y_train = np.append(y_train, float(-energy_next)) # Negate energy for maximization
-        # Check shapes before fitting GP
-        assert X_train.shape[0] == y_train.shape[0], \
-            f"Shape mismatch: X={X_train.shape}, y={y_train.shape}"
-        
-        # 5. Refit GP model with new data
-        X_train_model = map_set(X_train)
-        gp = SingleTaskGP(
-            X_train_model.detach().clone().to(device),
-            torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
-        )
-        mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
-        fit_gpytorch_mll(mll)
-
-        # 6. Check convergence via best predicted value
-        max_ei = qLogNEI(candidate).item()
-        ei_array = np.append(ei_array, np.exp(max_ei))
-        post_mean = PosteriorMean(gp)
-        post_mean_on_original_space = InputMappedAcquisition(post_mean, map_set)
-        _, current_best_mean = optimize_acqf(
-            acq_function=post_mean_on_original_space,
-            bounds=unit_bounds,
-            q=1,
-            num_restarts=30,
-            raw_samples=256,
-        )
-        best_mean_hist.append(current_best_mean)
-        learned_noise_var = likelihood_noise_scalar(gp)
-        # Use top-5 observed points — more stable than a single noisy incumbent
-        top_k = min(5, X_train.shape[0])
-        top_idx = torch.as_tensor(
-            np.argsort(y_train)[-top_k:],
-            dtype=torch.long,
-            device=device,
-        )
-        eval_X = X_train_model[top_idx]
-        posterior = gp.posterior(eval_X)
-        posterior_var = posterior.variance.mean().item()
-        variance_hist.append(posterior_var)
-        if stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
-            print(f"Convergence reached at iteration {iteration+1} with EI={np.exp(max_ei):.6f}, predicted mean={current_best_mean:.4f}, and variance={posterior_var:.6f}")
-            break
-        print(f"Iteration {iteration+1}/{MAX_ITER}, Energy: {np.exp(energy_next):.4f}")
-    print(f"BO loop completed with {warnings_counter} non-finite energy warnings.")
-    return X_train.cpu().numpy(), y_train, ei_array, best_mean_hist, variance_hist
-
-
-def bo_rbf_old():
-    warnings_counter = 0
-    # Suppress unit cube scaling warning (expected for feature-mapped inputs)
-    warnings.filterwarnings("ignore", category=InputDataWarning)
-    
-    # Step 1: Initialize BO with Sobol samples
-    X_train, y_train, _ = sobol_sample()
-
-    # Step 2: Fit GP model
-    X_train_model = map_fn(X_train)
-    gp = SingleTaskGP(
-        X_train_model.detach().clone().to(device),
-        torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
-    )
-    mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
-    fit_gpytorch_mll(mll)
-
-    # Initialize empty list of best means and ei values
-    ei_array = np.empty(0)
-    best_mean_hist = []
-    variance_hist = []
-    # Step 3: BO loop
-    for iteration in range(MAX_ITER):
-        # 1. Optimize acquisition function to find next point
-        #ei = LogExpectedImprovement(gp, best_f=torch.tensor(y_train.max(), dtype=torch.double).to(device))
-        # Wrap the GP with InputMappedModel so the acquisition sees inputs
-        # in the original (pre-mapped) space. This ensures `X_baseline`
-        # is compatible with the model and avoids shape mismatches.
-        qLogNEI = qLogNoisyExpectedImprovement(
-            model=InputMappedModel(gp, map_fn),
-            X_baseline=X_train,
-        )
-        #qKG = qKnowledgeGradient(model=InputMappedModel(gp, map_fn), num_fantasies=2) # More fantasies can give better performance but increase runtime
-        candidate, _ = optimize_acqf(
-            acq_function=qLogNEI,
-            bounds=unit_bounds,
-            q=Q,
-            num_restarts=60,
-            raw_samples=1024,
-        )
-        # Check for duplicates in training data (can happen due to optimization tolerances)
-        cand = candidate[0:1].detach().clone().to(device)  # Take only first from batch
-        if duplicate_safe_candidate(X_train, cand):
-            print("Duplicate candidate returned by optimizer — skipping this iteration")
+            if warnings_counter > iterations // 3:
+                raise ValueError("Too many invalid simulator observations encountered.")
             continue
-        
-        # 2. Extract params from candidate and generate random centers and normals
-        candidate_np = candidate.detach().cpu().numpy()
-        candidate_unnorm = denormalize(candidate_np) # Denormalize candidate to original scale
-        centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
-        
-        # 3. Evaluate simulation at new point
-        energy_next, _ = objective_function(rng.integers(1e6), centers_next, normals_next)
-        if np.isnan(energy_next) or np.isinf(energy_next):
-            warnings.warn(f"Non-finite energy from simulator encountered at iteration {iteration+1}. Skipping.")
-            warnings_counter += 1
-            if warnings_counter >= MAX_ITER // 3:
-                raise ValueError("Too many non-finite energies encountered.")
-            continue  # Skip this iteration and try again with a new candidate
-        
-        # 4. Update training data
-        X_train = torch.vstack((X_train, candidate[0:1])) # candidate is already normalized, take only first from batch
-        y_train = np.append(y_train, float(-energy_next)) # Negate energy for maximization
-        # Check shapes before fitting GP
-        assert X_train.shape[0] == y_train.shape[0], \
-            f"Shape mismatch: X={X_train.shape}, y={y_train.shape}"
-        
-        # 5. Refit GP model with new data
-        X_train_model = map_fn(X_train)
-        gp = SingleTaskGP(
-            X_train_model.detach().clone().to(device),
-            torch.tensor(y_train, dtype=torch.double).unsqueeze(-1).to(device), # Unsqueeze for correct shape
-        )
-        mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
-        fit_gpytorch_mll(mll)
 
-        # 6. Check convergence via best predicted value
-        max_ei = qLogNEI(candidate).item()
-        ei_array = np.append(ei_array, np.exp(max_ei))
-        post_mean = PosteriorMean(gp)
-        post_mean_on_original_space = InputMappedAcquisition(post_mean, map_fn)
-        _, current_best_mean = optimize_acqf(
-            acq_function=post_mean_on_original_space,
-            bounds=unit_bounds,
-            q=1,
-            num_restarts=30,
-            raw_samples=256,
-        )
+        # Append inputs, negative log-responses and variances together, only if valid.
+        X_train = torch.vstack((X_train, cand))
+        y_train = np.append(y_train, -float(energy_next))
+        train_yvar = torch.cat((train_yvar, torch.tensor(
+            [[var_next]], dtype=torch.double, device=device).clamp_min(1e-6)))
+        gp = _fit_model(X_train, y_train, train_yvar, mapping, covar_module)
+
+        # Acquisition values stay in their native units: KG or log-NEI.
+        acquisition_hist.append(acquisition_scalar)
+        current_best_mean = _best_posterior_mean(gp, mapping)
         best_mean_hist.append(current_best_mean)
-        learned_noise_var = likelihood_noise_scalar(gp)
-        # Use top-5 observed points — more stable than a single noisy incumbent
-        top_k = min(5, X_train.shape[0])
-        top_idx = torch.as_tensor(
-            np.argsort(y_train)[-top_k:],
-            dtype=torch.long,
-            device=device,
-        )
-        eval_X = X_train_model[top_idx]
-        posterior = gp.posterior(eval_X)
-        posterior_var = posterior.variance.mean().item()
+        top_idx = torch.as_tensor(np.argsort(y_train)[-min(5, len(y_train)):], device=device)
+        with torch.no_grad():
+            posterior_var = gp.posterior(mapping(X_train[top_idx])).variance.mean().item()
         variance_hist.append(posterior_var)
-        if stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):
-            print(f"Convergence reached at iteration {iteration+1} with EI={np.exp(max_ei):.6f}, predicted mean={current_best_mean:.4f}, and variance={posterior_var:.6f}")
+        # Both quantities are variances of the original log-response, before Standardize.
+        noise_var = train_yvar.mean().item()
+        if stopping_criterion(best_mean_hist, noise_var, posterior_var):
+            print(f"Stopping heuristic reached at iteration {iteration+1}: "
+                  f"acquisition={acquisition_scalar:.6g}, predicted mean={current_best_mean:.4f}, "
+                  f"variance={posterior_var:.6g}")
             break
-        print(f"Iteration {iteration+1}/{MAX_ITER}, Energy: {np.exp(energy_next):.4f}")
-    print(f"BO loop completed with {warnings_counter} non-finite energy warnings.")
-    return X_train.cpu().numpy(), y_train, ei_array, best_mean_hist, variance_hist
+        print(f"Iteration {iteration+1}/{iterations}, Energy: {np.exp(energy_next):.4f}")
+    print(f"BO loop completed with {warnings_counter} invalid-observation warnings.")
+    return (X_train.cpu().numpy(), y_train, np.asarray(acquisition_hist),
+            best_mean_hist, variance_hist)
+
+
+def bo_matern_kernel(nu=2.5, max_iter=None, initial_data=None):
+    """Matérn ARD GP on map_fn features, with knowledge gradient (two fantasies)."""
+    return _bo_loop('matern', map_fn, max_iter, initial_data, nu)
+
+
+def bo_rbf_kernel(max_iter=None, initial_data=None):
+    """RBF ARD GP on pooled Cartesian coil features, with log noisy EI."""
+    return _bo_loop('rbf', map_set, max_iter, initial_data)
+
+
+def bo_rbf_old(max_iter=None, initial_data=None):
+    """RBF ARD GP on map_fn features, with log noisy EI (legacy function name)."""
+    return _bo_loop('rbf', map_fn, max_iter, initial_data)

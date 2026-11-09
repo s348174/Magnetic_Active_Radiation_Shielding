@@ -1,5 +1,9 @@
 # Multiple trust regions and independent final validation
 
+`bo_main.py` also supports `--method bo` for the standard-kernel single-loop
+routines; see [VANILLA_BO.md](VANILLA_BO.md) for kernel choices and examples.
+The default remains `--method turbo`.
+
 Run from `bayesian_optimization/optimizer_py` with the prepared Python environment
 and the compiled `simulator` directory on `PYTHONPATH`:
 
@@ -9,7 +13,9 @@ python bo_main.py
 python bo_main.py --regions 5 --iterations 250
 ```
 
-The driver saves results before offering optional interactive plots (`--plot`).
+The driver saves results before displaying interactive plots. `--no-plot`
+disables them for headless runs. Your current `input.py` caps the region count
+at one; increase `TURBO_MAX_REGIONS` before using examples requesting five regions.
 Each run uses a new directory under `results/`; tracked configuration CSVs are
 not overwritten. `--output-dir` can name another **new** directory.
 
@@ -26,10 +32,11 @@ r_eff = trace(C)^2 / sum(C*C)
 ```
 
 It is near one for redundant geometries and near the pool size for uncorrelated
-ones. The automatic count is `ceil(r_eff)`, capped by five, available seeds and
+ones. The automatic count is `ceil(r_eff)`, capped by TURBO_MAX_REGIONS, available seeds and
 the iteration budget. At least one failure window (`max(4,D)` iterations at Q=1)
-is reserved per region when the total budget allows it. With D=50 and the default
-MAX_ITER=200, automatic selection therefore starts **at most four regions**.
+is reserved per region when the total budget allows it. For example, with D=50,
+MAX_ITER=200 and a cap of five, automatic selection starts **at most four regions**.
+Your current MAX_ITER=1250 and TURBO_MAX_REGIONS=1 settings permit one region.
 The metric is a practical diversity heuristic, not proof of the number of optima.
 
 Starting with the best posterior mean, greedy selection chooses the least
@@ -51,7 +58,7 @@ region's superior initial point. The existing single-region function still works
 
 The best observation from each region's own seed/new points and the best original
 observation form the shortlist. Duplicate normalized designs are removed, then
-up to FINALISTS=5 are kept by observed score. This is a shortlist, not a certificate
+up to FINALISTS are kept by observed score. This is a shortlist, not a certificate
 of global optimality.
 
 Every finalist is reevaluated automatically with FINAL_PARTICLES=100000 particles

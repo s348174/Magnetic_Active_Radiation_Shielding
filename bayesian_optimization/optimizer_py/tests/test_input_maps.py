@@ -206,7 +206,7 @@ class AcquisitionTests(unittest.TestCase):
                 with patch.object(module,'sobol_sample',return_value=initial), \
                      patch.object(module,'MAX_ITER',1), \
                      patch.object(module,'objective_function',side_effect=objective), \
-                     patch.object(module,'fit_gp_with_noise_floor',side_effect=fit_model), \
+                     patch.object(module,'fit_gp_with_noise_floor',side_effect=fit_model,create=True), \
                      patch.object(module,'fit_gpytorch_mll',side_effect=fit), \
                      patch.object(module,'optimize_acqf',side_effect=optimize), \
                      patch.object(module,'map_fn',mapping or utils.identity_map), \
