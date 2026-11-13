@@ -7,7 +7,7 @@ import os
 device = torch.device("cpu")
 
 # Field parameters (fixed for this optimization)
-K = 10 # Number of coils
+K = 4 # Number of coils
 N = int(1e3) # Number of particles
 ENERGY_BINS = 8 # Logarithmic energy strata; at least two samples per nonempty bin
 I = 7.2E4 # Current in Amperes
