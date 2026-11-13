@@ -9,12 +9,17 @@ from unittest.mock import patch
 import numpy as np
 import torch
 from botorch.fit import fit_gpytorch_mll
+from botorch.acquisition import PosteriorMean
+from botorch.acquisition import AcquisitionFunction, OneShotAcquisitionFunction, qLogNoisyExpectedImprovement
+from botorch.exceptions.warnings import OptimizationWarning
 from gpytorch.kernels import RBFKernel, ScaleKernel
 
 import BoLoop
 import BoUtils
 import bo_main
 import RegretStopping
+import AcquisitionOptimizer
+import warnings
 from input import D
 
 
@@ -55,7 +60,8 @@ class VanillaTests(unittest.TestCase):
         proposed = iter([torch.full((1,D),v,dtype=torch.double,requires_grad=True)
                          for v in (.25,.5,.75)])
         def optimize(**kwargs):
-            if isinstance(kwargs['acq_function'],BoUtils.InputMappedAcquisition):
+            if (isinstance(kwargs['acq_function'],BoUtils.InputMappedAcquisition)
+                    and isinstance(kwargs['acq_function'].base_acqf,PosteriorMean)):
                 return torch.full((1,D),.5,dtype=torch.double),torch.tensor(-1.)
             return next(proposed),torch.tensor(-7.)
         with patch.object(BoLoop,'fit_gpytorch_mll',side_effect=fit), \
@@ -252,6 +258,142 @@ class RegretTests(unittest.TestCase):
                     bo_main.main(args)
                 sample.assert_not_called()
                 turbo.assert_not_called()
+
+
+class QuadraticAcquisition(AcquisitionFunction):
+    def __init__(self):
+        super().__init__(model=None)
+        self.batches = []
+
+    def forward(self, X):
+        self.batches.append(X.shape[0])
+        return -(X-.37).square().sum(dim=(-1,-2))
+
+
+class OptimizerTests(unittest.TestCase):
+    def setUp(self):
+        self.bounds = torch.tensor([[0.,0.],[1.,1.]],dtype=torch.double)
+        self.result = (torch.full((1,2),.4,dtype=torch.double),torch.tensor(-.01))
+        self.kwargs = {'acq_function':QuadraticAcquisition(),'bounds':self.bounds,
+                       'q':1,'num_restarts':60,'raw_samples':1024}
+
+    def test_batches_are_bounded_and_warned_scipy_retries_with_slsqp(self):
+        seen = []
+        def optimize(**kwargs):
+            seen.append(kwargs)
+            if len(seen) == 1:
+                warnings.warn('ABNORMAL: line search',OptimizationWarning)
+            return self.result
+        with patch.object(AcquisitionOptimizer,'botorch_optimize_acqf',side_effect=optimize):
+            AcquisitionOptimizer.optimize_acqf(**self.kwargs)
+        self.assertEqual(len(seen),2)
+        self.assertEqual(seen[0]['num_restarts'],60)
+        self.assertEqual(seen[0]['raw_samples'],1024)
+        self.assertLessEqual(seen[0]['options']['batch_limit'],2)
+        self.assertLessEqual(seen[0]['options']['init_batch_limit'],16)
+        self.assertFalse(seen[0]['retry_on_optimization_warning'])
+        self.assertEqual(seen[1]['options']['method'],'SLSQP')
+        self.assertEqual(seen[1]['options']['batch_limit'],1)
+        self.assertNotIn('maxls',seen[1]['options'])
+
+    def test_ucb_uses_clean_retry_not_a_better_warned_result(self):
+        calls = []
+        def optimize(**kwargs):
+            calls.append(kwargs)
+            if len(calls) == 1:
+                warnings.warn('ABNORMAL',OptimizationWarning)
+                return self.result[0],torch.tensor(100.)
+            return self.result
+        with patch.object(AcquisitionOptimizer,'botorch_optimize_acqf',side_effect=optimize):
+            result = AcquisitionOptimizer.optimize_acqf(**self.kwargs,require_convergence=True)
+        self.assertAlmostEqual(result[1].item(),-.01)
+
+    def test_recovery_respects_a_lower_configured_memory_limit(self):
+        seen = []
+        def optimize(**kwargs):
+            seen.append(kwargs['options'])
+            if len(seen) == 1:
+                warnings.warn('ABNORMAL',OptimizationWarning)
+            return self.result
+        with patch.object(AcquisitionOptimizer,'BO_OPT_BATCH_LIMIT',1), \
+             patch.object(AcquisitionOptimizer,'BO_OPT_INIT_BATCH_LIMIT',4), \
+             patch.object(AcquisitionOptimizer,'botorch_optimize_acqf',side_effect=optimize):
+            AcquisitionOptimizer.optimize_acqf(**self.kwargs)
+        self.assertTrue(all(options['batch_limit'] <= 1 for options in seen))
+        self.assertTrue(all(options['init_batch_limit'] <= 4 for options in seen))
+
+    def test_warned_ucb_does_not_count_as_a_convergence_check(self):
+        def optimize(**kwargs):
+            warnings.warn('ABNORMAL',OptimizationWarning)
+            return self.result
+        stopping = RegretStopping.SimpleRegretStopping(min_evaluations=1,check_every=1,patience=1,grid_size=8)
+        X = torch.ones(2,D,dtype=torch.double)
+        with patch.object(AcquisitionOptimizer,'botorch_optimize_acqf',side_effect=optimize),self.assertWarns(UserWarning):
+            self.assertFalse(stopping.check(LinearGP(sigma=.00001),BoUtils.identity_map,X,1,1))
+        self.assertFalse(stopping.history[-1]['search_ok'])
+        self.assertEqual(stopping.consecutive,0)
+
+    def test_finite_grid_fallback_is_batched_after_two_exceptions(self):
+        with patch.object(AcquisitionOptimizer,'botorch_optimize_acqf',side_effect=RuntimeError('test failure')) as optimize:
+            point,value = AcquisitionOptimizer.optimize_acqf(**self.kwargs)
+        self.assertEqual(optimize.call_count,2)
+        self.assertTrue(torch.isfinite(value))
+        self.assertTrue(((point >= 0)&(point <= 1)).all())
+        self.assertLessEqual(max(self.kwargs['acq_function'].batches),16)
+
+    def test_one_shot_fallback_extracts_only_the_real_candidate(self):
+        class OneShotQuadratic(OneShotAcquisitionFunction):
+            def __init__(self):
+                super().__init__(model=None)
+            def forward(self, X):
+                self.assert_shape = X.shape[-2]
+                return -(X-.37).square().sum(dim=(-1,-2))
+            def get_augmented_q_batch_size(self, q):
+                return q+2
+            def extract_candidates(self, X):
+                return X[..., :1, :]
+        acquisition = OneShotQuadratic()
+        kwargs = dict(self.kwargs,acq_function=acquisition)
+        with patch.object(AcquisitionOptimizer,'botorch_optimize_acqf',side_effect=RuntimeError('test failure')):
+            point,value = AcquisitionOptimizer.optimize_acqf(**kwargs)
+        self.assertEqual(acquisition.assert_shape,3)
+        self.assertEqual(point.shape,(1,2))
+        self.assertTrue(torch.isfinite(value))
+
+    def test_cached_noisy_ei_preserves_batched_values_and_gradients(self):
+        X = .1+.8*torch.rand(6,D,dtype=torch.double,generator=torch.Generator().manual_seed(67))
+        mapping = BoUtils.periodic_feature_map
+        with patch.object(BoLoop,'fit_gpytorch_mll',side_effect=short_fit):
+            gp = BoLoop._fit_model(X,np.arange(6.),torch.full((6,1),.01,dtype=torch.double),mapping,
+                    ScaleKernel(RBFKernel(ard_num_dims=mapping(X).shape[-1])))
+        base = qLogNoisyExpectedImprovement(gp,X_baseline=mapping(X),cache_root=True,prune_baseline=False)
+        self.assertTrue(base._cache_root)
+        acquisition = BoUtils.InputMappedAcquisition(base,mapping)
+        candidate = torch.full((4,1,D),.4,dtype=torch.double,requires_grad=True)
+        full = acquisition(candidate)
+        full_grad, = torch.autograd.grad(full.sum(),candidate)
+        chunks = torch.cat([acquisition(chunk) for chunk in candidate.split(2)])
+        chunk_grad, = torch.autograd.grad(chunks.sum(),candidate)
+        torch.testing.assert_close(chunks,full)
+        torch.testing.assert_close(chunk_grad,full_grad)
+        self.assertTrue(torch.isfinite(full_grad).all())
+
+    def test_checkpoint_survives_a_later_search_failure(self):
+        X = torch.full((2,D),.5,dtype=torch.double)
+        initial = (X,np.array([-1.,-2.]),np.array([.01,.02]))
+        def fail_after_checkpoint(**kwargs):
+            kwargs['checkpoint']({'X':X.numpy(),'y':initial[1],'variance':initial[2]},[])
+            raise RuntimeError('simulated later failure')
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(bo_main,'sobol_sample',return_value=initial), \
+             patch.object(bo_main,'bo_rbf_old',side_effect=fail_after_checkpoint):
+            with self.assertRaises(RuntimeError):
+                bo_main.run_vanilla(kernel='rbf',iterations=2,checkpoint_dir=root)
+            checkpoint = np.load(Path(root)/'bo_checkpoint.npz')
+            np.testing.assert_array_equal(checkpoint['y'],initial[1])
+            self.assertTrue((Path(root)/'initial_design.npz').is_file())
+            self.assertTrue((Path(root)/'regret_history.csv').is_file())
+            self.assertFalse((Path(root)/'bo_checkpoint.npz.tmp').exists())
 
 
 if __name__ == '__main__':

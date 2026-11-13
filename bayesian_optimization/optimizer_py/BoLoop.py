@@ -8,7 +8,7 @@ from botorch.models.transforms.outcome import Standardize
 from botorch.fit import fit_gpytorch_mll
 from botorch.acquisition import qLogNoisyExpectedImprovement, PosteriorMean, qKnowledgeGradient
 from botorch.optim.initializers import gen_one_shot_kg_initial_conditions
-from botorch.optim import optimize_acqf
+from AcquisitionOptimizer import optimize_acqf
 from botorch.models.utils.assorted import InputDataWarning
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
@@ -49,7 +49,7 @@ def _best_posterior_mean(gp, mapping):
     return value.detach().item()
 
 
-def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_diagnostics=False):
+def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_diagnostics=False, checkpoint=None):
     iterations = MAX_ITER if max_iter is None else int(max_iter)
     if iterations < 1 or Q != 1:
         raise ValueError("Use a positive iteration budget and Q=1 for these single-point loops.")
@@ -94,7 +94,9 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
                 ic_generator=gen_one_shot_kg_initial_conditions,
             )
         else:
-            acquisition = qLogNoisyExpectedImprovement(model=model, X_baseline=X_train)
+            # Keep the actual GP visible to BoTorch so baseline Cholesky caching works.
+            acquisition = InputMappedAcquisition(qLogNoisyExpectedImprovement(
+                model=gp, X_baseline=mapping(X_train), cache_root=True),mapping)
             candidate, acquisition_value = optimize_acqf(
                 acq_function=acquisition, bounds=unit_bounds, q=Q,
                 num_restarts=60, raw_samples=1024,
@@ -102,6 +104,7 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         # Retain the acquisition value BEFORE fitting the updated GP.
         acquisition_scalar = acquisition_value.detach().item()
         cand = candidate[:1].detach().clone()
+        del acquisition, model, candidate, acquisition_value
         if duplicate_safe_candidate(X_train, cand):
             print("Duplicate candidate returned by optimizer — skipping this iteration")
             continue
@@ -132,8 +135,16 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         with torch.no_grad():
             posterior_var = gp.posterior(mapping(X_train[top_idx])).variance.mean().item()
         variance_hist.append(posterior_var)
-        if stopping.check(gp, mapping, X_train, evaluations, iteration+1):
+        should_stop = stopping.check(gp, mapping, X_train, evaluations, iteration+1)
+        if should_stop:
             stop_reason = 'estimated_simple_regret'
+        if checkpoint is not None:
+            checkpoint({'X':X_train.cpu().numpy(), 'y':y_train,
+                        'variance':train_yvar.squeeze(-1).cpu().numpy(),
+                        'acquisition':np.asarray(acquisition_hist),
+                        'posterior_mean':np.asarray(best_mean_hist),
+                        'posterior_variance':np.asarray(variance_hist)},stopping.history)
+        if should_stop:
             print(f"Estimated simple-regret criterion reached after {evaluations} new evaluations.")
             break
         print(f"Iteration {iteration+1}/{iterations}, Energy: {np.exp(energy_next):.4f}")
@@ -149,16 +160,16 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
     return result
 
 
-def bo_matern_kernel(nu=2.5, max_iter=None, initial_data=None, return_diagnostics=False):
+def bo_matern_kernel(nu=2.5, max_iter=None, initial_data=None, return_diagnostics=False, checkpoint=None):
     """Matérn ARD GP on map_fn features, with knowledge gradient (two fantasies)."""
-    return _bo_loop('matern', map_fn, max_iter, initial_data, nu, return_diagnostics)
+    return _bo_loop('matern', map_fn, max_iter, initial_data, nu, return_diagnostics, checkpoint)
 
 
-def bo_rbf_kernel(max_iter=None, initial_data=None, return_diagnostics=False):
+def bo_rbf_kernel(max_iter=None, initial_data=None, return_diagnostics=False, checkpoint=None):
     """RBF ARD GP on pooled Cartesian coil features, with log noisy EI."""
-    return _bo_loop('rbf', map_set, max_iter, initial_data, return_diagnostics=return_diagnostics)
+    return _bo_loop('rbf', map_set, max_iter, initial_data, return_diagnostics=return_diagnostics,checkpoint=checkpoint)
 
 
-def bo_rbf_old(max_iter=None, initial_data=None, return_diagnostics=False):
+def bo_rbf_old(max_iter=None, initial_data=None, return_diagnostics=False, checkpoint=None):
     """RBF ARD GP on map_fn features, with log noisy EI (legacy function name)."""
-    return _bo_loop('rbf', map_fn, max_iter, initial_data, return_diagnostics=return_diagnostics)
+    return _bo_loop('rbf', map_fn, max_iter, initial_data, return_diagnostics=return_diagnostics,checkpoint=checkpoint)

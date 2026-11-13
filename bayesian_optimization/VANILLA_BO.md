@@ -58,6 +58,7 @@ BO output uses a new directory under `results/`, or a **new** `--output-dir`:
 - `initial_design.npz`: the initial observations, evaluated once;
 - `bo_settings.json`: kernel, acquisition, seed and requested refinement budget;
 - `bo_history.npz`: all observations and acquisition/posterior diagnostics;
+- `bo_checkpoint.npz`: atomically updated after each completed successful BO update;
 - `regret_history.csv`: estimated simple-regret checks and consecutive-pass counts;
 - the same final-validation CSVs and configuration files as TuRBO.
 
@@ -74,3 +75,6 @@ python bo_main.py --method bo --kernel rbf --iterations 2 \
 
 Reduced-budget results check execution, not optimization quality. Changing these
 Python options requires restarting Python, but no C++ rebuild.
+
+See [OPTIMIZER_STABILITY.md](OPTIMIZER_STABILITY.md) for memory controls,
+numerical-warning recovery and checkpoint behavior.

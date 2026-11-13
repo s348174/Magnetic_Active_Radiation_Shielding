@@ -5,21 +5,24 @@ import warnings
 
 import torch
 from botorch.acquisition import UpperConfidenceBound
-from botorch.optim import optimize_acqf
+from AcquisitionOptimizer import optimize_acqf
 
 from BoUtils import InputMappedAcquisition
 from input import (
     unit_bounds, device, SEED, BO_REGRET_ENABLED, BO_REGRET_REL_TOL,
     BO_REGRET_CONFIDENCE, BO_REGRET_MIN_EVALS, BO_REGRET_CHECK_EVERY,
-    BO_REGRET_PATIENCE, BO_REGRET_SAMPLES,
+    BO_REGRET_PATIENCE, BO_REGRET_SAMPLES, BO_POSTERIOR_BATCH_LIMIT,
 )
 
 
 def lower_bound_incumbent(gp, mapping, X, confidence):
     """Return an evaluated point's index and LCB, in original log-response units."""
     with torch.no_grad():
-        posterior = gp.posterior(mapping(X).unsqueeze(-2))
-        lower = (posterior.mean - confidence * posterior.variance.clamp_min(0).sqrt()).reshape(-1)
+        lower = []
+        for batch in X.split(BO_POSTERIOR_BATCH_LIMIT):
+            posterior = gp.posterior(mapping(batch).unsqueeze(-2))
+            lower.append((posterior.mean-confidence*posterior.variance.clamp_min(0).sqrt()).reshape(-1))
+        lower = torch.cat(lower)
     if not torch.isfinite(lower).all():
         raise RuntimeError('Non-finite posterior lower confidence bounds.')
     index = int(lower.argmax().item())
@@ -56,14 +59,14 @@ class SimpleRegretStopping:
         points = torch.cat((self.grid, X.detach()))
         with torch.no_grad():
             values = torch.cat([acquisition(batch.unsqueeze(-2)).reshape(-1)
-                                for batch in points.split(128)])
+                                for batch in points.split(BO_POSTERIOR_BATCH_LIMIT)])
         if not torch.isfinite(values).all():
             raise RuntimeError('Non-finite UCB grid values.')
         restarts = min(20, len(points))
         starts = points[values.topk(restarts).indices].unsqueeze(-2)
         candidate, _ = optimize_acqf(
             acq_function=acquisition, bounds=unit_bounds, q=1, num_restarts=restarts,
-            batch_initial_conditions=starts, options={'batch_limit':5},
+            batch_initial_conditions=starts, require_convergence=True,
         )
         with torch.no_grad():
             optimized = acquisition(candidate.detach()).reshape(-1)

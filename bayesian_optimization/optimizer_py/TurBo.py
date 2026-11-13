@@ -10,7 +10,7 @@ from botorch.fit import fit_gpytorch_mll
 from botorch.acquisition import qLogNoisyExpectedImprovement
 from botorch.acquisition.analytic import LogExpectedImprovement
 from botorch.generation import MaxPosteriorSampling
-from botorch.optim import optimize_acqf
+from AcquisitionOptimizer import optimize_acqf
 
 # GPyTorch imports
 from gpytorch.mlls import ExactMarginalLogLikelihood
@@ -276,10 +276,8 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts", initial_data=None,
         else:
             # Log-EI optimised within the TR bounds
             tr_bounds = _tr_bounds(state, X_train, y_train)
-            log_ei = qLogNoisyExpectedImprovement(
-                model=InputMappedModel(gp, map_coilwise),
-                X_baseline=X_train, # Wrapper maps normalized baseline and candidates once
-            )
+            log_ei = InputMappedAcquisition(qLogNoisyExpectedImprovement(
+                model=gp, X_baseline=map_coilwise(X_train),cache_root=True),map_coilwise)
             candidate, acq_value = optimize_acqf(
                 acq_function=log_ei,
                 bounds=tr_bounds,
@@ -287,15 +285,18 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts", initial_data=None,
                 num_restarts=NUM_RESTARTS,
                 raw_samples=RAW_SAMPLES,
             )
+            del log_ei
 
         # Take only the first point from the batch for duplicate checking
         cand = candidate[0:1].detach().clone().to(device)
+        acq_scalar = acq_value.detach().item()
+        del candidate, acq_value
         if duplicate_safe_candidate(X_train, cand):
             print(f"Iteration {iteration+1}: duplicate candidate — skipping.")
             continue
 
         # 2. Decode candidate → physical parameters
-        candidate_np    = candidate.detach().cpu().numpy()
+        candidate_np    = cand.cpu().numpy()
         candidate_unnorm = denormalize(candidate_np)          # back to physical scale
         centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
 
@@ -336,7 +337,6 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts", initial_data=None,
         fit_gp_with_noise_floor(gp)
 
         # 7. Convergence diagnostics (mirrors bo_matern_kernel exactly)
-        acq_scalar = acq_value.item() # TS has no scalar acquisition; retain NaN in the report.
         ei_array = np.append(ei_array, acq_scalar)
 
         from botorch.acquisition import PosteriorMean  # local import avoids circular issues
@@ -349,15 +349,16 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts", initial_data=None,
             num_restarts=60,
             raw_samples=1024,
         )
-        best_mean_hist.append(current_best_mean)
+        best_mean_hist.append(current_best_mean.detach().item())
+        del post_mean, post_mean_mapped, current_best_mean
 
         #learned_noise_var = likelihood_noise_scalar(gp)
         top_k   = min(5, X_train.shape[0])
         top_idx = torch.as_tensor(
             np.argsort(y_train)[-top_k:], dtype=torch.long, device=device
         )
-        posterior     = gp.posterior(X_train_model[top_idx])
-        posterior_var = posterior.variance.mean().item()
+        with torch.no_grad():
+            posterior_var = gp.posterior(X_train_model[top_idx]).variance.mean().item()
         variance_hist.append(posterior_var)
 
         """if stopping_criterion(best_mean_hist, learned_noise_var, posterior_var):

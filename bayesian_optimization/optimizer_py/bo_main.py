@@ -15,7 +15,18 @@ from FinalEvaluation import evaluate_finalists
 from input import K, SEED, device, MAX_ITER, ENERGY_BINS, TURBO_MAX_REGIONS, FINAL_PARTICLES, FINAL_REPEATS, FINALISTS
 
 
-def run_vanilla(kernel='matern', iterations=None, nu=2.5):
+def save_regret_history(directory, checks):
+    columns = ['evaluations','iteration','max_ucb','incumbent_lcb','incumbent_index',
+               'estimated_regret','delta','search_ok','below_threshold','consecutive_passes']
+    temporary = Path(directory)/'regret_history.csv.tmp'
+    with open(temporary,'w',newline='') as file:
+        writer = csv.DictWriter(file,fieldnames=columns)
+        writer.writeheader()
+        writer.writerows(checks)
+    temporary.replace(Path(directory)/'regret_history.csv')
+
+
+def run_vanilla(kernel='matern', iterations=None, nu=2.5, checkpoint_dir=None):
     """Adapt the existing single-loop results to the common saving/validation path."""
     budget = MAX_ITER if iterations is None else int(iterations)
     if budget < 1 or FINALISTS < 1:
@@ -23,6 +34,16 @@ def run_vanilla(kernel='matern', iterations=None, nu=2.5):
     initial = sobol_sample()
     functions = {'matern':bo_matern_kernel, 'rbf':bo_rbf_old, 'rbf-set':bo_rbf_kernel}
     kwargs = {'max_iter':budget, 'initial_data':initial, 'return_diagnostics':True}
+    if checkpoint_dir is not None:
+        directory = Path(checkpoint_dir)
+        np.savez(directory/'initial_design.npz',X=initial[0].cpu().numpy(),y=initial[1],variance=initial[2])
+        def checkpoint(history, checks):
+            temporary = directory/'bo_checkpoint.npz.tmp'
+            with open(temporary,'wb') as file:
+                np.savez(file,**history)
+            temporary.replace(directory/'bo_checkpoint.npz')
+            save_regret_history(directory,checks)
+        kwargs['checkpoint'] = checkpoint
     if kernel == 'matern':
         kwargs['nu'] = nu
     X,y,acquisition,means,variances,diagnostics = functions[kernel](**kwargs)
@@ -89,7 +110,7 @@ def main(argv=None):
         search = bo_multi_turbo(total_iterations=args.iterations,n_regions=args.regions)
     else:
         search = run_vanilla(kernel=args.kernel or 'matern',iterations=args.iterations,
-                             nu=2.5 if args.nu is None else args.nu)
+                             nu=2.5 if args.nu is None else args.nu,checkpoint_dir=directory)
     X,y,variance = search['initial']
     np.savez(directory/'initial_design.npz',X=X.cpu().numpy(),y=y,variance=variance)
     settings_file = 'region_selection.json' if args.method == 'turbo' else 'bo_settings.json'
@@ -101,12 +122,7 @@ def main(argv=None):
         history_file = f"region_{region['region']}.npz" if args.method == 'turbo' else 'bo_history.npz'
         np.savez(directory/history_file,**region)
     if args.method == 'bo':
-        columns = ['evaluations','iteration','max_ucb','incumbent_lcb','incumbent_index',
-                   'estimated_regret','delta','search_ok','below_threshold','consecutive_passes']
-        with open(directory/'regret_history.csv','w',newline='') as file:
-            writer = csv.DictWriter(file,fieldnames=columns)
-            writer.writeheader()
-            writer.writerows(search['regret_checks'])
+        save_regret_history(directory,search['regret_checks'])
     # This stage is automatic: finalists are ranked by fresh raw responses at high N.
     validation = evaluate_finalists(search['finalists'],n_particles=args.final_particles,
                                     repeats=args.validation_repeats,output_dir=directory)

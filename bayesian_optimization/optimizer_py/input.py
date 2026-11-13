@@ -22,6 +22,11 @@ Q = 1 # Batch size: this pipeline optimizes one configuration at a time
 SEED = 67
 rng = np.random.default_rng(SEED)
 
+# Limit simultaneous GP/acquisition work, without reducing the restart count.
+BO_OPT_BATCH_LIMIT = 2
+BO_OPT_INIT_BATCH_LIMIT = 16
+BO_POSTERIOR_BATCH_LIMIT = 32
+
 # Approximate simple-regret stopping for the vanilla RBF and Matern loops.
 BO_REGRET_ENABLED = True
 BO_REGRET_REL_TOL = 1e-3 # Response within 0.1% of the unknown optimum, if bounds hold

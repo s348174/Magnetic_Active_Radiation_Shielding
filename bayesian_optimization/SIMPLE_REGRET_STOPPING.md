@@ -60,8 +60,11 @@ launch any new particle simulations.
 
 Keeping the grid maximum prevents a poor local optimizer result from lowering
 the estimate below the sampled values. It does not establish a global maximum.
-A raised numerical error or non-finite result invalidates the check, resets the
-consecutive-pass count, and continues BO.
+A numerical error, non-finite result or optimizer warning triggers one bounded
+SLSQP recovery attempt. If recovery also fails or warns, the check is invalidated,
+the consecutive-pass count resets, and BO continues. Even a finite warned UCB
+result cannot trigger stopping. See [OPTIMIZER_STABILITY.md](OPTIMIZER_STABILITY.md)
+for batching, baseline caching and checkpoint details.
 
 ## Settings in input.py
 
