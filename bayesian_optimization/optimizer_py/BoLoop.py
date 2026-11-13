@@ -16,8 +16,9 @@ from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
 from BoUtils import (
     denormalize, unpack_configuration, map_fn, map_set,
     InputMappedAcquisition, InputMappedModel, sobol_sample,
-    stopping_criterion, duplicate_safe_candidate,
+    duplicate_safe_candidate,
 )
+from RegretStopping import SimpleRegretStopping, lower_bound_incumbent
 from Objective import objective_function
 from input import device, MAX_ITER, unit_bounds, rng, Q
 
@@ -48,10 +49,11 @@ def _best_posterior_mean(gp, mapping):
     return value.detach().item()
 
 
-def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5):
+def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_diagnostics=False):
     iterations = MAX_ITER if max_iter is None else int(max_iter)
     if iterations < 1 or Q != 1:
         raise ValueError("Use a positive iteration budget and Q=1 for these single-point loops.")
+    stopping = SimpleRegretStopping()
 
     # Initial observations may be shared with the driver without simulating twice.
     X_train, y_train, train_yvar = sobol_sample() if initial_data is None else initial_data
@@ -74,6 +76,8 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5):
 
     acquisition_hist, best_mean_hist, variance_hist = [], [], []
     warnings_counter = 0
+    evaluations = 0
+    stop_reason = 'iteration_budget'
     # Matérn retains the original KG acquisition. Subtract the current optimum
     # so its reported value is an improvement, rather than a future value level.
     current_best_mean = _best_posterior_mean(gp, mapping) if kernel == 'matern' else None
@@ -118,6 +122,7 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5):
         train_yvar = torch.cat((train_yvar, torch.tensor(
             [[var_next]], dtype=torch.double, device=device).clamp_min(1e-6)))
         gp = _fit_model(X_train, y_train, train_yvar, mapping, covar_module)
+        evaluations += 1
 
         # Acquisition values stay in their native units: KG or log-NEI.
         acquisition_hist.append(acquisition_scalar)
@@ -127,29 +132,33 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5):
         with torch.no_grad():
             posterior_var = gp.posterior(mapping(X_train[top_idx])).variance.mean().item()
         variance_hist.append(posterior_var)
-        # Both quantities are variances of the original log-response, before Standardize.
-        noise_var = train_yvar.mean().item()
-        if stopping_criterion(best_mean_hist, noise_var, posterior_var):
-            print(f"Stopping heuristic reached at iteration {iteration+1}: "
-                  f"acquisition={acquisition_scalar:.6g}, predicted mean={current_best_mean:.4f}, "
-                  f"variance={posterior_var:.6g}")
+        if stopping.check(gp, mapping, X_train, evaluations, iteration+1):
+            stop_reason = 'estimated_simple_regret'
+            print(f"Estimated simple-regret criterion reached after {evaluations} new evaluations.")
             break
         print(f"Iteration {iteration+1}/{iterations}, Energy: {np.exp(energy_next):.4f}")
     print(f"BO loop completed with {warnings_counter} invalid-observation warnings.")
-    return (X_train.cpu().numpy(), y_train, np.asarray(acquisition_hist),
-            best_mean_hist, variance_hist)
+    result = (X_train.cpu().numpy(), y_train, np.asarray(acquisition_hist),
+              best_mean_hist, variance_hist)
+    if return_diagnostics:
+        incumbent, _ = lower_bound_incumbent(gp, mapping, X_train, stopping.confidence)
+        diagnostics = {'settings':stopping.settings(), 'checks':stopping.history,
+                       'stop_reason':stop_reason, 'successful_evaluations':evaluations,
+                       'attempted_iterations':iteration+1, 'incumbent_index':incumbent}
+        return (*result, diagnostics)
+    return result
 
 
-def bo_matern_kernel(nu=2.5, max_iter=None, initial_data=None):
+def bo_matern_kernel(nu=2.5, max_iter=None, initial_data=None, return_diagnostics=False):
     """Matérn ARD GP on map_fn features, with knowledge gradient (two fantasies)."""
-    return _bo_loop('matern', map_fn, max_iter, initial_data, nu)
+    return _bo_loop('matern', map_fn, max_iter, initial_data, nu, return_diagnostics)
 
 
-def bo_rbf_kernel(max_iter=None, initial_data=None):
+def bo_rbf_kernel(max_iter=None, initial_data=None, return_diagnostics=False):
     """RBF ARD GP on pooled Cartesian coil features, with log noisy EI."""
-    return _bo_loop('rbf', map_set, max_iter, initial_data)
+    return _bo_loop('rbf', map_set, max_iter, initial_data, return_diagnostics=return_diagnostics)
 
 
-def bo_rbf_old(max_iter=None, initial_data=None):
+def bo_rbf_old(max_iter=None, initial_data=None, return_diagnostics=False):
     """RBF ARD GP on map_fn features, with log noisy EI (legacy function name)."""
-    return _bo_loop('rbf', map_fn, max_iter, initial_data)
+    return _bo_loop('rbf', map_fn, max_iter, initial_data, return_diagnostics=return_diagnostics)

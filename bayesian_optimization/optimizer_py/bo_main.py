@@ -1,5 +1,6 @@
 """Run multi-region TuRBO or vanilla BO, then independently validate finalists."""
 import argparse
+import csv
 import json
 from pathlib import Path
 import tempfile
@@ -21,12 +22,14 @@ def run_vanilla(kernel='matern', iterations=None, nu=2.5):
         raise ValueError('Use a positive iteration and finalist budget.')
     initial = sobol_sample()
     functions = {'matern':bo_matern_kernel, 'rbf':bo_rbf_old, 'rbf-set':bo_rbf_kernel}
-    kwargs = {'max_iter':budget, 'initial_data':initial}
+    kwargs = {'max_iter':budget, 'initial_data':initial, 'return_diagnostics':True}
     if kernel == 'matern':
         kwargs['nu'] = nu
-    X,y,acquisition,means,variances = functions[kernel](**kwargs)
+    X,y,acquisition,means,variances,diagnostics = functions[kernel](**kwargs)
     finalists = []
-    for index in np.argsort(-y,kind='stable'):
+    # The regret estimate refers to this LCB incumbent. Always independently validate it.
+    order = np.r_[diagnostics['incumbent_index'],np.argsort(-y,kind='stable')]
+    for index in order:
         if finalists and duplicate_safe_candidate(np.stack([p['x'] for p in finalists]),X[index]):
             continue
         finalists.append({'x':X[index].copy(), 'score':float(y[index]), 'region':1})
@@ -35,7 +38,9 @@ def run_vanilla(kernel='matern', iterations=None, nu=2.5):
     return {'initial':initial,
             'selection':{'regions':1, 'kernel':kernel,
                          'acquisition':'kg' if kernel == 'matern' else 'log-nei',
-                         'nu':nu if kernel == 'matern' else None},
+                         'nu':nu if kernel == 'matern' else None,
+                         'stopping':{key:value for key,value in diagnostics.items() if key != 'checks'}},
+            'regret_checks':diagnostics['checks'],
             'seed_indices':np.array([],dtype=int),
             'regions':[{'region':1, 'budget':budget, 'X':X, 'y':y,
                         'acquisition':acquisition, 'posterior_mean':np.asarray(means),
@@ -95,6 +100,13 @@ def main(argv=None):
     for region in search['regions']:
         history_file = f"region_{region['region']}.npz" if args.method == 'turbo' else 'bo_history.npz'
         np.savez(directory/history_file,**region)
+    if args.method == 'bo':
+        columns = ['evaluations','iteration','max_ucb','incumbent_lcb','incumbent_index',
+                   'estimated_regret','delta','search_ok','below_threshold','consecutive_passes']
+        with open(directory/'regret_history.csv','w',newline='') as file:
+            writer = csv.DictWriter(file,fieldnames=columns)
+            writer.writeheader()
+            writer.writerows(search['regret_checks'])
     # This stage is automatic: finalists are ranked by fresh raw responses at high N.
     validation = evaluate_finalists(search['finalists'],n_particles=args.final_particles,
                                     repeats=args.validation_repeats,output_dir=directory)

@@ -43,25 +43,27 @@ The physical flux sampling and objective's logarithmic response are unchanged.
 `Q=1` is required. `INIT` and `N` in `input.py` control initial configurations and
 optimization particles per species. `MAX_ITER`, or `--iterations`, bounds the
 single loop's refinement iterations, excluding initialization and validation.
-The existing stopping heuristic can end a vanilla run early. Duplicate candidates
+The [estimated simple-regret criterion](SIMPLE_REGRET_STOPPING.md) can end a vanilla run early. Duplicate candidates
 and invalid observations are skipped, so iterations need not equal evaluations.
-The heuristic is not a mathematical convergence guarantee.
+The estimated criterion is not a mathematical convergence guarantee.
 
 Only finite responses with finite nonnegative variances are appended; inputs,
 responses and variances always advance together. Acquisition diagnostics are
 saved before refitting the GP, in native units: KG for Matérn, log-NEI for RBF.
-KG subtracts the optimized current posterior mean. The stopping check compares
-posterior and observation variances in the original log-response units.
+KG subtracts the optimized current posterior mean. Stopping uses the estimated
+maximum UCB minus the best evaluated LCB in original log-response units.
 
 BO output uses a new directory under `results/`, or a **new** `--output-dir`:
 
 - `initial_design.npz`: the initial observations, evaluated once;
 - `bo_settings.json`: kernel, acquisition, seed and requested refinement budget;
 - `bo_history.npz`: all observations and acquisition/posterior diagnostics;
+- `regret_history.csv`: estimated simple-regret checks and consecutive-pass counts;
 - the same final-validation CSVs and configuration files as TuRBO.
 
-Up to `FINALISTS` distinct evaluated configurations with the best observed scores
-are independently rechecked and ranked by raw response. Validation still uses
+The final LCB incumbent is included first, followed by distinct evaluated
+configurations with the best observed scores, up to `FINALISTS` in total.
+They are independently rechecked and ranked by raw response. Validation still uses
 `FINAL_PARTICLES=100000` particles per species and `FINAL_REPEATS=3` by default.
 For a smoke test, first reduce `N` and `INIT` in `input.py`, then for example run:
 

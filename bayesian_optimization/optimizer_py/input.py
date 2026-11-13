@@ -22,6 +22,15 @@ Q = 1 # Batch size: this pipeline optimizes one configuration at a time
 SEED = 67
 rng = np.random.default_rng(SEED)
 
+# Approximate simple-regret stopping for the vanilla RBF and Matern loops.
+BO_REGRET_ENABLED = True
+BO_REGRET_REL_TOL = 1e-3 # Response within 0.1% of the unknown optimum, if bounds hold
+BO_REGRET_CONFIDENCE = 2.0 # UCB/LCB = posterior mean +/- this many latent standard deviations
+BO_REGRET_MIN_EVALS = 5 * D # Successful NEW evaluations; initial design is excluded
+BO_REGRET_CHECK_EVERY = D
+BO_REGRET_PATIENCE = 3 # Consecutive checks below the tolerance
+BO_REGRET_SAMPLES = 1024 # Fixed scrambled Sobol grid supplements multistart UCB search
+
 # Multiple independent trust-region runs share the initial design and MAX_ITER budget.
 TURBO_REGIONS = 0       # 0: automatic effective-rank choice; set 4 or 5 to fix the count
 TURBO_MAX_REGIONS = 1
