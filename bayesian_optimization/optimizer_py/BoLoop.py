@@ -19,8 +19,8 @@ from BoUtils import (
     duplicate_safe_candidate,
 )
 from RegretStopping import SimpleRegretStopping, lower_bound_incumbent
-from Objective import objective_function
-from input import device, MAX_ITER, unit_bounds, rng, Q
+from Objective import objective_function, next_optimization_seed
+from input import device, MAX_ITER, unit_bounds, Q
 
 
 def _fit_model(X_train, y_train, train_yvar, mapping, covar_module):
@@ -111,7 +111,7 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
 
         physical = denormalize(cand).detach().cpu().numpy()
         centers_next, normals_next = unpack_configuration(physical[0])
-        energy_next, var_next = objective_function(rng.integers(1e6), centers_next, normals_next)
+        energy_next, var_next = objective_function(next_optimization_seed(), centers_next, normals_next)
         if not np.isfinite([energy_next, var_next]).all() or var_next < 0:
             warnings.warn(f"Invalid response or variance at iteration {iteration+1}. Skipping.")
             warnings_counter += 1

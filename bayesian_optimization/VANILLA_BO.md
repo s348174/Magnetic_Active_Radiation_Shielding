@@ -39,6 +39,9 @@ variance (`train_Yvar`). `Standardize` transforms both consistently. These
 variances are the existing approximate within-run estimates, not an exact model
 of all randomized-quadrature error. The independent final validation is retained.
 The physical flux sampling and objective's logarithmic response are unchanged.
+Optimization uses [common energy draws with fresh spatial Owen scrambles](COMMON_RANDOM_ENERGIES.md);
+final validation refreshes both. Each evaluation prints a weighted relative
+received-energy diagnostic without changing the total-energy objective.
 
 `Q=1` is required. `INIT` and `N` in `input.py` control initial configurations and
 optimization particles per species. `MAX_ITER`, or `--iterations`, bounds the

@@ -46,7 +46,7 @@ def evaluate_finalists(finalists, n_particles=FINAL_PARTICLES, repeats=FINAL_REP
         for replicate in range(repeats):
             current_seed = int(seed)+candidate*repeats+replicate
             response,variance = evaluate_configuration(current_seed,centers,normals,
-                                                       n_particles=n_particles)
+                                                       n_particles=n_particles,common_energy=False)
             if not np.isfinite([response,variance]).all() or response <= 0 or variance < 0:
                 raise FloatingPointError("Invalid final-validation response.")
             responses.append(response); within.append(variance); seeds.append(current_seed)

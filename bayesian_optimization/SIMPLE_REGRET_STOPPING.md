@@ -143,6 +143,9 @@ this option to save reports and preserve the incumbent in final validation.
 - Independent final validation assesses the selected configurations' responses
   and ranking. It does not establish global optimality or numerical discretization
   accuracy of the trajectory simulator.
+- With [common optimization energies](COMMON_RANDOM_ENERGIES.md), the GP is
+  conditional on that finite bank. Spatial rescrambling alone does not assess
+  its energy-integration error; final validation refreshes both energies and space.
 
 For a thesis, call this an **estimated GP simple-regret stopping criterion**.
 It does not compute cumulative regret or prove sublinear cumulative-regret growth.

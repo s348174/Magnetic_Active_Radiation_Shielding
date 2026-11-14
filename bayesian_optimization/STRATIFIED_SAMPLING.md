@@ -41,7 +41,9 @@ The outer Bayesian optimizer still fits the negative logarithm of the response.
 The variance formula is the usual stratified sample-mean estimate, not a
 calibrated randomized-QMC uncertainty estimate. Spatial Sobol points now use
 seeded nested Owen scrambling. Final validation estimates uncertainty between
-independent complete replicates; see `MULTI_TURBO.md`. GP noise handling is
+independent complete replicates; see `MULTI_TURBO.md`. Optimization now shares
+energy draws and refreshes spatial scrambles; see [COMMON_RANDOM_ENERGIES.md](COMMON_RANDOM_ENERGIES.md).
+GP noise handling is
 unchanged. Historical optimization values from the rescaled spectra are
 not directly comparable and should be regenerated for this sampling model.
 

@@ -93,8 +93,9 @@ The C++ Sobol generator retains its interface and sphere mapping. The disabled
 scrambling overwrite is removed, and each bit is now flipped using a seeded hash
 of its preceding original bits and level: a hash-based nested Owen scramble.
 The initial zero index is included to preserve dyadic prefix balance. Dimension,
-species and energy-bin seeds are separated, and a supplied objective seed now
-controls energy sampling as well as spatial scrambling. The existing XOR-shift
+species and energy-bin seeds are separated. Optimization reuses common energy
+draws while changing spatial scrambles; final validation refreshes both. See
+[COMMON_RANDOM_ENERGIES.md](COMMON_RANDOM_ENERGIES.md). The existing XOR-shift
 hash alone was not a nested Owen scramble.
 
 The default per-bin count 125 (or 12500 during final validation) is not a power of

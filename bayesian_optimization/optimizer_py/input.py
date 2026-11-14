@@ -21,6 +21,7 @@ CONVERGENCE_THRESHOLD = 1e-4 # Threshold for convergence
 Q = 1 # Batch size: this pipeline optimizes one configuration at a time
 SEED = 67
 rng = np.random.default_rng(SEED)
+BO_ENERGY_SEED = SEED # Common optimization energies; spatial Owen scrambles still change
 
 # Limit simultaneous GP/acquisition work, without reducing the restart count.
 BO_OPT_BATCH_LIMIT = 2

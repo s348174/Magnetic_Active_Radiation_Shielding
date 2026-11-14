@@ -3,7 +3,10 @@ import csv
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, mock_open
+from contextlib import redirect_stdout
+import io
+from itertools import count
 
 import numpy as np
 import torch
@@ -114,6 +117,7 @@ class FinalValidationTests(unittest.TestCase):
             self.assertEqual(len(set(seeds)),6)
             self.assertTrue(all(seed >= 1000000 for seed in seeds))
             self.assertTrue(all(call.kwargs['n_particles'] == 100000 for call in evaluate.call_args_list))
+            self.assertTrue(all(call.kwargs['common_energy'] is False for call in evaluate.call_args_list))
             self.assertEqual(results[0]['region'],2)
             self.assertEqual(results[0]['mean_response'],9)
             self.assertAlmostEqual(results[0]['replicate_se'],1/np.sqrt(3))
@@ -135,6 +139,64 @@ class FinalValidationTests(unittest.TestCase):
         for name in first:
             np.testing.assert_array_equal(first[name],second[name])
         self.assertFalse(np.array_equal(first['proton'],other['proton']))
+
+    def test_common_energies_fresh_spatial_seeds_and_unchanged_objective(self):
+        physical = BoUtils.denormalize(np.full(D,.5)).numpy()
+        centers,normals = BoUtils.unpack_configuration(physical)
+        incoming = []
+        def simulate(*args):
+            energy = Objective.incident_energy(args[7],args[8])
+            incoming.append(energy)
+            return .25*energy,.01*energy**2
+        output = io.StringIO()
+        with patch.object(Objective,'N',32), \
+             patch.object(Objective.simulator,'launch_simulation',side_effect=simulate) as launch, \
+             redirect_stdout(output):
+            first_result = Objective.objective_function(101,centers,normals)
+            second_result = Objective.objective_function(102,centers,normals)
+        first,second = [call.args for call in launch.call_args_list]
+        self.assertEqual([first[0],second[0]],[101,102])
+        for name in first[7]:
+            np.testing.assert_array_equal(first[7][name],second[7][name])
+            np.testing.assert_array_equal(first[8][name],second[8][name])
+        self.assertEqual(incoming[0],incoming[1])
+        self.assertAlmostEqual(first_result[0],np.log(.25*incoming[0]))
+        self.assertEqual(first_result,second_result)
+        self.assertIn('relative received=25.000000%',output.getvalue())
+        self.assertIn('Owen spatial seed=102',output.getvalue())
+
+    def test_validation_energy_stream_is_distinct_even_for_matching_seed_numbers(self):
+        physical = BoUtils.denormalize(np.full(D,.5)).numpy()
+        centers,normals = BoUtils.unpack_configuration(physical)
+        with patch.object(Objective,'BO_ENERGY_SEED',67), \
+             patch.object(Objective.simulator,'launch_simulation',return_value=(10.,1.)) as launch:
+            Objective.evaluate_configuration(67,centers,normals,n_particles=32,common_energy=True)
+            common = launch.call_args.args[7]
+            Objective.evaluate_configuration(67,centers,normals,n_particles=32,common_energy=False)
+            fresh = launch.call_args.args[7]
+        self.assertFalse(np.array_equal(common['proton'],fresh['proton']))
+
+    def test_incident_diagnostic_uses_flux_weights_and_total_nuclear_energy(self):
+        particles = 'i,particleName,m,q\n1,proton,1,1\n2,Fe56,2*28,26\n'
+        samples = {'proton':np.array([1.,3.,10.,20.]),'Fe56':np.array([2.,4.,15.,25.])}
+        strata = {'proton':np.array([[2.,2.],[2.,3.]]),'Fe56':np.array([[2.,1.],[2.,4.]])}
+        with patch.object(Objective,'open',mock_open(read_data=particles),create=True):
+            incoming = Objective.incident_energy(samples,strata)
+        self.assertEqual(incoming,1e6*(2*2+3*15+56*(1*3+4*20)))
+
+    def test_spatial_seed_allocator_is_unique_and_separate_from_default_validation(self):
+        with patch.object(Objective,'_optimization_seeds',count(Objective.SEED)):
+            seeds = [Objective.next_optimization_seed() for _ in range(1000)]
+        self.assertEqual(len(set(seeds)),1000)
+        self.assertTrue(all(seed < Objective.SEED+1000000 for seed in seeds))
+
+    def test_retry_retains_common_energies_and_consumes_a_fresh_scramble(self):
+        with patch.object(Objective,'_optimization_seeds',count(Objective.SEED+1)), \
+             patch.object(Objective,'evaluate_configuration',side_effect=[FloatingPointError(),(10.,1.)]) as evaluate:
+            Objective.objective_function(Objective.SEED,None,None)
+        self.assertEqual([call.args[0] for call in evaluate.call_args_list],
+                         [Objective.SEED,Objective.SEED+1])
+        self.assertTrue(all(call.kwargs['common_energy'] for call in evaluate.call_args_list))
 
     def test_driver_automatically_validates(self):
         X = torch.full((2,D),.5,dtype=torch.double)

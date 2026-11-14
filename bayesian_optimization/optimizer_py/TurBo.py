@@ -42,8 +42,8 @@ from BoUtils import (
     fit_gp_with_noise_floor,
     likelihood_noise_scalar,
 )
-from Objective import objective_function
-from input import device, MAX_ITER, unit_bounds, MAPPED_D, rng, Q, K
+from Objective import objective_function, next_optimization_seed
+from input import device, MAX_ITER, unit_bounds, MAPPED_D, Q, K
 from Kernels_v3 import CoilSetKernel, CoilMomentKernel
 
 # TUNING KNOBS FOR TS SAMPLING
@@ -301,7 +301,7 @@ def bo_turbo_matern(nu: float = 2.5, acqf: str = "ts", initial_data=None,
         centers_next, normals_next = unpack_configuration(candidate_unnorm[0])
 
         # 3. Evaluate the simulator
-        energy_next, var_next = objective_function(rng.integers(1e6), centers_next, normals_next)
+        energy_next, var_next = objective_function(next_optimization_seed(), centers_next, normals_next)
         if np.isnan(energy_next) or np.isinf(energy_next):
             warnings.warn(
                 f"Non-finite energy at iteration {iteration+1}. Skipping."

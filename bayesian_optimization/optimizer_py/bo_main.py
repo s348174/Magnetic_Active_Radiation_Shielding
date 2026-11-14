@@ -12,7 +12,7 @@ from MultiTurbo import bo_multi_turbo
 from BoLoop import bo_matern_kernel, bo_rbf_kernel, bo_rbf_old
 from BoUtils import sobol_sample, duplicate_safe_candidate
 from FinalEvaluation import evaluate_finalists
-from input import K, SEED, device, MAX_ITER, ENERGY_BINS, TURBO_MAX_REGIONS, FINAL_PARTICLES, FINAL_REPEATS, FINALISTS
+from input import K, SEED, BO_ENERGY_SEED, device, MAX_ITER, ENERGY_BINS, TURBO_MAX_REGIONS, FINAL_PARTICLES, FINAL_REPEATS, FINALISTS
 
 
 def save_regret_history(directory, checks):
@@ -116,6 +116,8 @@ def main(argv=None):
     settings_file = 'region_selection.json' if args.method == 'turbo' else 'bo_settings.json'
     with open(directory/settings_file,'w') as file:
         json.dump(dict(search['selection'],method=args.method,seed_indices=search['seed_indices'].tolist(),
+                       optimization_energy_seed=BO_ENERGY_SEED,
+                       optimization_sampling='common_energies_fresh_spatial_owen_scrambles',
                        seed=SEED,initial_evaluations=len(y),
                        total_refinement_budget=sum(r['budget'] for r in search['regions'])),file,indent=2)
     for region in search['regions']:
