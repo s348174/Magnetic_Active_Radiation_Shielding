@@ -1,6 +1,7 @@
 """Approximate GP simple-regret checks in the original normalized search space."""
 from dataclasses import dataclass, field
 import math
+from numbers import Integral
 import warnings
 
 import torch
@@ -11,7 +12,7 @@ from BoUtils import InputMappedAcquisition
 from input import (
     unit_bounds, device, SEED, BO_REGRET_ENABLED, BO_REGRET_REL_TOL,
     BO_REGRET_CONFIDENCE, BO_REGRET_MIN_EVALS, BO_REGRET_CHECK_EVERY,
-    BO_REGRET_PATIENCE, BO_REGRET_SAMPLES, BO_POSTERIOR_BATCH_LIMIT,
+    BO_REGRET_PATIENCE, BO_REGRET_SAMPLES, BO_POSTERIOR_BATCH_LIMIT, BO_REGRET_RECORD_EVERY,
 )
 
 
@@ -38,14 +39,17 @@ class SimpleRegretStopping:
     check_every: int = BO_REGRET_CHECK_EVERY
     patience: int = BO_REGRET_PATIENCE
     grid_size: int = BO_REGRET_SAMPLES
+    record_every: int = BO_REGRET_RECORD_EVERY
     consecutive: int = field(default=0, init=False)
     history: list = field(default_factory=list, init=False)
 
     def __post_init__(self):
         if (not math.isfinite(self.relative_tolerance) or self.relative_tolerance <= 0
                 or not math.isfinite(self.confidence) or self.confidence <= 0
-                or min(self.min_evaluations, self.check_every, self.patience, self.grid_size) < 1):
-            raise ValueError('Regret tolerances, confidence and integer budgets must be positive.')
+                or any(not isinstance(value,Integral) or value < 1 for value in
+                       (self.min_evaluations,self.check_every,self.patience,self.grid_size))
+                or not isinstance(self.record_every,Integral) or self.record_every < 0):
+            raise ValueError('Regret tolerances and budgets must be positive; record_every can also be zero.')
         self.delta = math.log1p(self.relative_tolerance)
         sobol = torch.quasirandom.SobolEngine(unit_bounds.shape[-1], scramble=True, seed=SEED+271828)
         grid = sobol.draw(self.grid_size).to(dtype=torch.double, device=device)
@@ -77,12 +81,18 @@ class SimpleRegretStopping:
                 'estimated_regret':max(0., upper-lower)}
 
     def check(self, gp, mapping, X, evaluations, iteration):
-        if (not self.enabled or evaluations < self.min_evaluations
-                or (evaluations-self.min_evaluations) % self.check_every):
+        stopping_check = (self.enabled and evaluations >= self.min_evaluations
+                          and (evaluations-self.min_evaluations) % self.check_every == 0)
+        record_due = self.record_every > 0 and evaluations > 0 and evaluations % self.record_every == 0
+        if not (stopping_check or record_due):
             return False
-        record = {'evaluations':evaluations, 'iteration':iteration, 'delta':self.delta}
+        record = {'evaluations':evaluations, 'iteration':iteration, 'delta':self.delta,
+                  'stopping_check':bool(stopping_check)}
         try:
-            result = self.estimate(gp, mapping, X)
+            # Diagnostic work must not consume the acquisition sampler's RNG state.
+            devices = [X.device.index] if torch.is_tensor(X) and X.is_cuda else []
+            with torch.random.fork_rng(devices=devices):
+                result = self.estimate(gp, mapping, X)
             if not math.isfinite(result['estimated_regret']):
                 raise RuntimeError('Non-finite estimated regret.')
             record.update(result, search_ok=True)
@@ -93,16 +103,18 @@ class SimpleRegretStopping:
             record.update(max_ucb=float('inf'), incumbent_lcb=float('-inf'),
                           incumbent_index=-1, estimated_regret=float('inf'), search_ok=False)
             below = False
-        self.consecutive = self.consecutive+1 if below else 0
+        if stopping_check:
+            self.consecutive = self.consecutive+1 if below else 0
         record.update(below_threshold=below, consecutive_passes=self.consecutive)
         self.history.append(record)
-        print(f"Estimated simple regret: {record['estimated_regret']:.6g}; "
+        purpose = 'stopping check' if stopping_check else 'record only'
+        print(f"Estimated simple regret ({purpose}): {record['estimated_regret']:.6g}; "
               f"tolerance={self.delta:.6g}; passes={self.consecutive}/{self.patience} "
               f"after {evaluations} new evaluations.")
-        return self.consecutive >= self.patience
+        return bool(stopping_check and self.consecutive >= self.patience)
 
     def settings(self):
         return {'enabled':self.enabled, 'relative_tolerance':self.relative_tolerance,
                 'delta':self.delta, 'confidence':self.confidence,
                 'min_evaluations':self.min_evaluations, 'check_every':self.check_every,
-                'patience':self.patience, 'grid_size':self.grid_size}
+                'patience':self.patience, 'grid_size':self.grid_size,'record_every':self.record_every}

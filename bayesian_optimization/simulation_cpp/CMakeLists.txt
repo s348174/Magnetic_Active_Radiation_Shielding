@@ -144,4 +144,16 @@ if(BUILD_TESTING)
     )
     set_tests_properties(vanilla_bo PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py")
+    add_test(NAME regret_reporting
+        COMMAND ${CMAKE_COMMAND} -E env
+            "PYTHONPATH=$<TARGET_FILE_DIR:simulator>:${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py"
+            "PYTHONDONTWRITEBYTECODE=1"
+            "MPLBACKEND=Agg"
+            "MPLCONFIGDIR=${CMAKE_CURRENT_BINARY_DIR}/matplotlib-cache"
+            "XDG_CACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/cache"
+            ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py/tests/test_regret_reporting.py
+    )
+    set_tests_properties(regret_reporting PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py")
 endif()

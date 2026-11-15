@@ -240,7 +240,7 @@ class RegretTests(unittest.TestCase):
         np.testing.assert_array_equal(search['finalists'][0]['x'],self.X[1].numpy())
 
     def test_disable_and_invalid_configuration(self):
-        stopping = RegretStopping.SimpleRegretStopping(enabled=False,grid_size=8)
+        stopping = RegretStopping.SimpleRegretStopping(enabled=False,record_every=0,grid_size=8)
         self.assertFalse(stopping.check(None,None,None,10000,10000))
         self.assertEqual(stopping.history,[])
         for kwargs in ({'relative_tolerance':0.},{'confidence':float('nan')},{'patience':0}):

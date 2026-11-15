@@ -9,6 +9,8 @@ describe six coils or a different current.
 ```bash
 # In your usual Python environment, from optimizer_py:
 python plot_regret.py --run-dir "results/bo_K6_seed67_YOUR_RUN"
+# The folder name alone also works for optimizer_py/results/:
+python plot_regret.py --run-dir "bo_K6_seed67_YOUR_RUN"
 ```
 
 By default it saves PNG and vector PDF files in `RUN_DIR/regret_plots/`, using a
@@ -16,6 +18,14 @@ headless backend. Optional `--show` displays the figures on a configured desktop
 `--output-dir` chooses another folder. Rerunning replaces these plot files only;
 the input CSVs, settings and histories are never modified. No C++ rebuild or
 periodic-feature flag is needed. Vector PDFs are suitable for the thesis.
+
+Paths are resolved from the current directory first. For relative paths or a
+bare run name, the script also checks its own directory and results folders for
+a unique matching run. Thus a mistaken `../results/RUN` can resolve to
+`optimizer_py/results/RUN`; the resolved absolute directory is printed. Ambiguous
+matches require an explicit path. Absolute paths are never redirected to a
+different run. Missing-file errors list the checked locations. A run without an
+original regret CSV cannot be reconstructed from its PNGs alone.
 
 ## Main figure: regret_convergence
 
@@ -30,7 +40,8 @@ periodic-feature flag is needed. Vector PDFs are suitable for the thesis.
    remains B. Shading shows this gap; it is not a confidence interval for one
    fixed configuration. The incumbent can change between checks.
 3. **Consecutive passing checks.** This displays the recorded patience counter,
-   passing/failing points and, when settings are available, the required count.
+   passing/failing stopping checkpoints and, when settings are available, the required count.
+   Grey points are diagnostic records; they never advance or reset patience.
    A dotted vertical line identifies the saved stopping point when the recorded
    reason is `estimated_simple_regret`.
 
@@ -54,7 +65,7 @@ available, a second figure shows:
   incumbent, not an independently validated performance estimate;
 - the saved average latent posterior variance at the five best observations.
   This is local GP uncertainty, not the Monte Carlo noise variance or global
-  uncertainty. Grey vertical lines mark regret checkpoints.
+  uncertainty. Grey vertical lines mark stopping checkpoints, not every diagnostic point.
 
 This helps distinguish an improving observed incumbent from a decreasing regret
 estimate caused mainly by changes in the fitted GP's uncertainty.
@@ -66,13 +77,19 @@ saved observation history. A checkpoint can be plotted before a run finishes.
 Without settings, the patience target and stopping point are not guessed. An
 empty CSV gives an explanatory error rather than an invented curve.
 
-There is one point per actual recorded check. With the default six-coil settings,
-the first checks are at 150, 180 and 210 new evaluations; a run stopping then
-contains only three regret points. No interpolation reconstructs unrecorded GP
-fits; connecting lines only guide the eye between recorded markers. Increasing
-the logging frequency would require extra UCB computations;
-changing `BO_REGRET_CHECK_EVERY` also changes the stopping cadence and should
-not be done solely to make a smoother-looking plot.
+New runs record a full regret estimate every two successful updates from the
+start (`BO_REGRET_RECORD_EVERY=2`), or every update if set to 1. Stopping is
+separate: `BO_REGRET_CHECK_EVERY=10` applies after the minimum exploration budget.
+For six coils the first stopping checks are 150, 160 and 170. With three passing
+checks, a run ending at 170 therefore has 85 recorded points and three stopping
+checkpoints. Recording continues even with early stopping disabled; set the
+recording interval to 0 to disable extra records. More frequent diagnostics add
+GP/UCB work but no Monte Carlo simulations.
+
+Old sparse CSVs remain supported: without a `stopping_check` column, every row
+is treated as a stopping checkpoint. Updating the plotter cannot add historical
+estimates that were never recorded. No interpolation reconstructs unrecorded GP
+fits; connecting lines only guide the eye between recorded markers.
 
 The plots display the existing model-based estimates faithfully. A small or flat
 bound is not a global-optimality certificate and does not validate the GP noise

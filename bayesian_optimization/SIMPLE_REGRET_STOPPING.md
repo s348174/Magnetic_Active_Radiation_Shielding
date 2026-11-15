@@ -70,23 +70,37 @@ for batching, baseline caching and checkpoint details.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `BO_REGRET_ENABLED` | `True` | Enable early stopping; `False` leaves the hard budget |
+| `BO_REGRET_ENABLED` | `True` | Enable early stopping; diagnostic recording is independent |
 | `BO_REGRET_REL_TOL` | `1e-3` | Relative response tolerance epsilon |
 | `BO_REGRET_CONFIDENCE` | `2.0` | Multiplier c of latent posterior standard deviation |
 | `BO_REGRET_MIN_EVALS` | `5 * D` | Minimum successful new observations before checking |
-| `BO_REGRET_CHECK_EVERY` | `D` | Successful new observations between checks |
+| `BO_REGRET_CHECK_EVERY` | `10` | Successful new observations between stopping checks |
+| `BO_REGRET_RECORD_EVERY` | `2` | Record-only estimates from the start; 1 records every update, 0 disables extra recording |
 | `BO_REGRET_PATIENCE` | `3` | Consecutive checks with estimated B strictly below delta |
 | `BO_REGRET_SAMPLES` | `1024` | Number of fixed Sobol grid points |
 
-With K=4 and D=20, checks occur after 100, 120, 140, ... successful new
-evaluations. The earliest possible early stop is after 140 new evaluations,
-in addition to the initial design. A failing check resets the pass count.
-Skipped duplicates and invalid observations do not advance this counter.
+With K=4 and D=20, stopping checks occur after 100, 110, 120, ... successful new
+evaluations. The earliest possible early stop is after 120 new evaluations,
+in addition to the initial design. With K=6 and D=30, these become 150, 160, 170,
+... and an earliest stop at 170. The minimum exploration budget is unchanged.
+A failing stopping check resets the pass count. Skipped duplicates and invalid
+observations do not advance the successful-evaluation counter.
+
+Separately, diagnostic estimates are recorded after 2, 4, 6, ... new evaluations,
+including before the minimum stopping budget and when BO_REGRET_ENABLED=False.
+These use the same full UCB search as stopping checks, but do not advance or
+reset patience. A coincident diagnostic/stopping checkpoint is computed once.
+Only rows with `stopping_check=True` can change the stopping counter or terminate
+BO. Diagnostic computation preserves the Torch random state used by acquisition
+sampling. Set BO_REGRET_RECORD_EVERY=1 for one point per successful update; set
+it to 0 for stopping-check records only. Disable both early stopping and extra
+recording to eliminate regret computations entirely.
 
 `MAX_ITER` / `--iterations` remains the hard limit on refinement loop attempts,
 excluding initialization and validation. Because skipped attempts still count
 toward that hard limit, it may be reached with fewer successful evaluations.
-A budget shorter than `BO_REGRET_MIN_EVALS` produces no regret checks.
+A budget shorter than `BO_REGRET_MIN_EVALS` produces no stopping checks, but can
+still produce diagnostic records.
 Neither absence of checks nor reaching the budget is reported as convergence.
 
 ## Running and interpreting output
@@ -104,8 +118,9 @@ The driver writes the following to the run's result directory:
 
 - `regret_history.csv`: successful evaluation count, loop iteration, estimated
   maximum UCB, incumbent LCB/index, estimated regret, delta, search status and
-  consecutive-pass count for every eligible check. A failed check records
-  infinite regret, `search_ok=False`, and zero consecutive passes.
+  consecutive-pass count for every recorded estimate. `stopping_check` distinguishes
+  decisions from record-only points. A failed estimate records infinite regret
+  and `search_ok=False`; it resets patience only on a stopping checkpoint.
 - `bo_settings.json`: stopping settings, `stop_reason`, successful evaluation
   count, attempted iterations and the final LCB incumbent's index in `bo_history.npz`.
   Stop reasons are `estimated_simple_regret` or `iteration_budget`.
@@ -123,6 +138,11 @@ Existing direct function calls still return the original five-element tuple.
 Passing `return_diagnostics=True` adds a sixth element containing stopping
 settings, check history, stop reason and incumbent information; the driver uses
 this option to save reports and preserve the incumbent in final validation.
+
+Dense recording adds GP/UCB optimization work, not particle simulations. The
+default of every two updates balances plot density and runtime; the existing
+small-batch memory limits apply to all estimates. More frequent stopping checks
+reduce the wait between decisions but do not provide stronger statistical coverage.
 
 ## Statistical limitations
 

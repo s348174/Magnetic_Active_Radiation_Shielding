@@ -33,7 +33,8 @@ BO_REGRET_ENABLED = True
 BO_REGRET_REL_TOL = 1e-3 # Response within 0.1% of the unknown optimum, if bounds hold
 BO_REGRET_CONFIDENCE = 2.0 # UCB/LCB = posterior mean +/- this many latent standard deviations
 BO_REGRET_MIN_EVALS = 5 * D # Successful NEW evaluations; initial design is excluded
-BO_REGRET_CHECK_EVERY = D
+BO_REGRET_CHECK_EVERY = 10 # Stopping decisions, after the minimum evaluation count
+BO_REGRET_RECORD_EVERY = 2 # Diagnostic estimates from the start; 1: every evaluation, 0: stopping checks only
 BO_REGRET_PATIENCE = 3 # Consecutive checks below the tolerance
 BO_REGRET_SAMPLES = 1024 # Fixed scrambled Sobol grid supplements multistart UCB search
 

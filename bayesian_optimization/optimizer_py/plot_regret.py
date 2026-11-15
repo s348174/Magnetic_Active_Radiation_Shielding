@@ -6,6 +6,35 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+
+def resolve_run_dir(requested):
+    """Honor an explicit report path; otherwise find a unique matching run name."""
+    requested = Path(requested).expanduser()
+    direct = requested.resolve()
+    if (direct/'regret_history.csv').is_file():
+        return direct
+    candidates = [direct]
+    if not requested.is_absolute():
+        candidates += [(SCRIPT_DIR/requested).resolve(),
+                       (SCRIPT_DIR/'results'/requested.name).resolve(),
+                       (Path.cwd()/'results'/requested.name).resolve()]
+    candidates = list(dict.fromkeys(candidates))
+    matches = [path for path in candidates if (path/'regret_history.csv').is_file()]
+    if len(matches) == 1:
+        print(f'Using run directory {matches[0]} (resolved from {requested}).')
+        return matches[0]
+    if len(matches) > 1:
+        raise ValueError('Several matching runs exist; use an absolute --run-dir path: '
+                         + ', '.join(str(path) for path in matches))
+    checked = '\n  '.join(str(path/'regret_history.csv') for path in candidates)
+    raise FileNotFoundError(
+        f'No regret_history.csv found for {requested}. Checked:\n  {checked}\n'
+        'Runs normally live in optimizer_py/results/. Pass the run name or its absolute path. '
+        'If this run never saved regret_history.csv, its original regret history cannot be '
+        'recovered from PNGs or observations alone; dense recording applies to new runs.')
+
 
 def read_checks(directory):
     data = pd.read_csv(directory/'regret_history.csv')
@@ -14,8 +43,11 @@ def read_checks(directory):
     if any(column not in data for column in columns):
         raise ValueError(f'regret_history.csv needs these columns: {", ".join(columns)}')
     if data.empty:
-        raise ValueError('No regret checks were recorded. The budget may have ended before the first check.')
-    for column in ('search_ok','below_threshold'):
+        raise ValueError('No regret estimates were recorded yet. The run may have ended before the first recording/check.')
+    # Old reports contained only stopping checks.
+    if 'stopping_check' not in data:
+        data['stopping_check'] = True
+    for column in ('search_ok','below_threshold','stopping_check'):
         values = data[column].astype(str).str.lower()
         if not values.isin(['true','false','1','0']).all():
             raise ValueError(f'Invalid boolean values in {column}.')
@@ -90,17 +122,22 @@ def convergence_figure(data, settings, name):
     ax.set_title('UCB–LCB gap, relative to the first valid LCB')
 
     ax = axes[2]
-    passes = np.where(good,data['consecutive_passes'],0)
+    passes = data['consecutive_passes'].to_numpy()
     ax.step(x,passes,where='post',color='tab:blue',label='Recorded consecutive passing checks')
-    passing = good & data['below_threshold'].to_numpy()
+    eligible = data['stopping_check'].to_numpy()
+    passing = eligible & good & data['below_threshold'].to_numpy()
     ax.scatter(x[passing],passes[passing],color='tab:green',label='Passing check',zorder=4)
-    failing = ~passing
+    failing = eligible & ~passing
     if failing.any():
         ax.scatter(x[failing],passes[failing],color='tab:red',marker='x',label='Failing/invalid check',zorder=4)
+    if (~eligible).any():
+        ax.scatter(x[~eligible],passes[~eligible],color='grey',marker='.',alpha=.5,label='Record only')
     stopping = settings.get('stopping',{})
     patience = stopping.get('settings',{}).get('patience')
-    if patience is not None and float(patience) > 0:
+    if stopping.get('settings',{}).get('enabled',True) and patience is not None and float(patience) > 0:
         ax.axhline(patience,color='tab:orange',linestyle='--',label=f'Required passes: {patience}')
+    if stopping.get('settings',{}).get('enabled') is False:
+        ax.set_title('Early stopping disabled; estimates recorded only')
     ax.set_ylim(bottom=-.2)
     ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
     ax.set_ylabel('Consecutive passes')
@@ -171,7 +208,7 @@ def context_figure(directory, settings, data):
     axes[1].set_xlabel('Successful new evaluations (initial design excluded)')
     for ax in axes:
         ax.grid(alpha=.25)
-        for count in data['evaluations']:
+        for count in data.loc[data['stopping_check'],'evaluations']:
             ax.axvline(count,color='grey',alpha=.15,linewidth=.7)
     figure.suptitle('Optimization context',fontsize=13)
     figure.tight_layout(rect=(0,0,1,.95))
@@ -180,7 +217,7 @@ def context_figure(directory, settings, data):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--run-dir',required=True,type=Path,help='Vanilla BO output folder containing regret_history.csv')
+    parser.add_argument('--run-dir',required=True,type=Path,help='Run name, relative directory or absolute directory containing regret_history.csv')
     parser.add_argument('--output-dir',type=Path,help='Plot output folder; default: RUN_DIR/regret_plots')
     parser.add_argument('--show',action='store_true',help='Also open figures with the available desktop Matplotlib backend')
     args = parser.parse_args(argv)
@@ -190,6 +227,7 @@ def main(argv=None):
     import matplotlib.pyplot as plt
 
     try:
+        args.run_dir = resolve_run_dir(args.run_dir)
         data = read_checks(args.run_dir)
         settings = read_settings(args.run_dir)
         figures = {'regret_convergence':convergence_figure(data,settings,args.run_dir.name)}
@@ -204,7 +242,9 @@ def main(argv=None):
         for extension in ('png','pdf'):
             figure.savefig(output/f'{name}.{extension}',dpi=180,bbox_inches='tight')
     count = int(data['valid'].sum())
-    print(f'Plotted {len(data)} recorded checks: {count} valid and {len(data)-count} failed/invalid.')
+    decisions = int(data['stopping_check'].sum())
+    print(f'Plotted {len(data)} estimates: {count} valid and {len(data)-count} failed/invalid; '
+          f'{decisions} stopping checks, {len(data)-decisions} record-only points.')
     if len(data) < 5:
         print('Few checkpoints: the plot cannot resolve behavior between recorded checks.')
     print(f'Plots saved in {output.resolve()}')
