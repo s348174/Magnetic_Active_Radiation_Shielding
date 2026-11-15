@@ -12,17 +12,19 @@ from MultiTurbo import bo_multi_turbo
 from BoLoop import bo_matern_kernel, bo_rbf_kernel, bo_rbf_old
 from BoUtils import sobol_sample, duplicate_safe_candidate
 from FinalEvaluation import evaluate_finalists
-from input import K, SEED, BO_ENERGY_SEED, device, MAX_ITER, ENERGY_BINS, TURBO_MAX_REGIONS, FINAL_PARTICLES, FINAL_REPEATS, FINALISTS
+from NoiseCalibration import calibrate_noise
+from input import K, SEED, BO_ENERGY_SEED, device, MAX_ITER, ENERGY_BINS, TURBO_MAX_REGIONS, FINAL_PARTICLES, FINAL_REPEATS, FINALISTS, BO_NOISE_REPEATS
 
 
 def save_regret_history(directory, checks):
     columns = ['evaluations','iteration','max_ucb','incumbent_lcb','incumbent_index',
-               'estimated_regret','delta','search_ok','below_threshold','stopping_check','consecutive_passes']
+               'estimated_regret','delta','search_ok','below_threshold','stopping_check','consecutive_passes','model_ok']
     temporary = Path(directory)/'regret_history.csv.tmp'
     with open(temporary,'w',newline='') as file:
         writer = csv.DictWriter(file,fieldnames=columns)
         writer.writeheader()
-        writer.writerows(dict(row,stopping_check=row.get('stopping_check',True)) for row in checks)
+        writer.writerows(dict(row,stopping_check=row.get('stopping_check',True),
+                              model_ok=row.get('model_ok',True)) for row in checks)
     temporary.replace(Path(directory)/'regret_history.csv')
 
 
@@ -32,10 +34,21 @@ def run_vanilla(kernel='matern', iterations=None, nu=2.5, checkpoint_dir=None):
     if budget < 1 or FINALISTS < 1:
         raise ValueError('Use a positive iteration and finalist budget.')
     initial = sobol_sample()
+    calibration = calibrate_noise(initial[0],initial[1],repeats=BO_NOISE_REPEATS)
+    initial = (initial[0],initial[1],np.full(len(initial[1]),calibration['variance']))
     functions = {'matern':bo_matern_kernel, 'rbf':bo_rbf_old, 'rbf-set':bo_rbf_kernel}
-    kwargs = {'max_iter':budget, 'initial_data':initial, 'return_diagnostics':True}
+    kwargs = {'max_iter':budget, 'initial_data':initial, 'return_diagnostics':True,
+              'calibration':calibration}
     if checkpoint_dir is not None:
         directory = Path(checkpoint_dir)
+        with open(directory/'noise_calibration.json','w') as file:
+            json.dump(calibration,file,indent=2,allow_nan=False)
+        def model_callback(checks):
+            temporary = directory/'model_diagnostics.json.tmp'
+            with open(temporary,'w') as file:
+                json.dump(checks,file,indent=2,allow_nan=False)
+            temporary.replace(directory/'model_diagnostics.json')
+        kwargs['model_callback'] = model_callback
         np.savez(directory/'initial_design.npz',X=initial[0].cpu().numpy(),y=initial[1],variance=initial[2])
         def checkpoint(history, checks):
             temporary = directory/'bo_checkpoint.npz.tmp'
@@ -60,7 +73,11 @@ def run_vanilla(kernel='matern', iterations=None, nu=2.5, checkpoint_dir=None):
             'selection':{'regions':1, 'kernel':kernel,
                          'acquisition':'kg' if kernel == 'matern' else 'log-nei',
                          'nu':nu if kernel == 'matern' else None,
-                         'stopping':{key:value for key,value in diagnostics.items() if key != 'checks'}},
+                         'noise_model':{'method':'pooled_spatial_scramble_log_variance',
+                                        'variance':calibration['variance'],
+                                        'repeats':calibration['repeats']},
+                         'stopping':{key:value for key,value in diagnostics.items()
+                                     if key not in ('checks','model_checks','noise_calibration')}},
             'regret_checks':diagnostics['checks'],
             'seed_indices':np.array([],dtype=int),
             'regions':[{'region':1, 'budget':budget, 'X':X, 'y':y,

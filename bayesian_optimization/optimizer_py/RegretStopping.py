@@ -80,14 +80,17 @@ class SimpleRegretStopping:
         return {'max_ucb':upper, 'incumbent_lcb':lower, 'incumbent_index':incumbent,
                 'estimated_regret':max(0., upper-lower)}
 
-    def check(self, gp, mapping, X, evaluations, iteration):
+    def check(self, gp, mapping, X, evaluations, iteration, model_ok=True):
+        # A failed model check invalidates previous passes, even between checks.
+        if not model_ok:
+            self.consecutive = 0
         stopping_check = (self.enabled and evaluations >= self.min_evaluations
                           and (evaluations-self.min_evaluations) % self.check_every == 0)
         record_due = self.record_every > 0 and evaluations > 0 and evaluations % self.record_every == 0
         if not (stopping_check or record_due):
             return False
         record = {'evaluations':evaluations, 'iteration':iteration, 'delta':self.delta,
-                  'stopping_check':bool(stopping_check)}
+                  'stopping_check':bool(stopping_check), 'model_ok':bool(model_ok)}
         try:
             # Diagnostic work must not consume the acquisition sampler's RNG state.
             devices = [X.device.index] if torch.is_tensor(X) and X.is_cuda else []
@@ -104,13 +107,15 @@ class SimpleRegretStopping:
                           incumbent_index=-1, estimated_regret=float('inf'), search_ok=False)
             below = False
         if stopping_check:
-            self.consecutive = self.consecutive+1 if below else 0
+            self.consecutive = self.consecutive+1 if below and model_ok else 0
         record.update(below_threshold=below, consecutive_passes=self.consecutive)
         self.history.append(record)
         purpose = 'stopping check' if stopping_check else 'record only'
         print(f"Estimated simple regret ({purpose}): {record['estimated_regret']:.6g}; "
               f"tolerance={self.delta:.6g}; passes={self.consecutive}/{self.patience} "
               f"after {evaluations} new evaluations.")
+        if not model_ok:
+            print('Model validation failed: this regret estimate cannot justify stopping.')
         return bool(stopping_check and self.consecutive >= self.patience)
 
     def settings(self):

@@ -12,6 +12,7 @@ from AcquisitionOptimizer import optimize_acqf
 from botorch.models.utils.assorted import InputDataWarning
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
+from gpytorch.settings import min_fixed_noise
 
 from BoUtils import (
     denormalize, unpack_configuration, map_fn, map_set,
@@ -20,12 +21,14 @@ from BoUtils import (
 )
 from RegretStopping import SimpleRegretStopping, lower_bound_incumbent
 from Objective import objective_function, next_optimization_seed
-from input import device, MAX_ITER, unit_bounds, Q
+from NoiseCalibration import calibrate_noise
+from ModelDiagnostics import assess_model
+from input import device, MAX_ITER, unit_bounds, Q, BO_NOISE_REPEATS
 
 
 def _fit_model(X_train, y_train, train_yvar, mapping, covar_module):
     # Standardize transforms BOTH targets and their variances consistently.
-    with warnings.catch_warnings():
+    with warnings.catch_warnings(), min_fixed_noise(double_value=1e-12):
         warnings.filterwarnings("ignore", category=InputDataWarning)
         gp = SingleTaskGP(
             mapping(X_train).detach().clone(),
@@ -49,7 +52,8 @@ def _best_posterior_mean(gp, mapping):
     return value.detach().item()
 
 
-def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_diagnostics=False, checkpoint=None):
+def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_diagnostics=False,
+             checkpoint=None, calibration=None, model_callback=None):
     iterations = MAX_ITER if max_iter is None else int(max_iter)
     if iterations < 1 or Q != 1:
         raise ValueError("Use a positive iteration budget and Q=1 for these single-point loops.")
@@ -59,20 +63,41 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
     X_train, y_train, train_yvar = sobol_sample() if initial_data is None else initial_data
     X_train = torch.as_tensor(X_train, dtype=torch.double, device=device).detach().clone()
     y_train = np.asarray(y_train, dtype=float).copy()
-    train_yvar = np.asarray(train_yvar, dtype=float)
-    valid = np.isfinite(y_train) & np.isfinite(train_yvar) & (train_yvar >= 0)
+    # Old particle-based variance estimates are replaced, including for saved data.
+    valid = np.isfinite(y_train)
     valid &= torch.isfinite(X_train).all(dim=-1).cpu().numpy()
     X_train, y_train = X_train[valid], y_train[valid]
-    train_yvar = torch.as_tensor(train_yvar[valid], dtype=torch.double, device=device).unsqueeze(-1)
-    train_yvar = train_yvar.clamp_min(1e-6)
     if len(y_train) < 2:
-        raise ValueError("At least two finite initial observations and variances are required.")
+        raise ValueError("At least two finite initial observations are required.")
+    if calibration is None:
+        calibration = calibrate_noise(X_train, y_train, repeats=BO_NOISE_REPEATS)
+    noise = float(calibration['variance'])
+    if not np.isfinite(noise) or noise <= 0:
+        raise ValueError('Calibrated single-run log variance must be finite and positive.')
+    train_yvar = torch.full((len(y_train),1),noise,dtype=torch.double,device=device)
 
     n_features = mapping(X_train).shape[-1]
     base_kernel = (MaternKernel(nu=nu, ard_num_dims=n_features) if kernel == 'matern'
                    else RBFKernel(ard_num_dims=n_features))
-    covar_module = ScaleKernel(base_kernel)
+    covar_module = ScaleKernel(base_kernel) # Fresh parameters at the start of every run.
     gp = _fit_model(X_train, y_train, train_yvar, mapping, covar_module)
+    model_checks = []
+
+    def check_model(evaluations):
+        report = assess_model(gp, mapping, calibration)
+        report['evaluations'] = evaluations
+        model_checks.append(report)
+        print(f"GP check: model_ok={report['model_ok']}; "
+              f"outputscale={report.get('outputscale')}; single-run noise={noise:.6g}; "
+              f"predicted calibration range={report.get('predicted_mean_range')}.")
+        if not report['model_ok']:
+            print('GP check failed: ' + ' '.join(report['reasons']))
+            stopping.consecutive = 0
+        if model_callback is not None:
+            model_callback(model_checks)
+        return report['model_ok']
+
+    check_model(0)
 
     acquisition_hist, best_mean_hist, variance_hist = [], [], []
     warnings_counter = 0
@@ -111,7 +136,8 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
 
         physical = denormalize(cand).detach().cpu().numpy()
         centers_next, normals_next = unpack_configuration(physical[0])
-        energy_next, var_next = objective_function(next_optimization_seed(), centers_next, normals_next)
+        energy_next, var_next = objective_function(next_optimization_seed(), centers_next, normals_next,
+                                                 log_variance=noise)
         if not np.isfinite([energy_next, var_next]).all() or var_next < 0:
             warnings.warn(f"Invalid response or variance at iteration {iteration+1}. Skipping.")
             warnings_counter += 1
@@ -123,7 +149,7 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         X_train = torch.vstack((X_train, cand))
         y_train = np.append(y_train, -float(energy_next))
         train_yvar = torch.cat((train_yvar, torch.tensor(
-            [[var_next]], dtype=torch.double, device=device).clamp_min(1e-6)))
+            [[noise]], dtype=torch.double, device=device)))
         gp = _fit_model(X_train, y_train, train_yvar, mapping, covar_module)
         evaluations += 1
 
@@ -135,7 +161,8 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         with torch.no_grad():
             posterior_var = gp.posterior(mapping(X_train[top_idx])).variance.mean().item()
         variance_hist.append(posterior_var)
-        should_stop = stopping.check(gp, mapping, X_train, evaluations, iteration+1)
+        model_ok = check_model(evaluations)
+        should_stop = stopping.check(gp, mapping, X_train, evaluations, iteration+1, model_ok=model_ok)
         if should_stop:
             stop_reason = 'estimated_simple_regret'
         if checkpoint is not None:
@@ -155,21 +182,28 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         incumbent, _ = lower_bound_incumbent(gp, mapping, X_train, stopping.confidence)
         diagnostics = {'settings':stopping.settings(), 'checks':stopping.history,
                        'stop_reason':stop_reason, 'successful_evaluations':evaluations,
-                       'attempted_iterations':iteration+1, 'incumbent_index':incumbent}
+                       'attempted_iterations':iteration+1, 'incumbent_index':incumbent,
+                       'model_checks':model_checks, 'noise_calibration':calibration}
         return (*result, diagnostics)
     return result
 
 
-def bo_matern_kernel(nu=2.5, max_iter=None, initial_data=None, return_diagnostics=False, checkpoint=None):
+def bo_matern_kernel(nu=2.5, max_iter=None, initial_data=None, return_diagnostics=False, checkpoint=None,
+                     calibration=None, model_callback=None):
     """Matérn ARD GP on map_fn features, with knowledge gradient (two fantasies)."""
-    return _bo_loop('matern', map_fn, max_iter, initial_data, nu, return_diagnostics, checkpoint)
+    return _bo_loop('matern', map_fn, max_iter, initial_data, nu, return_diagnostics, checkpoint,
+                    calibration, model_callback)
 
 
-def bo_rbf_kernel(max_iter=None, initial_data=None, return_diagnostics=False, checkpoint=None):
+def bo_rbf_kernel(max_iter=None, initial_data=None, return_diagnostics=False, checkpoint=None,
+                  calibration=None, model_callback=None):
     """RBF ARD GP on pooled Cartesian coil features, with log noisy EI."""
-    return _bo_loop('rbf', map_set, max_iter, initial_data, return_diagnostics=return_diagnostics,checkpoint=checkpoint)
+    return _bo_loop('rbf', map_set, max_iter, initial_data, return_diagnostics=return_diagnostics,
+                    checkpoint=checkpoint,calibration=calibration,model_callback=model_callback)
 
 
-def bo_rbf_old(max_iter=None, initial_data=None, return_diagnostics=False, checkpoint=None):
+def bo_rbf_old(max_iter=None, initial_data=None, return_diagnostics=False, checkpoint=None,
+               calibration=None, model_callback=None):
     """RBF ARD GP on map_fn features, with log noisy EI (legacy function name)."""
-    return _bo_loop('rbf', map_fn, max_iter, initial_data, return_diagnostics=return_diagnostics,checkpoint=checkpoint)
+    return _bo_loop('rbf', map_fn, max_iter, initial_data, return_diagnostics=return_diagnostics,
+                    checkpoint=checkpoint,calibration=calibration,model_callback=model_callback)

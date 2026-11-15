@@ -47,7 +47,9 @@ def read_checks(directory):
     # Old reports contained only stopping checks.
     if 'stopping_check' not in data:
         data['stopping_check'] = True
-    for column in ('search_ok','below_threshold','stopping_check'):
+    if 'model_ok' not in data:
+        data['model_ok'] = True # Older reports predate repeat-based model checks.
+    for column in ('search_ok','below_threshold','stopping_check','model_ok'):
         values = data[column].astype(str).str.lower()
         if not values.isin(['true','false','1','0']).all():
             raise ValueError(f'Invalid boolean values in {column}.')
@@ -95,6 +97,10 @@ def convergence_figure(data, settings, name):
     ax = axes[0]
     ax.plot(x,bound,'o-',color='tab:blue',label='Estimated simple-regret bound')
     ax.plot(x,tolerance,'--',color='tab:orange',label='Stopping tolerance')
+    failed_model = good & ~data['model_ok'].to_numpy()
+    if failed_model.any():
+        ax.scatter(x[failed_model],bound[failed_model],marker='x',color='tab:red',
+                   label='Model check failed: stopping blocked',zorder=5)
     if np.any(bound[good] == 0):
         ax.set_yscale('symlog',linthresh=float(tolerance.min()/10))
     else:
@@ -125,7 +131,7 @@ def convergence_figure(data, settings, name):
     passes = data['consecutive_passes'].to_numpy()
     ax.step(x,passes,where='post',color='tab:blue',label='Recorded consecutive passing checks')
     eligible = data['stopping_check'].to_numpy()
-    passing = eligible & good & data['below_threshold'].to_numpy()
+    passing = eligible & good & data['below_threshold'].to_numpy() & data['model_ok'].to_numpy()
     ax.scatter(x[passing],passes[passing],color='tab:green',label='Passing check',zorder=4)
     failing = eligible & ~passing
     if failing.any():

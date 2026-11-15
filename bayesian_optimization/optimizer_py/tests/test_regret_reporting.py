@@ -17,7 +17,7 @@ GOOD = {'max_ucb':0.,'incumbent_lcb':0.,'incumbent_index':0,'estimated_regret':0
 
 class RecordingScheduleTests(unittest.TestCase):
     def test_dense_records_do_not_advance_patience(self):
-        stopping = SimpleRegretStopping(min_evaluations=10,check_every=10,record_every=2,patience=3,grid_size=8)
+        stopping = SimpleRegretStopping(enabled=True,min_evaluations=10,check_every=10,record_every=2,patience=3,grid_size=8)
         with patch.object(stopping,'estimate',return_value=GOOD) as estimate:
             for evaluation in range(1,30):
                 self.assertFalse(stopping.check(None,None,None,evaluation,evaluation))
@@ -29,12 +29,25 @@ class RecordingScheduleTests(unittest.TestCase):
         self.assertEqual(stopping.history[5]['consecutive_passes'],1)
 
     def test_stopping_checks_are_recorded_even_off_the_diagnostic_grid(self):
-        stopping = SimpleRegretStopping(min_evaluations=5,check_every=10,record_every=2,patience=3,grid_size=8)
+        stopping = SimpleRegretStopping(enabled=True,min_evaluations=5,check_every=10,record_every=2,patience=3,grid_size=8)
         with patch.object(stopping,'estimate',return_value=GOOD):
             for evaluation in range(1,25):
                 self.assertFalse(stopping.check(None,None,None,evaluation,evaluation))
             self.assertTrue(stopping.check(None,None,None,25,25))
         self.assertEqual([row['evaluations'] for row in stopping.history if row['stopping_check']],[5,15,25])
+
+    def test_failed_model_resets_patience_even_between_recording_and_stopping_checks(self):
+        stopping = SimpleRegretStopping(enabled=True,min_evaluations=10,check_every=10,
+                                        record_every=2,patience=2,grid_size=8)
+        with patch.object(stopping,'estimate',return_value=GOOD):
+            self.assertFalse(stopping.check(None,None,None,10,10,model_ok=True))
+            self.assertEqual(stopping.consecutive,1)
+            # Iteration 11 is neither a recording nor a stopping iteration.
+            self.assertFalse(stopping.check(None,None,None,11,11,model_ok=False))
+            self.assertEqual(stopping.consecutive,0)
+            self.assertFalse(stopping.check(None,None,None,20,20,model_ok=True))
+            self.assertEqual(stopping.consecutive,1)
+            self.assertTrue(stopping.check(None,None,None,30,30,model_ok=True))
 
     def test_recording_works_with_early_stopping_disabled(self):
         stopping = SimpleRegretStopping(enabled=False,record_every=1,grid_size=8)
@@ -46,7 +59,7 @@ class RecordingScheduleTests(unittest.TestCase):
         self.assertEqual(stopping.consecutive,0)
 
     def test_diagnostic_failure_holds_patience_but_stopping_failure_resets_it(self):
-        stopping = SimpleRegretStopping(min_evaluations=2,check_every=2,record_every=1,patience=3,grid_size=8)
+        stopping = SimpleRegretStopping(enabled=True,min_evaluations=2,check_every=2,record_every=1,patience=3,grid_size=8)
         with patch.object(stopping,'estimate',side_effect=[GOOD,GOOD,RuntimeError('diagnostic failure'),RuntimeError('stopping failure')]):
             stopping.check(None,None,None,1,1)
             stopping.check(None,None,None,2,2)

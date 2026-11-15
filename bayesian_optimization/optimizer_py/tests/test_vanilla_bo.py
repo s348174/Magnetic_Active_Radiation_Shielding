@@ -15,6 +15,7 @@ from botorch.exceptions.warnings import OptimizationWarning
 from gpytorch.kernels import RBFKernel, ScaleKernel
 
 import BoLoop
+import Objective
 import BoUtils
 import bo_main
 import RegretStopping
@@ -27,6 +28,24 @@ def short_fit(mll):
     return fit_gpytorch_mll(mll, optimizer_kwargs={'options':{'maxiter':3}})
 
 
+def mock_calibration(test, X, y):
+    """Keep loop tests independent of the C++ simulator and its calibration runs."""
+    calibration = {'variance':.01, 'X':np.asarray(X).tolist(),
+                   'mean':np.asarray(y).tolist(), 'mean_variance':[.001]*len(y),
+                   'names':[f'case_{i}' for i in range(len(y))], 'repeats':6,
+                   'single_run_variance':[.006]*len(y), 'runs':[], 'settings':{}}
+    for module in (BoLoop, bo_main):
+        patcher = patch.object(module,'calibrate_noise',return_value=calibration,create=True)
+        patcher.start()
+        test.addCleanup(patcher.stop)
+    patcher = patch.object(BoLoop,'assess_model',return_value={
+        'model_ok':True, 'outputscale':1., 'supplied_noise':.01,
+        'calibration_rows':[], 'contrast_rows':[], 'reasons':[]},create=True)
+    patcher.start()
+    test.addCleanup(patcher.stop)
+    return calibration
+
+
 class VanillaTests(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(67)
@@ -34,6 +53,7 @@ class VanillaTests(unittest.TestCase):
         self.y = np.array([-1.,-2.,-3.,-4.])
         self.variance = np.array([.01,.04,.09,.16])
         self.initial = (self.X,self.y,self.variance)
+        self.calibration = mock_calibration(self,self.X,self.y)
 
     def test_known_variances_are_standardized_with_targets(self):
         variance = torch.tensor(self.variance,dtype=torch.double).unsqueeze(-1)
@@ -50,6 +70,21 @@ class VanillaTests(unittest.TestCase):
         # Fixed-noise models use average training noise for an unspecified new point.
         torch.testing.assert_close(observed-latent,variance.mean().expand_as(variance))
         torch.testing.assert_close(explicit-latent,variance)
+
+    def test_calibrated_objective_keeps_log_score_and_ignores_particle_variance(self):
+        centers = np.zeros((2,3))
+        normals = np.zeros((2,2))
+        with patch.object(Objective,'evaluate_configuration',return_value=(1e15,1e29)) as evaluate:
+            score,noise = Objective.objective_function(67,centers,normals,log_variance=2.5e-5)
+        self.assertEqual(score,np.log(1e15))
+        self.assertEqual(noise,2.5e-5)
+        self.assertTrue(evaluate.call_args.kwargs['common_energy'])
+        for invalid in (0.,-1.,np.nan,np.inf):
+            with self.subTest(invalid=invalid), \
+                 patch.object(Objective,'evaluate_configuration') as simulate, \
+                 self.assertRaises(ValueError):
+                Objective.objective_function(67,centers,normals,log_variance=invalid)
+            simulate.assert_not_called()
 
     def test_invalid_variance_never_enters_training_data(self):
         fitted = []
@@ -76,12 +111,36 @@ class VanillaTests(unittest.TestCase):
         self.assertTrue(all(isinstance(value,float) for value in result[3]))
         self.assertEqual([call.args[3] for call in stopping.call_args_list],[1,2])
 
-    def test_invalid_initial_variance_is_removed(self):
+    def test_calibrated_noise_replaces_initial_and_new_variances_without_old_floor(self):
+        calibration = dict(self.calibration,variance=2.5e-7)
+        fitted = []
+        def fit(mll):
+            result = short_fit(mll)
+            fitted.append(mll.model)
+            return result
+        candidate = torch.full((1,D),.5,dtype=torch.double)
+        with patch.object(BoLoop,'calibrate_noise',return_value=calibration), \
+             patch.object(BoLoop,'fit_gpytorch_mll',side_effect=fit), \
+             patch.object(BoLoop,'_best_posterior_mean',return_value=-1.), \
+             patch.object(BoLoop,'optimize_acqf',return_value=(candidate,torch.tensor(-7.))), \
+             patch.object(BoLoop,'objective_function',return_value=(1.,calibration['variance'])) as objective, \
+             patch.object(BoLoop.SimpleRegretStopping,'check',return_value=False):
+            result = BoLoop.bo_rbf_old(max_iter=1,initial_data=self.initial)
+        self.assertEqual(len(result[1]),5)
+        self.assertEqual(objective.call_args.kwargs['log_variance'],calibration['variance'])
+        for gp in fitted:
+            raw_noise = gp.likelihood.noise*gp.outcome_transform.stdvs.square().squeeze()
+            torch.testing.assert_close(raw_noise,torch.full_like(raw_noise,calibration['variance']),
+                                       rtol=1e-10,atol=1e-15)
+        # Repeat observations are held out: only initial points and one BO point enter training.
+        self.assertEqual([len(gp.train_targets) for gp in fitted],[4,5])
+
+    def test_legacy_initial_variance_is_ignored_when_recalibrating(self):
         initial = (self.X,self.y,np.array([np.nan,.04,.09,-.1]))
         with patch.object(BoLoop,'fit_gpytorch_mll',side_effect=short_fit), \
              patch.object(BoLoop,'optimize_acqf',return_value=(self.X[1:2],torch.tensor(-7.))):
             result = BoLoop.bo_rbf_old(max_iter=1,initial_data=initial)
-        np.testing.assert_array_equal(result[1],self.y[1:3])
+        np.testing.assert_array_equal(result[1],self.y)
 
     def test_single_point_contract_is_checked_before_sampling(self):
         with patch.object(BoLoop,'Q',2),patch.object(BoLoop,'sobol_sample') as sample:
@@ -108,7 +167,10 @@ class VanillaTests(unittest.TestCase):
                 search,_ = bo_main.main(args)
                 sample.assert_called_once()
                 turbo.assert_not_called()
-                self.assertIs(run.call_args.kwargs['initial_data'],self.initial)
+                np.testing.assert_array_equal(run.call_args.kwargs['initial_data'][0],self.X)
+                np.testing.assert_array_equal(run.call_args.kwargs['initial_data'][1],self.y)
+                np.testing.assert_array_equal(run.call_args.kwargs['initial_data'][2],np.full(len(self.y),.01))
+                self.assertEqual(run.call_args.kwargs['calibration'],self.calibration)
                 self.assertEqual(run.call_args.kwargs['max_iter'],1)
                 self.assertTrue(run.call_args.kwargs['return_diagnostics'])
                 if kernel == 'matern':
@@ -140,6 +202,7 @@ class LinearGP(torch.nn.Module):
 class RegretTests(unittest.TestCase):
     def setUp(self):
         self.X = torch.stack([torch.full((D,),value,dtype=torch.double) for value in (.1,.8)])
+        mock_calibration(self,self.X,[-1.,-2.])
 
     def test_regret_formula_and_invariance_to_log_offset(self):
         stopping = RegretStopping.SimpleRegretStopping(grid_size=16)
@@ -169,7 +232,7 @@ class RegretTests(unittest.TestCase):
         self.assertAlmostEqual(lower,-.3)
 
     def test_minimum_cadence_and_consecutive_passes(self):
-        stopping = RegretStopping.SimpleRegretStopping(min_evaluations=2,check_every=2,patience=3,grid_size=8)
+        stopping = RegretStopping.SimpleRegretStopping(enabled=True,record_every=0,min_evaluations=2,check_every=2,patience=3,grid_size=8)
         good = {'max_ucb':1.,'incumbent_lcb':1.,'incumbent_index':0,'estimated_regret':0.}
         bad = dict(good,estimated_regret=.1)
         with patch.object(stopping,'estimate',side_effect=[good,good,bad,good,good,good]) as estimate:
@@ -183,7 +246,7 @@ class RegretTests(unittest.TestCase):
         self.assertEqual([row['consecutive_passes'] for row in stopping.history],[1,2,0,1,2,3])
 
     def test_failed_search_resets_patience_and_cannot_stop(self):
-        stopping = RegretStopping.SimpleRegretStopping(min_evaluations=1,check_every=1,patience=2,grid_size=8)
+        stopping = RegretStopping.SimpleRegretStopping(enabled=True,record_every=0,min_evaluations=1,check_every=1,patience=2,grid_size=8)
         good = {'max_ucb':1.,'incumbent_lcb':1.,'incumbent_index':0,'estimated_regret':0.}
         with patch.object(stopping,'estimate',side_effect=[good,RuntimeError('test failure')]):
             self.assertFalse(stopping.check(None,None,None,1,1))
@@ -193,7 +256,7 @@ class RegretTests(unittest.TestCase):
         self.assertFalse(stopping.history[-1]['search_ok'])
 
     def test_stable_mean_with_unresolved_uncertainty_does_not_stop(self):
-        stopping = RegretStopping.SimpleRegretStopping(min_evaluations=1,check_every=1,patience=1,grid_size=16)
+        stopping = RegretStopping.SimpleRegretStopping(enabled=True,record_every=0,min_evaluations=1,check_every=1,patience=1,grid_size=16)
         self.assertFalse(stopping.check(LinearGP(sigma=.01),BoUtils.identity_map,
                                         torch.ones(2,D,dtype=torch.double),1,1))
         self.assertGreater(stopping.history[-1]['estimated_regret'],stopping.delta)
@@ -214,7 +277,7 @@ class RegretTests(unittest.TestCase):
     def test_all_vanilla_loops_stop_and_return_diagnostics(self):
         initial = (self.X,np.array([-1.,-2.]),np.full(2,.01))
         for function in (BoLoop.bo_matern_kernel,BoLoop.bo_rbf_old,BoLoop.bo_rbf_kernel):
-            stopping = RegretStopping.SimpleRegretStopping(min_evaluations=1,check_every=1,patience=2,grid_size=8)
+            stopping = RegretStopping.SimpleRegretStopping(enabled=True,record_every=0,min_evaluations=1,check_every=1,patience=2,grid_size=8)
             proposals = iter([torch.full((1,D),v,dtype=torch.double) for v in (.3,.6)])
             good = {'max_ucb':1.,'incumbent_lcb':1.,'incumbent_index':0,'estimated_regret':0.}
             with self.subTest(function=function.__name__), \
@@ -229,6 +292,28 @@ class RegretTests(unittest.TestCase):
             self.assertEqual(result[5]['stop_reason'],'estimated_simple_regret')
             self.assertEqual(result[5]['successful_evaluations'],2)
             self.assertEqual(len(result[5]['checks']),2)
+
+    def test_failed_model_check_blocks_stopping_in_every_vanilla_loop(self):
+        initial = (self.X,np.array([-1.,-2.]),np.full(2,.01))
+        for function in (BoLoop.bo_matern_kernel,BoLoop.bo_rbf_old,BoLoop.bo_rbf_kernel):
+            stopping = RegretStopping.SimpleRegretStopping(
+                enabled=True,min_evaluations=1,check_every=1,record_every=1,patience=1,grid_size=8)
+            proposals = iter([torch.full((1,D),v,dtype=torch.double) for v in (.3,.6)])
+            good = {'max_ucb':1.,'incumbent_lcb':1.,'incumbent_index':0,'estimated_regret':0.}
+            with self.subTest(function=function.__name__), \
+                 patch.object(BoLoop,'SimpleRegretStopping',return_value=stopping), \
+                 patch.object(stopping,'estimate',return_value=good), \
+                 patch.object(BoLoop,'assess_model',return_value={'model_ok':False,'reasons':['collapsed model']}), \
+                 patch.object(BoLoop,'fit_gpytorch_mll',side_effect=short_fit), \
+                 patch.object(BoLoop,'_best_posterior_mean',return_value=-1.), \
+                 patch.object(BoLoop,'optimize_acqf',side_effect=lambda **kwargs:(next(proposals),torch.tensor(-1.))), \
+                 patch.object(BoLoop,'objective_function',return_value=(1.,.01)):
+                result = function(max_iter=2,initial_data=initial,return_diagnostics=True)
+            self.assertEqual(len(result[1]),4)
+            self.assertEqual(result[5]['stop_reason'],'iteration_budget')
+            self.assertEqual(stopping.consecutive,0)
+            self.assertTrue(all(not row['model_ok'] for row in stopping.history))
+            self.assertTrue(all(row['below_threshold'] for row in stopping.history))
 
     def test_lcb_incumbent_is_validated_even_when_not_best_observed(self):
         initial = (self.X,np.array([-1.,-2.]),np.full(2,.01))
@@ -272,6 +357,7 @@ class QuadraticAcquisition(AcquisitionFunction):
 
 class OptimizerTests(unittest.TestCase):
     def setUp(self):
+        mock_calibration(self,torch.full((2,D),.5,dtype=torch.double),[-1.,-2.])
         self.bounds = torch.tensor([[0.,0.],[1.,1.]],dtype=torch.double)
         self.result = (torch.full((1,2),.4,dtype=torch.double),torch.tensor(-.01))
         self.kwargs = {'acq_function':QuadraticAcquisition(),'bounds':self.bounds,
@@ -326,7 +412,7 @@ class OptimizerTests(unittest.TestCase):
         def optimize(**kwargs):
             warnings.warn('ABNORMAL',OptimizationWarning)
             return self.result
-        stopping = RegretStopping.SimpleRegretStopping(min_evaluations=1,check_every=1,patience=1,grid_size=8)
+        stopping = RegretStopping.SimpleRegretStopping(enabled=True,record_every=0,min_evaluations=1,check_every=1,patience=1,grid_size=8)
         X = torch.ones(2,D,dtype=torch.double)
         with patch.object(AcquisitionOptimizer,'botorch_optimize_acqf',side_effect=optimize),self.assertWarns(UserWarning):
             self.assertFalse(stopping.check(LinearGP(sigma=.00001),BoUtils.identity_map,X,1,1))

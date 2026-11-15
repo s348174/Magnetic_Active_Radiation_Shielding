@@ -10,9 +10,8 @@ import pandas as pd
 from scipy.stats import t
 
 import input as config
-import simulator
 from LogDataSampler import sample_all_particles_stratified
-from Objective import incident_energy, spherical_to_cartesian
+from Objective import incident_energy, spherical_to_cartesian, simulator
 
 
 def design_geometry(x):

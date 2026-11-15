@@ -194,7 +194,7 @@ class AcquisitionTests(unittest.TestCase):
         for module, function, kwargs, mapping in cases:
             with self.subTest(function=function.__name__, kwargs=kwargs, mapping=mapping):
                 observed = []
-                def objective(seed, centers, normals):
+                def objective(seed, centers, normals, log_variance=None):
                     centers, normals = np.asarray(centers), np.asarray(normals)
                     self.assertEqual(centers.shape, (K,3))
                     self.assertEqual(normals.shape, (K,2))
@@ -210,6 +210,10 @@ class AcquisitionTests(unittest.TestCase):
                      patch.object(module,'fit_gpytorch_mll',side_effect=fit), \
                      patch.object(module,'optimize_acqf',side_effect=optimize), \
                      patch.object(module,'map_fn',mapping or utils.identity_map), \
+                     patch.object(BoLoop,'calibrate_noise',return_value={
+                         'variance':1e-4}), \
+                     patch.object(BoLoop,'assess_model',return_value={
+                         'model_ok':True,'reasons':[]}), \
                      patch.object(TurBo,'N_CANDIDATES',16):
                     result = function(**kwargs)
                 self.assertEqual(len(observed),1)

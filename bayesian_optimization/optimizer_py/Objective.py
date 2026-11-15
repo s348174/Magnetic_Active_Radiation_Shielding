@@ -90,8 +90,13 @@ def evaluate_configuration(seed, centers, normals, n_particles=None, common_ener
     return float(mean), float(variance)
 
 
-def objective_function(seed, centers, normals):
-    """Log-response and delta-method variance used during optimization."""
+def objective_function(seed, centers, normals, log_variance=None):
+    """Log-response; vanilla BO supplies calibrated single-run log noise.
+
+    The particle-based estimate is retained for the existing TuRBO routines.
+    """
+    if log_variance is not None and (not np.isfinite(log_variance) or log_variance <= 0):
+        raise ValueError('Calibrated log variance must be finite and positive.')
     try:
         mean, variance = evaluate_configuration(seed, centers, normals,common_energy=True)
     except FloatingPointError:
@@ -100,4 +105,5 @@ def objective_function(seed, centers, normals):
             retry_seed = next_optimization_seed()
         print(f"Retrying non-finite response with spatial seed {retry_seed}; common energies retained.")
         mean, variance = evaluate_configuration(retry_seed,centers,normals,common_energy=True)
-    return np.log(mean), variance / (mean**2 + 1e-6) + 1e-6
+    noise = variance / (mean**2 + 1e-6) + 1e-6 if log_variance is None else float(log_variance)
+    return np.log(mean), noise
