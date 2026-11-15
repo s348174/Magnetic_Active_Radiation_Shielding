@@ -1,0 +1,2 @@
+rank,finalist,region,mean_response,replicate_se,ci95_lower,ci95_upper,ci_overlaps_best,mean_within_run_variance,particles_per_species,repeats,seeds
+1,1,1,985012556945826.4,427324523073.92676,983173927920133.5,986851185971519.2,True,7.021610082289311e+24,100000,3,1000067;1000068;1000069

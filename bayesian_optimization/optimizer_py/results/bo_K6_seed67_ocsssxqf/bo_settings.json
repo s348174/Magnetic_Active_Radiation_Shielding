@@ -1,0 +1,30 @@
+{
+  "regions": 1,
+  "kernel": "rbf",
+  "acquisition": "log-nei",
+  "nu": null,
+  "stopping": {
+    "settings": {
+      "enabled": true,
+      "relative_tolerance": 0.001,
+      "delta": 0.0009995003330835331,
+      "confidence": 2.0,
+      "min_evaluations": 150,
+      "check_every": 10,
+      "patience": 3,
+      "grid_size": 1024,
+      "record_every": 2
+    },
+    "stop_reason": "estimated_simple_regret",
+    "successful_evaluations": 170,
+    "attempted_iterations": 170,
+    "incumbent_index": 184
+  },
+  "method": "bo",
+  "seed_indices": [],
+  "optimization_energy_seed": 67,
+  "optimization_sampling": "common_energies_fresh_spatial_owen_scrambles",
+  "seed": 67,
+  "initial_evaluations": 150,
+  "total_refinement_budget": 750
+}

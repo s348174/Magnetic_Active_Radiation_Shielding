@@ -1,0 +1,17 @@
+{
+  "effective_rank": 62.99840402209558,
+  "pool_size": 63,
+  "regions": 5,
+  "requested_regions": 0,
+  "min_iterations_per_region": 50,
+  "seed_indices": [
+    43,
+    163,
+    38,
+    11,
+    189
+  ],
+  "seed": 67,
+  "initial_evaluations": 250,
+  "total_refinement_budget": 1250
+}
