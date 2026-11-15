@@ -7,6 +7,7 @@ import tempfile
 import time
 import numpy as np
 import torch
+from botorch.exceptions.errors import ModelFittingError
 
 from MultiTurbo import bo_multi_turbo
 from BoLoop import bo_matern_kernel, bo_rbf_kernel, bo_rbf_old
@@ -59,7 +60,15 @@ def run_vanilla(kernel='matern', iterations=None, nu=2.5, checkpoint_dir=None):
         kwargs['checkpoint'] = checkpoint
     if kernel == 'matern':
         kwargs['nu'] = nu
-    X,y,acquisition,means,variances,diagnostics = functions[kernel](**kwargs)
+    try:
+        X,y,acquisition,means,variances,diagnostics = functions[kernel](**kwargs)
+    except ModelFittingError as error:
+        if checkpoint_dir is not None:
+            saved = (Path(checkpoint_dir)/'bo_checkpoint.npz').resolve()
+            raise ModelFittingError(
+                f'GP fitting failed after all recovery attempts. Completed observations are saved in '
+                f'{saved}. Final validation was not started. Details: {error}') from error
+        raise
     finalists = []
     # The regret estimate refers to this LCB incumbent. Always independently validate it.
     order = np.r_[diagnostics['incumbent_index'],np.argsort(-y,kind='stable')]
@@ -158,4 +167,7 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except ModelFittingError as error:
+        raise SystemExit(str(error))

@@ -95,3 +95,43 @@ global accuracy. Changing the log objective is unnecessary to fix the noise.
 failed model checks with red crosses, and show when early stopping is disabled.
 The independent high-particle-count finalist validation remains a separate stage
 with fresh energy and spatial seeds.
+
+## GP fitting recovery and checkpoints
+
+Vanilla RBF and Matérn share a bounded fitting sequence:
+
+1. Fit with warm-start L-BFGS-B: at most 300 iterations and 50 line-search steps
+   per iteration, with one attempt from this initialization.
+2. On failure, reset the kernel lengthscales/outputscale to 1 and the standardized
+   constant mean to 0, then try L-BFGS-B again with the same budget. This supplies
+   a genuinely fresh start even though the custom kernels have no priors.
+3. On failure, reset again and use Adam with learning rate 0.05 and at most
+   300 steps. Adam does not require the line search behind the `ABNORMAL` warning.
+
+Every accepted fit must have finite parameters and finite training marginal
+likelihood. Adam may stop at its budget; acceptance is not a claim of optimizer
+convergence or model accuracy. The repeat-based model checks and regret safeguards
+still apply. Failed attempts never supply acquisition predictions. If all methods
+fail, the incoming parameters are restored and the run stops with a nonzero exit
+status and a concise message giving the checkpoint path. Finalist validation is
+not launched from a failed fit. Physical settings and calibrated noise are not
+changed to make fitting succeed.
+
+`bo_checkpoint.npz` is now saved atomically before the initial fit and immediately
+after every valid simulation, before refitting. Its new scalar fields are:
+
+- `status`: `fit_pending`, `ready`, or `model_fitting_failed`.
+- `evaluations`: new valid simulations completed, excluding the initial design.
+- `fitted_evaluations`: new observations included in the last successful fit.
+- `iteration`: attempted BO iteration; `initial_evaluations`: initial design size.
+- `error`: fitting failure text, or an empty string.
+
+For a pending/failed fit, the new observation and acquisition value are present;
+the corresponding posterior mean and variance are `NaN` until computed. Earlier
+regret and model-diagnostic entries still refer only to earlier completed updates.
+`plot_regret.py` handles missing variance values as gaps. Checkpoints can be read
+with `np.load(path, allow_pickle=False)`; no Python objects are serialized.
+
+Restarting the launch command still creates a new run; automatic resume is not
+implemented. Preserved `X`, `y` and `variance` can be supplied through the existing
+loop `initial_data` API, with the same physical settings and common energy bank.

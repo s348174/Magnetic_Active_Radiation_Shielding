@@ -5,7 +5,8 @@ import torch
 
 from botorch.models import SingleTaskGP
 from botorch.models.transforms.outcome import Standardize
-from botorch.fit import fit_gpytorch_mll
+from botorch.exceptions.errors import ModelFittingError
+from RobustGPFitting import fit_gpytorch_mll_robust as fit_gpytorch_mll
 from botorch.acquisition import qLogNoisyExpectedImprovement, PosteriorMean, qKnowledgeGradient
 from botorch.optim.initializers import gen_one_shot_kg_initial_conditions
 from AcquisitionOptimizer import optimize_acqf
@@ -75,12 +76,34 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
     if not np.isfinite(noise) or noise <= 0:
         raise ValueError('Calibrated single-run log variance must be finite and positive.')
     train_yvar = torch.full((len(y_train),1),noise,dtype=torch.double,device=device)
+    initial_evaluations = len(y_train)
+    acquisition_hist, best_mean_hist, variance_hist = [], [], []
+    evaluations, fitted_evaluations, attempted_iteration = 0, 0, 0
+
+    def save_checkpoint(status, error=''):
+        if checkpoint is not None:
+            checkpoint({'X':X_train.cpu().numpy(), 'y':y_train,
+                        'variance':train_yvar.squeeze(-1).cpu().numpy(),
+                        'acquisition':np.asarray(acquisition_hist),
+                        'posterior_mean':np.asarray(best_mean_hist),
+                        'posterior_variance':np.asarray(variance_hist),
+                        'status':np.asarray(status), 'error':np.asarray(error),
+                        'evaluations':np.asarray(evaluations),
+                        'fitted_evaluations':np.asarray(fitted_evaluations),
+                        'iteration':np.asarray(attempted_iteration),
+                        'initial_evaluations':np.asarray(initial_evaluations)},stopping.history)
 
     n_features = mapping(X_train).shape[-1]
     base_kernel = (MaternKernel(nu=nu, ard_num_dims=n_features) if kernel == 'matern'
                    else RBFKernel(ard_num_dims=n_features))
     covar_module = ScaleKernel(base_kernel) # Fresh parameters at the start of every run.
-    gp = _fit_model(X_train, y_train, train_yvar, mapping, covar_module)
+    save_checkpoint('fit_pending')
+    try:
+        gp = _fit_model(X_train, y_train, train_yvar, mapping, covar_module)
+    except ModelFittingError as error:
+        save_checkpoint('model_fitting_failed',str(error))
+        raise
+    save_checkpoint('ready')
     model_checks = []
 
     def check_model(evaluations):
@@ -99,14 +122,13 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
 
     check_model(0)
 
-    acquisition_hist, best_mean_hist, variance_hist = [], [], []
     warnings_counter = 0
-    evaluations = 0
     stop_reason = 'iteration_budget'
     # Matérn retains the original KG acquisition. Subtract the current optimum
     # so its reported value is an improvement, rather than a future value level.
     current_best_mean = _best_posterior_mean(gp, mapping) if kernel == 'matern' else None
     for iteration in range(iterations):
+        attempted_iteration = iteration+1
         model = InputMappedModel(gp, mapping)
         if kernel == 'matern':
             acquisition = qKnowledgeGradient(
@@ -150,27 +172,31 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         y_train = np.append(y_train, -float(energy_next))
         train_yvar = torch.cat((train_yvar, torch.tensor(
             [[noise]], dtype=torch.double, device=device)))
-        gp = _fit_model(X_train, y_train, train_yvar, mapping, covar_module)
         evaluations += 1
+        # Save the expensive observation before fitting; diagnostics are pending.
+        acquisition_hist.append(acquisition_scalar)
+        best_mean_hist.append(float('nan'))
+        variance_hist.append(float('nan'))
+        save_checkpoint('fit_pending')
+        try:
+            gp = _fit_model(X_train, y_train, train_yvar, mapping, covar_module)
+        except ModelFittingError as error:
+            save_checkpoint('model_fitting_failed',str(error))
+            raise
+        fitted_evaluations = evaluations
 
         # Acquisition values stay in their native units: KG or log-NEI.
-        acquisition_hist.append(acquisition_scalar)
         current_best_mean = _best_posterior_mean(gp, mapping)
-        best_mean_hist.append(current_best_mean)
+        best_mean_hist[-1] = current_best_mean
         top_idx = torch.as_tensor(np.argsort(y_train)[-min(5, len(y_train)):], device=device)
         with torch.no_grad():
             posterior_var = gp.posterior(mapping(X_train[top_idx])).variance.mean().item()
-        variance_hist.append(posterior_var)
+        variance_hist[-1] = posterior_var
         model_ok = check_model(evaluations)
         should_stop = stopping.check(gp, mapping, X_train, evaluations, iteration+1, model_ok=model_ok)
         if should_stop:
             stop_reason = 'estimated_simple_regret'
-        if checkpoint is not None:
-            checkpoint({'X':X_train.cpu().numpy(), 'y':y_train,
-                        'variance':train_yvar.squeeze(-1).cpu().numpy(),
-                        'acquisition':np.asarray(acquisition_hist),
-                        'posterior_mean':np.asarray(best_mean_hist),
-                        'posterior_variance':np.asarray(variance_hist)},stopping.history)
+        save_checkpoint('ready')
         if should_stop:
             print(f"Estimated simple-regret criterion reached after {evaluations} new evaluations.")
             break
