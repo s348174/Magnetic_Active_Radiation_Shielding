@@ -10,7 +10,7 @@ device = torch.device("cpu")
 K = 6 # Number of coils
 N = int(1e3) # Number of particles
 ENERGY_BINS = 8 # Logarithmic energy strata; at least two samples per nonempty bin
-I = 1e8 # Current in Amperes
+I = 1e9 # Current in Amperes
 R = 0.25 # Coil radius in meters
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
