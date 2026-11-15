@@ -12,7 +12,7 @@ externals
 *build*
 *pyenv*
 *.vscode*
-*results*
+results
 
 # Ignore all user CMAKE files
 *.txt.user
