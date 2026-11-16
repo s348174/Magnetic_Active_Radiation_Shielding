@@ -1,0 +1,35 @@
+{
+  "regions": 1,
+  "kernel": "coil-set",
+  "acquisition": "log-nei",
+  "nu": null,
+  "noise_model": {
+    "method": "pooled_spatial_scramble_log_variance",
+    "variance": 0.00033622477902810194,
+    "repeats": 6
+  },
+  "stopping": {
+    "settings": {
+      "enabled": false,
+      "relative_tolerance": 0.001,
+      "delta": 0.0009995003330835331,
+      "confidence": 2.0,
+      "min_evaluations": 100,
+      "check_every": 10,
+      "patience": 3,
+      "grid_size": 1024,
+      "record_every": 2
+    },
+    "stop_reason": "iteration_budget",
+    "successful_evaluations": 500,
+    "attempted_iterations": 500,
+    "incumbent_index": 352
+  },
+  "method": "bo",
+  "seed_indices": [],
+  "optimization_energy_seed": 67,
+  "optimization_sampling": "common_energies_fresh_spatial_owen_scrambles",
+  "seed": 67,
+  "initial_evaluations": 100,
+  "total_refinement_budget": 500
+}

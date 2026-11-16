@@ -1,0 +1,36 @@
+{
+  "K": 6,
+  "coil_radius_m": 0.25,
+  "particles_per_species": 1000,
+  "energy_bins": 8,
+  "energy_seed": 67,
+  "energy_seed_entropy": [
+    1,
+    67
+  ],
+  "spatial_seed_start": 2000067,
+  "repeats": 6,
+  "sampled_incident_energy": 956641275307516.4,
+  "configurations": [
+    {
+      "configuration": "zero_current",
+      "current_A": 0.0,
+      "source": "Reference geometry, zero current"
+    },
+    {
+      "configuration": "reference",
+      "current_A": 100000000.0,
+      "source": "/home/alberto/Documenti/Magnetic_Active_Radiation_Shielding/bayesian_optimization/optimizer_py/results/bo_K6_seed67_ocsssxqf/best_configuration.csv"
+    },
+    {
+      "configuration": "near_radial",
+      "current_A": 100000000.0,
+      "source": "Generated near-bound centres with radial normals"
+    },
+    {
+      "configuration": "far_aligned",
+      "current_A": 100000000.0,
+      "source": "Generated far-bound centres with parallel normals"
+    }
+  ]
+}
