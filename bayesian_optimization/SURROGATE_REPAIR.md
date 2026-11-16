@@ -58,6 +58,9 @@ longer enough for the coil-set stopping gate. Checkpoints contain the exact last
 successful GP `state_dict` as `gp_state__*` NumPy arrays, plus scale-selection
 metadata. Pending observations may outnumber observations in that fitted state;
 consult `fitted_evaluations` and `status`.
+The next spatial seed is explicit integer state: `optimization_seed_state()` reads
+it without advancing, and `set_optimization_seed()` restores it. No iterator
+pickling or serialization internals are used, including on Python 3.14.
 
 ## Acquisition and regret
 

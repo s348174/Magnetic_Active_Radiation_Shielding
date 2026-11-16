@@ -1,6 +1,5 @@
 """Pilot reuses physical settings, preserves fits and independently compares designs."""
 from contextlib import ExitStack
-from itertools import count
 import json
 from pathlib import Path
 import tempfile
@@ -19,6 +18,8 @@ import run_surrogate_pilot as pilot
 
 class SurrogatePilotTests(unittest.TestCase):
     def setUp(self):
+        previous_seed = Objective.optimization_seed_state()
+        self.addCleanup(Objective.set_optimization_seed,previous_seed)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -77,11 +78,10 @@ class SurrogatePilotTests(unittest.TestCase):
         return next_X,next_y,np.array([-1.,-2.]),[-33.,-32.9],[.01,.01],diagnostics
 
     def test_pilot_reuses_all_data_and_validates_original_winner_against_best_new(self):
-        old_counter = count(888)
-        with patch.object(Objective,'_optimization_seeds',old_counter):
-            report = pilot.run_pilot(self.source,self.report_dir,evaluations=2)
-            self.assertIs(Objective._optimization_seeds,old_counter)
-            self.assertEqual(next(old_counter),888)
+        Objective.set_optimization_seed(888)
+        report = pilot.run_pilot(self.source,self.report_dir,evaluations=2)
+        self.assertEqual(Objective.optimization_seed_state(),888)
+        self.assertEqual(Objective.next_optimization_seed(),888)
         self.assertEqual(self.seeds,[config.SEED+500_000])
         self.assertEqual(report['completed_evaluations'],2)
         self.assertEqual(report['baseline_source_index'],2)
@@ -113,11 +113,10 @@ class SurrogatePilotTests(unittest.TestCase):
                                       status=np.asarray('model_fitting_failed'),evaluations=np.asarray(0)),[])
             raise ModelFittingError('no predictive scale candidate')
         self.loop.side_effect = fail
-        old_counter = count(888)
-        with patch.object(Objective,'_optimization_seeds',old_counter):
-            with self.assertRaisesRegex(RuntimeError,'bo_checkpoint.npz'):
-                pilot.run_pilot(self.source,self.report_dir,evaluations=2)
-            self.assertIs(Objective._optimization_seeds,old_counter)
+        Objective.set_optimization_seed(888)
+        with self.assertRaisesRegex(RuntimeError,'bo_checkpoint.npz'):
+            pilot.run_pilot(self.source,self.report_dir,evaluations=2)
+        self.assertEqual(Objective.optimization_seed_state(),888)
         self.evaluate.assert_not_called()
         self.assertTrue((self.report_dir/'bo_checkpoint.npz').exists())
         saved = json.loads((self.report_dir/'pilot_report.json').read_text())
@@ -164,12 +163,12 @@ class SurrogatePilotTests(unittest.TestCase):
         self.assertFalse(self.report_dir.exists())
 
     def test_reading_optimization_seed_state_does_not_advance_the_counter(self):
-        with patch.object(Objective,'_optimization_seeds',count(7000)):
-            self.assertEqual(Objective.optimization_seed_state(),7000)
-            self.assertEqual(Objective.optimization_seed_state(),7000)
-            self.assertEqual(Objective.next_optimization_seed(),7000)
-            self.assertEqual(Objective.optimization_seed_state(),7001)
-            self.assertEqual(Objective.next_optimization_seed(),7001)
+        Objective.set_optimization_seed(7000)
+        self.assertEqual(Objective.optimization_seed_state(),7000)
+        self.assertEqual(Objective.optimization_seed_state(),7000)
+        self.assertEqual(Objective.next_optimization_seed(),7000)
+        self.assertEqual(Objective.optimization_seed_state(),7001)
+        self.assertEqual(Objective.next_optimization_seed(),7001)
 
 
 if __name__ == '__main__':

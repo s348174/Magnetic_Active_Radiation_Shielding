@@ -10,6 +10,7 @@ import torch
 from botorch.exceptions.errors import ModelFittingError
 
 import BoLoop
+import Objective
 import bo_main
 from input import D
 
@@ -94,6 +95,7 @@ class FitCheckpointTests(unittest.TestCase):
             self.assertEqual(str(history['status']), 'fit_pending')
             self.assert_counts(history, 1, 0)
             self.assertEqual(history['y'][-1], -.5)
+            self.assertEqual(int(history['next_spatial_seed']),Objective.optimization_seed_state())
             self.assertEqual(history['acquisition'][-1], -7.)
             self.assertTrue(np.isnan(history['posterior_mean'][-1]))
             self.assertTrue(np.isnan(history['posterior_variance'][-1]))

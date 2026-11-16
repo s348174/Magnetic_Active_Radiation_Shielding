@@ -6,7 +6,6 @@ import unittest
 from unittest.mock import patch, mock_open
 from contextlib import redirect_stdout
 import io
-from itertools import count
 
 import numpy as np
 import torch
@@ -185,13 +184,13 @@ class FinalValidationTests(unittest.TestCase):
         self.assertEqual(incoming,1e6*(2*2+3*15+56*(1*3+4*20)))
 
     def test_spatial_seed_allocator_is_unique_and_separate_from_default_validation(self):
-        with patch.object(Objective,'_optimization_seeds',count(Objective.SEED)):
+        with patch.object(Objective,'_next_optimization_seed',Objective.SEED):
             seeds = [Objective.next_optimization_seed() for _ in range(1000)]
         self.assertEqual(len(set(seeds)),1000)
         self.assertTrue(all(seed < Objective.SEED+1000000 for seed in seeds))
 
     def test_retry_retains_common_energies_and_consumes_a_fresh_scramble(self):
-        with patch.object(Objective,'_optimization_seeds',count(Objective.SEED+1)), \
+        with patch.object(Objective,'_next_optimization_seed',Objective.SEED+1), \
              patch.object(Objective,'evaluate_configuration',side_effect=[FloatingPointError(),(10.,1.)]) as evaluate:
             Objective.objective_function(Objective.SEED,None,None)
         self.assertEqual([call.args[0] for call in evaluate.call_args_list],

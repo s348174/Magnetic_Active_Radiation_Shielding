@@ -1,6 +1,5 @@
 """Pilot corrected coil-set BO on saved data, then independently validate two designs."""
 import argparse
-from itertools import count
 import json
 from pathlib import Path
 import tempfile
@@ -121,8 +120,8 @@ def run_pilot(run_dir, output_dir=None, evaluations=10, final_particles=None,
         _save_json(directory/'model_diagnostics.json',checks)
 
     start = time.monotonic()
-    previous_seeds = Objective._optimization_seeds
-    Objective._optimization_seeds = count(spatial_seed)
+    previous_seed = Objective.optimization_seed_state()
+    Objective.set_optimization_seed(spatial_seed)
     print(f'Pilot uses {len(y)} saved observations, N={config.N}; up to {evaluations} new steps. '
           f'Reports: {directory}',flush=True)
     try:
@@ -138,7 +137,7 @@ def run_pilot(run_dir, output_dir=None, evaluations=10, final_particles=None,
         _save_json(directory/'pilot_report.json',report)
         raise RuntimeError(f'Pilot stopped: {error}. Saved observations: {directory}/bo_checkpoint.npz') from error
     finally:
-        Objective._optimization_seeds = previous_seeds
+        Objective.set_optimization_seed(previous_seed)
 
     final_X,final_y,acquisition,means,variances,diagnostics = result
     final_X,final_y = np.asarray(final_X),np.asarray(final_y)

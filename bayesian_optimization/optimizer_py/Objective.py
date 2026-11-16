@@ -5,25 +5,36 @@ import simulator
 
 import numpy as np
 import csv
-from itertools import count
+from numbers import Integral
 
 from LogDataSampler import sample_all_particles_stratified
 from input import K, N, I, R, FLUX_DATA, ENERGY_BINS, SEED, BO_ENERGY_SEED
 
 # Disjoint from the default final-validation seed range, which starts at SEED+1e6.
-_optimization_seeds = count(SEED)
+_next_optimization_seed = SEED
 
 
 def optimization_seed_state():
-    """Read itertools.count's saved next value without consuming a spatial seed."""
-    return int(_optimization_seeds.__reduce__()[1][0])
+    """Return the next spatial seed without advancing or serializing an iterator."""
+    return _next_optimization_seed
+
+
+def set_optimization_seed(seed):
+    """Set or restore explicit seed state, including the exhausted end position."""
+    if (not isinstance(seed,Integral) or isinstance(seed,bool)
+            or not SEED <= seed <= SEED+1000000):
+        raise ValueError('Optimization seed state must be an integer within the optimization range.')
+    global _next_optimization_seed
+    _next_optimization_seed = int(seed)
 
 
 def next_optimization_seed():
     """A fresh spatial scramble for each optimization evaluation, including retries."""
-    seed = next(_optimization_seeds)
+    global _next_optimization_seed
+    seed = _next_optimization_seed
     if seed >= SEED+1000000:
         raise RuntimeError('Optimization spatial-seed range exhausted.')
+    _next_optimization_seed = seed+1
     return seed
 
 
