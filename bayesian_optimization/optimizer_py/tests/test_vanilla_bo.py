@@ -30,7 +30,7 @@ def short_fit(mll):
 
 def direct_optimizer(**kwargs):
     # Loop contract tests control proposals; AcquisitionStarts has separate real tests.
-    for name in ('X','ranking','optimizer'):
+    for name in ('X','ranking','optimizer','allow_observed'):
         kwargs.pop(name,None)
     return BoLoop.optimize_acqf(**kwargs)
 

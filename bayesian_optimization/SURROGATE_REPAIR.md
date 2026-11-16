@@ -68,6 +68,19 @@ stays batched. The reported posterior optimum cannot fall below the best scored
 known point. KG retains its one-shot fantasy initialization; only real candidate
 slots are replaced with observed/local seeds.
 
+Observed points remain optimizer starts, but are excluded from final BO proposals
+using the same per-coordinate `1e-6` tolerance as the loop's duplicate check.
+An optimized duplicate falls back to the best finite unseen pool point. Posterior
+mean diagnostics explicitly permit observed points. KG duplicate recovery scores
+complete one-shot trees before extracting an unseen real candidate; fantasy
+coordinates are preserved. An empty finite unseen pool raises an error instead
+of repeatedly consuming iterations on duplicates.
+
+`KGInitialization.py` bounds both raw KG initialization and the internal
+posterior-value optimization used to choose fantasy locations. Both stages obey
+`BO_OPT_BATCH_LIMIT` and `BO_OPT_INIT_BATCH_LIMIT`, including values below their
+defaults, without reducing the requested sample or restart counts.
+
 New `regret_history.csv` columns:
 
 ```text
@@ -110,8 +123,9 @@ python run_surrogate_pilot.py \
 ```
 
 The pilot reuses all saved observations at their original optimization particle
-count and common energy bank. It starts fresh spatial seeds at `SEED+500000`,
-within the optimization seed range. It compares the best **new** design with the
+count and common energy bank. Fresh spatial seeds start at least at `SEED+500000`
+and advance past a saved `next_spatial_seed` when present, within the optimization
+seed range. It compares the best **new** design with the
 original independently selected winner, using three new simulations each at
 100,000 particles per species. Final validation starts at `SEED+3000000` and
 refreshes energies and spatial scrambles independently. Reports and checkpoints

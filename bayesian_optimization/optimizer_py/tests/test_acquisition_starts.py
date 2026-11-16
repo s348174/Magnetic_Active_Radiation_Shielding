@@ -40,7 +40,7 @@ class AcquisitionStartTests(unittest.TestCase):
         with patch.object(AcquisitionStarts,'BO_OPT_INIT_BATCH_LIMIT',2):
             candidate,value = AcquisitionStarts.optimize_acquisition(acq_function=acq,
                 bounds=self.bounds,X=self.X,ranking=self.ranking,num_restarts=9,raw_samples=64,
-                optimizer=optimize)
+                optimizer=optimize,allow_observed=True)
         torch.testing.assert_close(candidate,self.X[:1])
         self.assertEqual(value.item(),0.)
         self.assertLessEqual(max(acq.batches),2)
@@ -60,9 +60,45 @@ class AcquisitionStartTests(unittest.TestCase):
                     return_value=(torch.full((1,8),bad,dtype=torch.double),torch.tensor(100.))):
                 candidate,value = AcquisitionStarts.optimize_acquisition(
                     acq_function=NarrowPeak(self.X[0]),bounds=self.bounds,X=self.X,
-                    ranking=self.ranking,num_restarts=3,raw_samples=16)
+                    ranking=self.ranking,num_restarts=3,raw_samples=16,allow_observed=True)
             torch.testing.assert_close(candidate,self.X[:1])
             self.assertEqual(value.item(),0.)
+
+    def test_bo_rejects_duplicate_optimizer_result_but_keeps_observed_starts(self):
+        acquisition = NarrowPeak(self.X[0])
+        def duplicate(**kwargs):
+            starts = kwargs['batch_initial_conditions'].squeeze(-2)
+            self.assertTrue((starts == self.X[0]).all(-1).any())
+            return self.X[:1],torch.tensor(0.)
+        candidate,value = AcquisitionStarts.optimize_acquisition(
+            acq_function=acquisition,bounds=self.bounds,X=self.X,ranking=self.ranking,
+            num_restarts=9,raw_samples=32,optimizer=duplicate)
+        self.assertTrue(AcquisitionStarts.new_point_mask(candidate,self.X).item())
+        torch.testing.assert_close(value,acquisition(candidate.unsqueeze(-2))[0])
+        self.assertLess(value.item(),0.)
+
+    def test_near_duplicates_use_the_same_per_coordinate_tolerance_as_bo_loop(self):
+        # Every coordinate is within tolerance, despite a larger Euclidean norm.
+        close = self.X[:1]+.9e-6
+        self.assertFalse(AcquisitionStarts.new_point_mask(close,self.X).item())
+        with patch.object(AcquisitionStarts,'optimize_acqf',return_value=(close,torch.tensor(100.))):
+            candidate,_ = AcquisitionStarts.optimize_acquisition(
+                acq_function=NarrowPeak(self.X[0]),bounds=self.bounds,X=self.X,
+                ranking=self.ranking,num_restarts=6,raw_samples=32)
+        self.assertTrue(AcquisitionStarts.new_point_mask(candidate,self.X).item())
+
+    def test_no_finite_new_point_raises_instead_of_returning_a_duplicate(self):
+        class OnlyObserved(AcquisitionFunction):
+            def __init__(self, X):
+                super().__init__(model=None)
+                self.X = X
+            def forward(self, X):
+                observed = (X[...,0,:] == self.X[0]).all(dim=-1)
+                return torch.where(observed,0.,float('nan'))
+        with patch.object(AcquisitionStarts,'optimize_acqf',return_value=(self.X[:1],torch.tensor(0.))), \
+             self.assertRaisesRegex(RuntimeError,'No finite unevaluated candidate'):
+            AcquisitionStarts.optimize_acquisition(acq_function=OnlyObserved(self.X),
+                bounds=self.bounds,X=self.X,ranking=self.ranking,num_restarts=3,raw_samples=16)
 
     def test_real_candidate_slots_are_feasible_and_include_top_observation(self):
         for count in (1,2,9):

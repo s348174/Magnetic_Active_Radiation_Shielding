@@ -9,13 +9,13 @@ from botorch.models.transforms.outcome import Standardize
 from botorch.exceptions.errors import ModelFittingError
 from RobustGPFitting import fit_gpytorch_mll_robust as fit_gpytorch_mll
 from botorch.acquisition import qLogNoisyExpectedImprovement, PosteriorMean, qKnowledgeGradient
-from botorch.optim.initializers import gen_one_shot_kg_initial_conditions
+from KGInitialization import gen_one_shot_kg_initial_conditions
 from AcquisitionOptimizer import optimize_acqf
 from botorch.models.utils.assorted import InputDataWarning
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
 from gpytorch.settings import min_fixed_noise
-from AcquisitionStarts import optimize_acquisition, observed_local_points
+from AcquisitionStarts import optimize_acquisition, observed_local_points, new_point_mask
 from CoilSetModel import select_coil_scales, make_coil_kernel
 from PosteriorChecks import raw_mean_variance, check_kernel
 
@@ -25,12 +25,13 @@ from BoUtils import (
     duplicate_safe_candidate,
 )
 from RegretStopping import SimpleRegretStopping, lower_bound_incumbent
-from Objective import objective_function, next_optimization_seed
+from Objective import objective_function, next_optimization_seed, optimization_seed_state
 from NoiseCalibration import calibrate_noise
 from ModelDiagnostics import assess_model
 from input import (device, MAX_ITER, unit_bounds, Q, BO_NOISE_REPEATS, K, SEED,
                    BO_COIL_LENGTHSCALES, BO_COIL_KAPPAS, BO_COIL_SELECT_EVERY,
-                   BO_COIL_MIN_SELECTION, BO_POSTERIOR_BATCH_LIMIT)
+                   BO_COIL_MIN_SELECTION, BO_POSTERIOR_BATCH_LIMIT,
+                   BO_OPT_BATCH_LIMIT, BO_OPT_INIT_BATCH_LIMIT)
 
 
 def _fit_model(X_train, y_train, train_yvar, mapping, covar_module):
@@ -60,8 +61,37 @@ def _best_posterior_mean(gp, mapping, X):
     _, value = optimize_acquisition(
         acq_function=InputMappedAcquisition(PosteriorMean(gp),mapping),
         bounds=unit_bounds,X=X,ranking=ranking,num_restarts=30,raw_samples=256,
-        optimizer=optimize_acqf)
+        optimizer=optimize_acqf,allow_observed=True)
     return value.detach().item()
+
+
+def _kg_candidate(acquisition, gp, mapping, X):
+    """Keep fantasy coordinates intact and return a distinct real candidate."""
+    starts = gen_one_shot_kg_initial_conditions(
+        acq_function=acquisition,bounds=unit_bounds,q=Q,num_restarts=40,raw_samples=512,
+        options={'batch_limit':BO_OPT_BATCH_LIMIT,'init_batch_limit':BO_OPT_INIT_BATCH_LIMIT,
+                 'num_inner_restarts':2,'raw_inner_samples':16})
+    starts[:20,:Q,:] = observed_local_points(
+        unit_bounds,X,_observed_means(gp,mapping,X),20)
+    candidate,value = optimize_acqf(acq_function=acquisition,bounds=unit_bounds,q=Q,
+        num_restarts=40,raw_samples=512,batch_initial_conditions=starts)
+    if (candidate.shape == (1,X.shape[-1]) and torch.isfinite(candidate).all()
+            and (candidate >= unit_bounds[0]).all() and (candidate <= unit_bounds[1]).all()
+            and not duplicate_safe_candidate(X,candidate)):
+        return candidate,value
+
+    # Evaluate full one-shot trees: scoring extracted real points alone is not KG.
+    eligible = new_point_mask(starts[:,0,:],X)
+    trees = starts[eligible]
+    if len(trees):
+        with torch.no_grad():
+            values = torch.cat([acquisition(batch).reshape(-1)
+                                for batch in trees.split(BO_OPT_INIT_BATCH_LIMIT)])
+        finite = torch.isfinite(values)
+        if finite.any():
+            best = int(values.masked_fill(~finite,-torch.inf).argmax().item())
+            return trees[best,:Q,:].detach(),values[best].detach()
+    raise RuntimeError('KG optimization and initial trees contain no finite unevaluated candidate.')
 
 
 def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_diagnostics=False,
@@ -111,6 +141,7 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
                         'iteration':np.asarray(attempted_iteration),
                         'initial_evaluations':np.asarray(initial_evaluations),
                         'kernel':np.asarray(kernel)}
+            state['next_spatial_seed'] = np.asarray(optimization_seed_state())
             if scale_selection is not None:
                 state['scale_selection_json'] = np.asarray(json.dumps(scale_selection,allow_nan=False))
             if gp is not None:
@@ -195,18 +226,7 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
                 model=model, num_fantasies=2,
                 current_value=torch.tensor(current_best_mean, dtype=torch.double, device=device),
             )
-            # KG fantasy locations retain BoTorch's one-shot initialization.
-            starts = gen_one_shot_kg_initial_conditions(
-                acq_function=acquisition,bounds=unit_bounds,q=Q,num_restarts=40,raw_samples=512,
-                options={'batch_limit':2,'init_batch_limit':16,
-                         'num_inner_restarts':2,'raw_inner_samples':16})
-            starts[:20,:Q,:] = observed_local_points(
-                unit_bounds,X_train,_observed_means(gp,mapping,X_train),20)
-            candidate, acquisition_value = optimize_acqf(
-                acq_function=acquisition, bounds=unit_bounds, q=Q,
-                num_restarts=40, raw_samples=512,
-                batch_initial_conditions=starts,
-            )
+            candidate, acquisition_value = _kg_candidate(acquisition,gp,mapping,X_train)
         else:
             # Keep the actual GP visible to BoTorch so baseline Cholesky caching works.
             acquisition = InputMappedAcquisition(qLogNoisyExpectedImprovement(
@@ -214,7 +234,7 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
             candidate, acquisition_value = optimize_acquisition(
                 acq_function=acquisition, bounds=unit_bounds, q=Q,
                 X=X_train,ranking=_observed_means(gp,mapping,X_train),
-                num_restarts=60,raw_samples=1024,optimizer=optimize_acqf,
+                num_restarts=60,raw_samples=1024,optimizer=optimize_acqf,allow_observed=False,
             )
         # Retain the acquisition value BEFORE fitting the updated GP.
         acquisition_scalar = acquisition_value.detach().item()

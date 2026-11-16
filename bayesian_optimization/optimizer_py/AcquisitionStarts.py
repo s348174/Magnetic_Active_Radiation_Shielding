@@ -1,4 +1,5 @@
 """Small acquisition restart pools containing known, nearby and global designs."""
+import math
 import torch
 from botorch.acquisition import OneShotAcquisitionFunction
 
@@ -15,6 +16,17 @@ def _values(acquisition, points):
     if len(values) != len(points):
         raise ValueError('Restart scoring requires one acquisition value per q=1 design.')
     return values
+
+
+def new_point_mask(points, X, tolerance=1e-6):
+    """Match duplicate_safe_candidate's per-coordinate tolerance, in small batches."""
+    if not math.isfinite(tolerance) or tolerance <= 0:
+        raise ValueError('Duplicate tolerance must be positive and finite.')
+    if BO_OPT_INIT_BATCH_LIMIT < 1:
+        raise ValueError('Scoring batch limit must be positive.')
+    with torch.no_grad():
+        return torch.cat([torch.cdist(batch,X,p=float('inf')).amin(dim=-1) >= tolerance
+                          for batch in points.split(BO_OPT_INIT_BATCH_LIMIT)])
 
 
 def observed_local_points(bounds, X, ranking, count):
@@ -44,13 +56,15 @@ def observed_local_points(bounds, X, ranking, count):
 
 
 def optimize_acquisition(*, acq_function, bounds, X, ranking, num_restarts, raw_samples,
-                        optimizer=None, **kwargs):
+                        optimizer=None, allow_observed=False, **kwargs):
     """Optimize a q=1 acquisition with observed, local and Sobol starts.
 
     ranking contains larger-is-better scores for local anchors. Restart slots are
     reserved for all three groups so that global samples cannot discard every
     known promising neighbourhood. The returned score is evaluated afresh and
-    cannot be worse than the best finite design in the initial pool.
+    cannot be worse than the best finite eligible design in the initial pool.
+    Observations remain available as starts but are excluded from final proposals.
+    Set allow_observed=True when finding the best posterior mean for diagnostics.
     One-shot KG needs augmented fantasy initial conditions and is not handled here.
     """
     q = kwargs.pop('q', 1)
@@ -107,16 +121,22 @@ def optimize_acquisition(*, acq_function, bounds, X, ranking, num_restarts, raw_
         take = min(num_restarts-len(indices),len(extra))
         indices = torch.cat((indices,extra[masked[extra].topk(take).indices]))
     starts = points[indices].unsqueeze(-2).detach().clone()
-    best_index = int(masked.argmax().item())
-    best_candidate = points[best_index:best_index+1].detach().clone()
-    best_value = masked[best_index].detach()
+    eligible = finite if allow_observed else finite & new_point_mask(points,X)
+    best_candidate, best_value = None, None
+    if eligible.any():
+        best_index = int(values.masked_fill(~eligible,-torch.inf).argmax().item())
+        best_candidate = points[best_index:best_index+1].detach().clone()
+        best_value = values[best_index].detach()
     optimizer = optimize_acqf if optimizer is None else optimizer
     candidate, _ = optimizer(acq_function=acq_function,bounds=bounds,q=1,
         num_restarts=len(starts),batch_initial_conditions=starts,**kwargs)
     candidate = candidate.detach()
     if (candidate.shape == (1,X.shape[-1]) and torch.isfinite(candidate).all()
-            and (candidate >= bounds[0]).all() and (candidate <= bounds[1]).all()):
+            and (candidate >= bounds[0]).all() and (candidate <= bounds[1]).all()
+            and (allow_observed or new_point_mask(candidate,X).item())):
         value = _values(acq_function,candidate)[0]
-        if torch.isfinite(value) and value >= best_value:
+        if torch.isfinite(value) and (best_value is None or value >= best_value):
             return candidate,value.detach()
+    if best_candidate is None:
+        raise RuntimeError('No finite unevaluated candidate found in optimization or restart pools.')
     return best_candidate,best_value

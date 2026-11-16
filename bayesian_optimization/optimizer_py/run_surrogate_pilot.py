@@ -69,9 +69,15 @@ def run_pilot(run_dir, output_dir=None, evaluations=10, final_particles=None,
     final_particles = config.FINAL_PARTICLES if final_particles is None else final_particles
     if not isinstance(final_particles,int) or final_particles < 2*config.ENERGY_BINS:
         raise ValueError('Final particle count must provide at least two particles per energy bin.')
-    spatial_seed = config.SEED+500_000 if spatial_seed is None else spatial_seed
+    minimum_seed = config.SEED+len(X)
+    source_checkpoint = source/'bo_checkpoint.npz'
+    if source_checkpoint.is_file():
+        with np.load(source_checkpoint,allow_pickle=False) as stored:
+            if 'next_spatial_seed' in stored:
+                minimum_seed = max(minimum_seed,int(stored['next_spatial_seed']))
+    spatial_seed = max(config.SEED+500_000,minimum_seed) if spatial_seed is None else spatial_seed
     validation_seed = config.SEED+3_000_000 if validation_seed is None else validation_seed
-    if (not isinstance(spatial_seed,int) or spatial_seed < config.SEED+len(X)
+    if (not isinstance(spatial_seed,int) or spatial_seed < minimum_seed
             or spatial_seed+evaluations >= config.SEED+1_000_000):
         raise ValueError('Pilot spatial seeds must follow source evaluations and remain below SEED+1000000.')
     if not isinstance(validation_seed,int) or validation_seed < config.SEED+3_000_000:
@@ -126,6 +132,7 @@ def run_pilot(run_dir, output_dir=None, evaluations=10, final_particles=None,
             result = bo_coil_set_kernel(max_iter=evaluations,initial_data=initial,
                                          calibration=calibration,return_diagnostics=True,
                                          checkpoint=checkpoint,model_callback=model_callback)
+            next_spatial_seed = Objective.optimization_seed_state()
     except (ModelFittingError,RuntimeError,ValueError) as error:
         report.update(status='pilot_failed',error=str(error),elapsed_seconds=time.monotonic()-start)
         _save_json(directory/'pilot_report.json',report)
@@ -136,7 +143,7 @@ def run_pilot(run_dir, output_dir=None, evaluations=10, final_particles=None,
     final_X,final_y,acquisition,means,variances,diagnostics = result
     final_X,final_y = np.asarray(final_X),np.asarray(final_y)
     np.savez(directory/'bo_history.npz',X=final_X,y=final_y,acquisition=acquisition,
-             posterior_mean=means,posterior_variance=variances)
+             posterior_mean=means,posterior_variance=variances,next_spatial_seed=next_spatial_seed)
     _save_json(directory/'bo_settings.json',dict(
         method='bo',kernel='coil-set',acquisition='log-nei',initial_evaluations=len(y),
         seed=config.SEED,optimization_energy_seed=config.BO_ENERGY_SEED,
@@ -150,6 +157,7 @@ def run_pilot(run_dir, output_dir=None, evaluations=10, final_particles=None,
         raise RuntimeError(f'Pilot produced no new observations. Reports: {directory}')
     new_best = len(y)+int(np.argmax(final_y[len(y):]))
     report.update(status='validating',completed_evaluations=completed,
+                  next_spatial_seed=next_spatial_seed,
                   best_new_index=new_best,best_new_observed_response=float(np.exp(-final_y[new_best])),
                   stopping=diagnostics['settings'],stop_reason=diagnostics['stop_reason'],
                   model_checks=diagnostics.get('model_checks',[]),

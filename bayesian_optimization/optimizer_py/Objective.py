@@ -14,6 +14,11 @@ from input import K, N, I, R, FLUX_DATA, ENERGY_BINS, SEED, BO_ENERGY_SEED
 _optimization_seeds = count(SEED)
 
 
+def optimization_seed_state():
+    """Read itertools.count's saved next value without consuming a spatial seed."""
+    return int(_optimization_seeds.__reduce__()[1][0])
+
+
 def next_optimization_seed():
     """A fresh spatial scramble for each optimization evaluation, including retries."""
     seed = next(_optimization_seeds)

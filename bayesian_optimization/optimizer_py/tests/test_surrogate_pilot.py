@@ -144,6 +144,33 @@ class SurrogatePilotTests(unittest.TestCase):
         self.evaluate.assert_not_called()
         self.assertFalse(self.report_dir.exists())
 
+    def test_pilot_uses_saved_next_seed_and_preserves_the_advanced_state(self):
+        saved_next = config.SEED+500_033 # 500100 for the standard seed 67.
+        np.savez(self.source/'bo_checkpoint.npz',next_spatial_seed=saved_next)
+        report = pilot.run_pilot(self.source,self.report_dir,evaluations=2)
+        self.assertEqual(self.seeds,[saved_next])
+        self.assertEqual(report['pilot_spatial_seed_start'],saved_next)
+        self.assertEqual(report['next_spatial_seed'],saved_next+1)
+        with np.load(self.report_dir/'bo_history.npz',allow_pickle=False) as saved:
+            self.assertEqual(int(saved['next_spatial_seed']),saved_next+1)
+
+    def test_explicit_seed_below_saved_next_seed_is_rejected_before_work(self):
+        np.savez(self.source/'bo_checkpoint.npz',next_spatial_seed=config.SEED+500_033)
+        with self.assertRaisesRegex(ValueError,'spatial seeds'):
+            pilot.run_pilot(self.source,self.report_dir,evaluations=2,
+                            spatial_seed=config.SEED+500_000)
+        self.loop.assert_not_called()
+        self.evaluate.assert_not_called()
+        self.assertFalse(self.report_dir.exists())
+
+    def test_reading_optimization_seed_state_does_not_advance_the_counter(self):
+        with patch.object(Objective,'_optimization_seeds',count(7000)):
+            self.assertEqual(Objective.optimization_seed_state(),7000)
+            self.assertEqual(Objective.optimization_seed_state(),7000)
+            self.assertEqual(Objective.next_optimization_seed(),7000)
+            self.assertEqual(Objective.optimization_seed_state(),7001)
+            self.assertEqual(Objective.next_optimization_seed(),7001)
+
 
 if __name__ == '__main__':
     torch.set_num_threads(2)
