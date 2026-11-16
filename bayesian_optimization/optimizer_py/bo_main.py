@@ -19,7 +19,8 @@ from input import K, SEED, BO_ENERGY_SEED, device, MAX_ITER, ENERGY_BINS, TURBO_
 
 def save_regret_history(directory, checks):
     columns = ['evaluations','iteration','max_ucb','incumbent_lcb','incumbent_index',
-               'estimated_regret','delta','search_ok','below_threshold','stopping_check','consecutive_passes','model_ok']
+               'estimated_regret','delta','search_ok','below_threshold','stopping_check','consecutive_passes','model_ok',
+               'upper_mean','upper_sigma','incumbent_mean','incumbent_sigma','mean_gap','uncertainty_gap']
     temporary = Path(directory)/'regret_history.csv.tmp'
     with open(temporary,'w',newline='') as file:
         writer = csv.DictWriter(file,fieldnames=columns)
@@ -69,7 +70,7 @@ def run_vanilla(kernel='matern', iterations=None, nu=2.5, checkpoint_dir=None):
         if checkpoint_dir is not None:
             saved = (Path(checkpoint_dir)/'bo_checkpoint.npz').resolve()
             raise ModelFittingError(
-                f'GP fitting failed after all recovery attempts. Completed observations are saved in '
+                f'GP model update failed. Completed observations are saved in '
                 f'{saved}. Final validation was not started. Details: {error}') from error
         raise
     finalists = []

@@ -1,5 +1,5 @@
 """
-Kernels.py  (optimized)
+Kernels_v3.py (stable exact distances and optional random features)
 -----------------------
 Permutation-invariant kernel for arrays of `n_coils` identical, indistinguishable
 coils (see thesis section "A Permutation-Invariant Kernel for Coil Array
@@ -13,19 +13,20 @@ unit normal). This is what `map_coilwise` in BoUtils.py produces.
 Math (unchanged):
     K(X,X') = sum_i sum_j k_pos(p_i,p_j') * k_vMF(n_i,n_j')
 
-Key identity used for speed [NEW]:
+Scaled representation:
     For unit normals,  kappa*(n.n' - 1) = -kappa*||n - n'||^2 / 2, hence
         k_pos * k_vMF = exp(-||z - z'||^2 / 2),   z = [ p/l , sqrt(kappa)*n ]
     i.e. the per-coil kernel is a plain Gaussian RBF on a 6-dim scaled vector z.
-    Everything below follows from that.
+    Direct coordinate differences are used to avoid cancellation when a fitted
+    lengthscale is very small or the directional concentration is large.
 
 Two evaluation modes (selected by `n_features`):
-    n_features=None  -> EXACT. Same values as before (to ~1e-12), but computed
-                        with ONE matmul + ONE exp instead of cdist + 2 exps + products.
-    n_features=F     -> Random Fourier Features. Approximate, but exactly PSD,
-                        exactly permutation-invariant, exactly unit diagonal, and
-                        ~O(N*K*F) instead of O(N^2*K^2). Much faster and far less
-                        memory for fitting (autograd stores N x F, not (NK)^2).
+    n_features=None  -> EXACT. Chunked direct Euclidean distances and one exp.
+    n_features=F     -> Random Fourier Features. Approximate, PSD and permutation
+                        invariant. Normalization gives unit diagonal for nonzero
+                        feature vectors. Feature construction costs O(N*K*F),
+                        and the dense Gram product costs O(N^2*F). This reduces
+                        intermediate storage; exact GP factorization is still cubic.
 """
 
 import math
@@ -39,7 +40,8 @@ from input import K
 class CoilSetKernel(Kernel):
     """
     IMPORTANT: lengthscale and kappa are SCALAR (not ARD) and shared across all
-    coils. Per-coil / per-dimension lengthscales would break permutation invariance.
+    coils. Independent per-coil scales would break permutation invariance.
+    Coordinate-specific scales shared across coils could preserve it, but are not used.
     """
 
     is_stationary = False
@@ -129,26 +131,20 @@ class CoilSetKernel(Kernel):
         sqrt_kappa = self.kappa.clamp_min(1e-12).sqrt().unsqueeze(-1)
         return torch.cat([pos * inv_ell, nrm * sqrt_kappa], dim=-1)
 
-    @staticmethod
-    def _augment(z_flat, first: bool):
-        """[NEW] Fold the -|z|^2/2 terms into the matmul:  A @ B^T = z.z' - |z|^2/2 - |z'|^2/2 = -|z-z'|^2/2."""
-        h = -0.5 * z_flat.pow(2).sum(-1, keepdim=True)
-        one = torch.ones_like(h)
-        return torch.cat([z_flat, h, one] if first else [z_flat, one, h], dim=-1)
-
     # -- exact path -------------------------------------------------------------
     def _full_exact(self, z1, z2):
-        """[CHANGED] one matmul + one exp per chunk (was: cdist, 2x exp, cos-sim matmul, product)."""
+        """Direct differences avoid cancellation for small learned lengthscales."""
         nc, d = self.n_coils, z1.shape[-1]
         N1, N2 = z1.shape[-3], z2.shape[-3]
-        A = self._augment(z1.reshape(*z1.shape[:-3], N1 * nc, d), first=True)
+        first = z1.reshape(*z1.shape[:-3], N1 * nc, d)
 
         out = []
         for s in range(0, N2, self.chunk_size):
             e = min(s + self.chunk_size, N2)
             zc = z2[..., s:e, :, :]
-            B = self._augment(zc.reshape(*zc.shape[:-3], (e - s) * nc, d), first=False)
-            E = torch.exp(A @ B.transpose(-2, -1))                      # (..., N1*nc, w*nc)
+            second = zc.reshape(*zc.shape[:-3], (e - s) * nc, d)
+            distances = torch.cdist(first, second, compute_mode='donot_use_mm_for_euclid_dist')
+            E = torch.exp(-.5 * distances.square())
             E = E.reshape(*E.shape[:-2], N1, nc, e - s, nc).sum(dim=(-3, -1))   # (..., N1, w)
             out.append(E)
         Kmat = out[0] if len(out) == 1 else torch.cat(out, dim=-1)
@@ -156,11 +152,9 @@ class CoilSetKernel(Kernel):
         return Kmat
 
     def _diag_exact(self, z1, z2):
-        """Paired (index-aligned) diagonal, (..., N). Uses the same Gram identity, no (N,K,K,d) tensor."""
-        G = z1 @ z2.transpose(-1, -2)                                     # (..., N, nc, nc)
-        h1 = -0.5 * z1.pow(2).sum(-1).unsqueeze(-1)
-        h2 = -0.5 * z2.pow(2).sum(-1).unsqueeze(-2)
-        return torch.exp(G + h1 + h2).sum(dim=(-2, -1))
+        """Paired cross-diagonals use the same stable distances as the full path."""
+        distances = torch.cdist(z1, z2, compute_mode='donot_use_mm_for_euclid_dist')
+        return torch.exp(-.5 * distances.square()).sum(dim=(-2, -1))
 
     # -- random-Fourier-feature path [NEW] --------------------------------------
     def _phi(self, z):
@@ -178,7 +172,8 @@ class CoilSetKernel(Kernel):
     def forward(self, x1, x2, diag=False, **params):
         z1 = self._coil_z(x1)
         # [NEW] K(X,X) is the common case during fitting: reuse features instead of recomputing
-        same = (x1 is x2) or (x1.shape == x2.shape and torch.equal(x1, x2))
+        # Equal-valued independent inputs still need their own autograd paths.
+        same = x1 is x2
         z2 = z1 if same else self._coil_z(x2)
 
         if self.n_features is not None:                                   # ---- RFF path

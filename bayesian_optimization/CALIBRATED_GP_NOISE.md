@@ -71,8 +71,10 @@ estimates; increase `BO_NOISE_REPEATS` if the calibration varies substantially.
 ## 3. Keep regret diagnostic until the corrected model is checked
 
 `BO_REGRET_ENABLED = False` is the default for the first corrected run. BO uses
-its full refinement budget while continuing to record regret every
+its refinement budget while model updates remain usable, recording regret every
 `BO_REGRET_RECORD_EVERY` evaluations (default 2).
+The coil-set predictive-selection guard can halt an uninformative model even
+with regret stopping disabled; it preserves completed observations.
 
 After reviewing the diagnostics, set `BO_REGRET_ENABLED = True` to restore
 stopping. A failed model check always blocks stopping and immediately resets
@@ -104,10 +106,11 @@ All vanilla kernels share a bounded fitting sequence:
 
 1. Fit with warm-start L-BFGS-B: at most 300 iterations and 50 line-search steps
    per iteration, with one attempt from this initialization.
-2. On failure, reset the kernel lengthscales/outputscale to 1 (and `kappa` to 1
-   for the coil-set kernel) and the standardized
+2. On failure, reset trainable kernel lengthscales/outputscale to 1 (and trainable
+   `kappa` to 1) and the standardized
    constant mean to 0, then try L-BFGS-B again with the same budget. This supplies
    a genuinely fresh start even though the custom kernels have no priors.
+   Validated fixed coil-set geometry scales are preserved during recovery.
 3. On failure, reset again and use Adam with learning rate 0.05 and at most
    300 steps. Adam does not require the line search behind the `ABNORMAL` warning.
 
@@ -138,3 +141,6 @@ with `np.load(path, allow_pickle=False)`; no Python objects are serialized.
 Restarting the launch command still creates a new run; automatic resume is not
 implemented. Preserved `X`, `y` and `variance` can be supplied through the existing
 loop `initial_data` API, with the same physical settings and common energy bank.
+The dedicated [surrogate pilot](SURROGATE_REPAIR.md) reuses a saved run with fresh
+spatial seeds and independent high-particle validation. It is not a bitwise resume
+of the old optimizer's state.

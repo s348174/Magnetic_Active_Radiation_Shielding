@@ -178,6 +178,11 @@ class AcquisitionTests(unittest.TestCase):
             return fit(ExactMarginalLogLikelihood(gp.likelihood, gp))
 
         def optimize(**kwargs):
+            if kwargs.get('batch_initial_conditions') is not None:
+                starts = kwargs['batch_initial_conditions']
+                # Keep one local and one global restart when shrinking the smoke budget.
+                # Taking the first two would retain only exact observed anchors.
+                kwargs['batch_initial_conditions'] = starts[[min(10,len(starts)-1),len(starts)-1]]
             kwargs.update(num_restarts=2, raw_samples=8,
                           options={'maxiter': 3, 'batch_limit': 2},
                           retry_on_optimization_warning=False)
@@ -210,6 +215,8 @@ class AcquisitionTests(unittest.TestCase):
                      patch.object(module,'fit_gpytorch_mll',side_effect=fit), \
                      patch.object(module,'optimize_acqf',side_effect=optimize), \
                      patch.object(module,'map_fn',mapping or utils.identity_map), \
+                     patch.object(BoLoop,'gen_one_shot_kg_initial_conditions',
+                         return_value=torch.full((40,3,D),.5,dtype=torch.double)), \
                      patch.object(BoLoop,'calibrate_noise',return_value={
                          'variance':1e-4}), \
                      patch.object(BoLoop,'assess_model',return_value={

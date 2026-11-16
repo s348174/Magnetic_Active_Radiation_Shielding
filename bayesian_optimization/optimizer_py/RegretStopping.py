@@ -5,10 +5,11 @@ from numbers import Integral
 import warnings
 
 import torch
-from botorch.acquisition import UpperConfidenceBound
+from botorch.acquisition import AcquisitionFunction
 from AcquisitionOptimizer import optimize_acqf
 
 from BoUtils import InputMappedAcquisition
+from PosteriorChecks import raw_mean_variance
 from input import (
     unit_bounds, device, SEED, BO_REGRET_ENABLED, BO_REGRET_REL_TOL,
     BO_REGRET_CONFIDENCE, BO_REGRET_MIN_EVALS, BO_REGRET_CHECK_EVERY,
@@ -16,18 +17,41 @@ from input import (
 )
 
 
-def lower_bound_incumbent(gp, mapping, X, confidence):
-    """Return an evaluated point's index and LCB, in original log-response units."""
+def _sigma(variance):
+    # Preserve genuine zero variance without a sqrt(0) derivative or a variance floor.
+    positive = variance > 0
+    safe = torch.where(positive,variance,torch.ones_like(variance))
+    return torch.where(positive,safe.sqrt(),torch.zeros_like(variance))
+
+
+class RawUpperConfidenceBound(AcquisitionFunction):
+    """UCB using validated raw covariance, before GPyTorch's accessor floor."""
+    def __init__(self, model, confidence):
+        super().__init__(model=model)
+        self.confidence = confidence
+
+    def forward(self, X):
+        if X.shape[-2] != 1:
+            raise ValueError('Regret UCB supports q=1 only.')
+        mean, variance = raw_mean_variance(self.model,X)
+        return (mean+self.confidence*_sigma(variance)).squeeze(-1).squeeze(-1)
+
+
+def _observed_moments(gp, mapping, X):
     with torch.no_grad():
-        lower = []
-        for batch in X.split(BO_POSTERIOR_BATCH_LIMIT):
-            posterior = gp.posterior(mapping(batch).unsqueeze(-2))
-            lower.append((posterior.mean-confidence*posterior.variance.clamp_min(0).sqrt()).reshape(-1))
-        lower = torch.cat(lower)
-    if not torch.isfinite(lower).all():
-        raise RuntimeError('Non-finite posterior lower confidence bounds.')
+        moments = [raw_mean_variance(gp,mapping(batch).unsqueeze(-2))
+                   for batch in X.split(BO_POSTERIOR_BATCH_LIMIT)]
+        mean = torch.cat([m.reshape(-1) for m,v in moments])
+        sigma = torch.cat([_sigma(v).reshape(-1) for m,v in moments])
+    return mean,sigma
+
+
+def lower_bound_incumbent(gp, mapping, X, confidence):
+    """Evaluated point's index and LCB using validated raw log-response moments."""
+    mean,sigma = _observed_moments(gp,mapping,X)
+    lower = mean-confidence*sigma
     index = int(lower.argmax().item())
-    return index, float(lower[index].item())
+    return index,float(lower[index].item())
 
 
 @dataclass
@@ -56,29 +80,42 @@ class SimpleRegretStopping:
         self.grid = unit_bounds[0] + (unit_bounds[1]-unit_bounds[0]) * grid
 
     def estimate(self, gp, mapping, X):
-        incumbent, lower = lower_bound_incumbent(gp, mapping, X, self.confidence)
-        acquisition = InputMappedAcquisition(
-            UpperConfidenceBound(gp, beta=self.confidence**2), mapping)
-        # Include all evaluated points, so the search is never worse than their UCBs.
-        points = torch.cat((self.grid, X.detach()))
+        mean,sigma = _observed_moments(gp,mapping,X)
+        lower_values = mean-self.confidence*sigma
+        incumbent = int(lower_values.argmax().item())
+        lower = float(lower_values[incumbent].item())
+        acquisition = InputMappedAcquisition(RawUpperConfidenceBound(gp,self.confidence),mapping)
+        # Every evaluated point remains eligible, even if the global optimizer misses it.
+        points = torch.cat((self.grid,X.detach()))
         with torch.no_grad():
             values = torch.cat([acquisition(batch.unsqueeze(-2)).reshape(-1)
                                 for batch in points.split(BO_POSTERIOR_BATCH_LIMIT)])
         if not torch.isfinite(values).all():
             raise RuntimeError('Non-finite UCB grid values.')
-        restarts = min(20, len(points))
+        restarts = min(20,len(points))
         starts = points[values.topk(restarts).indices].unsqueeze(-2)
-        candidate, _ = optimize_acqf(
-            acq_function=acquisition, bounds=unit_bounds, q=1, num_restarts=restarts,
-            batch_initial_conditions=starts, require_convergence=True,
-        )
+        candidate,_ = optimize_acqf(acq_function=acquisition,bounds=unit_bounds,q=1,
+            num_restarts=restarts,batch_initial_conditions=starts,require_convergence=True)
         with torch.no_grad():
             optimized = acquisition(candidate.detach()).reshape(-1)
         if not torch.isfinite(candidate).all() or not torch.isfinite(optimized).all():
             raise RuntimeError('Non-finite UCB optimization result.')
-        upper = max(values.max().item(), optimized.max().item())
-        return {'max_ucb':upper, 'incumbent_lcb':lower, 'incumbent_index':incumbent,
-                'estimated_regret':max(0., upper-lower)}
+        upper_point = (candidate.detach() if optimized.max() >= values.max()
+                       else points[values.argmax()].unsqueeze(-2))
+        with torch.no_grad():
+            upper_mean,upper_variance = raw_mean_variance(gp,mapping(upper_point))
+        upper_mean = float(upper_mean.item())
+        upper_sigma = float(_sigma(upper_variance).item())
+        incumbent_mean = float(mean[incumbent].item())
+        incumbent_sigma = float(sigma[incumbent].item())
+        upper = upper_mean+self.confidence*upper_sigma
+        mean_gap = upper_mean-incumbent_mean
+        uncertainty_gap = self.confidence*(upper_sigma+incumbent_sigma)
+        return {'max_ucb':upper,'incumbent_lcb':lower,'incumbent_index':incumbent,
+                'estimated_regret':max(0.,mean_gap+uncertainty_gap),
+                'upper_mean':upper_mean,'upper_sigma':upper_sigma,
+                'incumbent_mean':incumbent_mean,'incumbent_sigma':incumbent_sigma,
+                'mean_gap':mean_gap,'uncertainty_gap':uncertainty_gap}
 
     def check(self, gp, mapping, X, evaluations, iteration, model_ok=True):
         # A failed model check invalidates previous passes, even between checks.
@@ -114,6 +151,9 @@ class SimpleRegretStopping:
         print(f"Estimated simple regret ({purpose}): {record['estimated_regret']:.6g}; "
               f"tolerance={self.delta:.6g}; passes={self.consecutive}/{self.patience} "
               f"after {evaluations} new evaluations.")
+        if 'mean_gap' in record:
+            print(f"Regret components: mean gap={record['mean_gap']:.6g}; "
+                  f"uncertainty gap={record['uncertainty_gap']:.6g}.")
         if not model_ok:
             print('Model validation failed: this regret estimate cannot justify stopping.')
         return bool(stopping_check and self.consecutive >= self.patience)

@@ -9,6 +9,7 @@ from botorch.exceptions.errors import ModelFittingError
 from botorch.fit import fit_gpytorch_mll
 from botorch.optim.core import OptimizationStatus
 from botorch.optim.fit import fit_gpytorch_mll_torch
+from PosteriorChecks import check_kernel
 
 
 def _fresh_parameters(mll):
@@ -16,8 +17,9 @@ def _fresh_parameters(mll):
     mll.train()
     mll.model.covar_module.initialize(outputscale=1.)
     base_kernel = mll.model.covar_module.base_kernel
-    base_kernel.initialize(lengthscale=1.)
-    if hasattr(base_kernel, 'kappa'):
+    if base_kernel.raw_lengthscale.requires_grad:
+        base_kernel.initialize(lengthscale=1.)
+    if hasattr(base_kernel, 'kappa') and base_kernel.raw_kappa.requires_grad:
         base_kernel.initialize(kappa=1.)
     mll.model.mean_module.initialize(constant=0.)
 
@@ -32,6 +34,7 @@ def _validate_fit(mll):
         value = mll(output, mll.model.train_targets)
     if value.numel() != 1 or not torch.isfinite(value).all():
         raise ModelFittingError('GP fitting produced a non-finite marginal likelihood.')
+    check_kernel(mll.model, mll.model.train_inputs[0])
     mll.eval()
 
 

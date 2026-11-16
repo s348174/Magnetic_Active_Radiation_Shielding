@@ -38,6 +38,11 @@ class FitCheckpointTests(unittest.TestCase):
         self.optimize = self.stack.enter_context(patch.object(
             BoLoop, 'optimize_acqf', return_value=(torch.full((1,D), .7, dtype=torch.double),
                                                 torch.tensor(-7.))))
+        def direct_optimizer(**kwargs):
+            for name in ('X','ranking','optimizer'):
+                kwargs.pop(name,None)
+            return BoLoop.optimize_acqf(**kwargs)
+        self.stack.enter_context(patch.object(BoLoop,'optimize_acquisition',side_effect=direct_optimizer))
         self.objective = self.stack.enter_context(patch.object(
             BoLoop, 'objective_function', return_value=(.5, self.calibration['variance'])))
 

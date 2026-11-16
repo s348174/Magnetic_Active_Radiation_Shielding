@@ -2,6 +2,7 @@
 import numpy as np
 import torch
 from scipy.stats import t
+from PosteriorChecks import checked_posterior, check_kernel
 
 
 def assess_model(gp, mapping, calibration):
@@ -30,10 +31,10 @@ def assess_model(gp, mapping, calibration):
     X = torch.as_tensor(calibration['X'], dtype=reference.dtype, device=reference.device)
     try:
         with torch.no_grad():
-            posterior = gp.posterior(mapping(X))
-            predicted = posterior.mean.reshape(-1).detach().cpu().numpy()
-            # The .variance accessor applies a floor that could hide a collapsed GP.
-            covariance = posterior.distribution.covariance_matrix.detach().cpu().numpy()
+            result['kernel_check'] = check_kernel(gp,gp.train_inputs[0])
+            mean,_,raw_covariance = checked_posterior(gp,mapping(X),full_covariance=True)
+            predicted = mean.reshape(-1).detach().cpu().numpy()
+            covariance = raw_covariance.detach().cpu().numpy()
             scale = float(gp.covar_module.outputscale.item())
             transform = getattr(gp, 'outcome_transform', None)
             outcome_std = float(transform.stdvs.item()) if transform is not None else 1.

@@ -28,8 +28,26 @@ def short_fit(mll):
     return fit_gpytorch_mll(mll, optimizer_kwargs={'options':{'maxiter':3}})
 
 
+def direct_optimizer(**kwargs):
+    # Loop contract tests control proposals; AcquisitionStarts has separate real tests.
+    for name in ('X','ranking','optimizer'):
+        kwargs.pop(name,None)
+    return BoLoop.optimize_acqf(**kwargs)
+
+
+def mock_loop_initializers(test):
+    patcher = patch.object(BoLoop,'optimize_acquisition',side_effect=direct_optimizer)
+    patcher.start()
+    test.addCleanup(patcher.stop)
+    patcher = patch.object(BoLoop,'gen_one_shot_kg_initial_conditions',
+                           return_value=torch.full((40,3,D),.5,dtype=torch.double))
+    patcher.start()
+    test.addCleanup(patcher.stop)
+
+
 def mock_calibration(test, X, y):
     """Keep loop tests independent of the C++ simulator and its calibration runs."""
+    mock_loop_initializers(test)
     calibration = {'variance':.01, 'X':np.asarray(X).tolist(),
                    'mean':np.asarray(y).tolist(), 'mean_variance':[.001]*len(y),
                    'names':[f'case_{i}' for i in range(len(y))], 'repeats':6,
@@ -193,10 +211,14 @@ class LinearGP(torch.nn.Module):
     def __init__(self, offset=0., sigma=.05):
         super().__init__()
         self.offset, self.sigma = offset, sigma
+        self.covar_module = ScaleKernel(RBFKernel(ard_num_dims=D)).double()
+        self.covar_module.outputscale = 100.
 
     def posterior(self, X, **kwargs):
         mean = X[..., :1] + self.offset
-        return SimpleNamespace(mean=mean, variance=torch.full_like(mean,self.sigma**2))
+        variance = torch.full_like(mean,self.sigma**2)
+        return SimpleNamespace(mean=mean,variance=variance,distribution=SimpleNamespace(
+            covariance_matrix=torch.diag_embed(variance.squeeze(-1))))
 
 
 class RegretTests(unittest.TestCase):
@@ -226,7 +248,9 @@ class RegretTests(unittest.TestCase):
     def test_incumbent_uses_uncertainty_not_just_the_largest_mean(self):
         class UnequalNoiseGP(LinearGP):
             def posterior(self, X, **kwargs):
-                return SimpleNamespace(mean=X[..., :1],variance=(.1+X[..., :1]).square())
+                variance = (.1+X[..., :1]).square()
+                return SimpleNamespace(mean=X[..., :1],variance=variance,distribution=SimpleNamespace(
+                    covariance_matrix=torch.diag_embed(variance.squeeze(-1))))
         index,lower = RegretStopping.lower_bound_incumbent(UnequalNoiseGP(),BoUtils.identity_map,self.X,2.)
         self.assertEqual(index,0)
         self.assertAlmostEqual(lower,-.3)

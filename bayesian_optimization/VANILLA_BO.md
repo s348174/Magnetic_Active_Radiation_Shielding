@@ -30,12 +30,16 @@ them for headless terminals.
 | `coil-set` | `bo_coil_set_kernel` | Cartesian position and unit normal for every coil, via `map_coilwise` | Log noisy expected improvement |
 
 `coil-set` uses the existing **exact `CoilSetKernel` in `Kernels_v3.py`**, wrapped
-in `ScaleKernel`. The existing kernel implementation is unchanged. It sums pairwise
+in `ScaleKernel`. Stable direct distances preserve its mathematical definition. It sums pairwise
 coil similarities using an RBF on positions and a von Mises--Fisher factor on
 unit normals, then normalizes the configuration kernel to unit diagonal before
 applying the learned output scale. Position lengthscale and normal concentration
 (`kappa`) are shared across coils, preserving permutation invariance. The random
 Fourier feature approximation and `CoilMomentKernel` are not used.
+Position scales and concentrations are selected by predictive validation and then
+fixed during likelihood fitting; amplitude and mean remain trainable. See
+[SURROGATE_REPAIR.md](SURROGATE_REPAIR.md) for the scale grid, predictive safeguards,
+restart strategy, regret decomposition, saved GP states and reproducible validation.
 
 The acquisition optimizer still searches normalized `5*K` parameters. The GP
 always receives contiguous Cartesian `6*K` coil features through `map_coilwise`;

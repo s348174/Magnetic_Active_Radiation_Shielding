@@ -4,6 +4,7 @@ import unittest
 
 import numpy as np
 import torch
+from gpytorch.kernels import RBFKernel, ScaleKernel
 
 from ModelDiagnostics import assess_model
 
@@ -13,7 +14,8 @@ class FixedGP:
         self.train_inputs = (torch.zeros(len(mean), 1, dtype=torch.double),)
         self.mean = torch.tensor(mean, dtype=torch.double).unsqueeze(-1)
         self.covariance = torch.tensor(covariance, dtype=torch.double)
-        self.covar_module = SimpleNamespace(outputscale=torch.tensor(1e-5))
+        self.covar_module = ScaleKernel(RBFKernel(ard_num_dims=1)).double()
+        self.covar_module.outputscale = 1.
 
     def posterior(self, X):
         return SimpleNamespace(mean=self.mean, distribution=SimpleNamespace(covariance_matrix=self.covariance))

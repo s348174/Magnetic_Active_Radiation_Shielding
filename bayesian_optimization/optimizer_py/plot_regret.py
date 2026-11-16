@@ -86,6 +86,36 @@ def read_settings(directory):
         return json.load(file)
 
 
+def decomposition_figure(data):
+    """New reports separate predicted improvement from posterior uncertainty."""
+    columns = ['mean_gap','uncertainty_gap','upper_sigma','incumbent_sigma']
+    if any(name not in data for name in columns):
+        return None
+    values = data[columns].apply(pd.to_numeric,errors='coerce')
+    good = data['valid'].to_numpy() & np.isfinite(values).all(axis=1).to_numpy()
+    if not good.any():
+        return None
+    import matplotlib.pyplot as plt
+    figure,axes = plt.subplots(2,1,figsize=(8,6),sharex=True)
+    x = data['evaluations'].to_numpy()
+    for name,label in [('mean_gap','Predicted mean difference'),
+                       ('uncertainty_gap','Uncertainty contribution')]:
+        axes[0].plot(x,np.where(good,values[name],np.nan),label=label)
+    axes[0].plot(x,np.where(good,data['estimated_regret'],np.nan),'k--',label='Estimated regret')
+    axes[0].axhline(0,color='grey',linewidth=.7)
+    axes[0].set_ylabel('Log-response gap')
+    axes[0].set_title('What keeps the regret estimate high?')
+    for name,label in [('upper_sigma','UCB maximizer'),('incumbent_sigma','LCB incumbent')]:
+        axes[1].plot(x,np.where(good,100*values[name],np.nan),label=label)
+    axes[1].set_ylabel('Latent log-response SD (%)')
+    axes[1].set_xlabel('Successful new evaluations (initial design excluded)')
+    for axis in axes:
+        axis.grid(alpha=.25)
+        axis.legend()
+    figure.tight_layout()
+    return figure
+
+
 def convergence_figure(data, settings, name):
     import matplotlib.pyplot as plt
 
@@ -237,6 +267,9 @@ def main(argv=None):
         data = read_checks(args.run_dir)
         settings = read_settings(args.run_dir)
         figures = {'regret_convergence':convergence_figure(data,settings,args.run_dir.name)}
+        decomposition = decomposition_figure(data)
+        if decomposition is not None:
+            figures['regret_components'] = decomposition
         context = context_figure(args.run_dir,settings,data)
         if context is not None:
             figures['optimization_context'] = context

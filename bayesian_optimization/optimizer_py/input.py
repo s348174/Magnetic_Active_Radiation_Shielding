@@ -23,6 +23,10 @@ SEED = 67
 rng = np.random.default_rng(SEED)
 BO_ENERGY_SEED = SEED # Common optimization energies; spatial Owen scrambles still change
 BO_NOISE_REPEATS = 6 # Independent spatial scrambles at each of three calibration configurations
+BO_COIL_LENGTHSCALES = (.25, .5, 1., 2.) # Physical position scales in metres, selected by validation
+BO_COIL_KAPPAS = (.25, 1., 4.) # Normal concentration candidates
+BO_COIL_SELECT_EVERY = 20 # Reselect coil-set scales after this many new observations
+BO_COIL_MIN_SELECTION = 25 # Smaller test runs cannot establish predictive skill
 
 # Limit simultaneous GP/acquisition work, without reducing the restart count.
 BO_OPT_BATCH_LIMIT = 2

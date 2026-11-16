@@ -1,5 +1,6 @@
 """Single-loop Bayesian optimization with Matérn, RBF and coil-set kernels."""
 import warnings
+import json
 import numpy as np
 import torch
 
@@ -14,7 +15,9 @@ from botorch.models.utils.assorted import InputDataWarning
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
 from gpytorch.settings import min_fixed_noise
-from Kernels_v3 import CoilSetKernel
+from AcquisitionStarts import optimize_acquisition, observed_local_points
+from CoilSetModel import select_coil_scales, make_coil_kernel
+from PosteriorChecks import raw_mean_variance, check_kernel
 
 from BoUtils import (
     denormalize, unpack_configuration, map_fn, map_set, map_coilwise,
@@ -25,7 +28,9 @@ from RegretStopping import SimpleRegretStopping, lower_bound_incumbent
 from Objective import objective_function, next_optimization_seed
 from NoiseCalibration import calibrate_noise
 from ModelDiagnostics import assess_model
-from input import device, MAX_ITER, unit_bounds, Q, BO_NOISE_REPEATS, K
+from input import (device, MAX_ITER, unit_bounds, Q, BO_NOISE_REPEATS, K, SEED,
+                   BO_COIL_LENGTHSCALES, BO_COIL_KAPPAS, BO_COIL_SELECT_EVERY,
+                   BO_COIL_MIN_SELECTION, BO_POSTERIOR_BATCH_LIMIT)
 
 
 def _fit_model(X_train, y_train, train_yvar, mapping, covar_module):
@@ -40,17 +45,22 @@ def _fit_model(X_train, y_train, train_yvar, mapping, covar_module):
             outcome_transform=Standardize(m=1),
         )
     fit_gpytorch_mll(ExactMarginalLogLikelihood(gp.likelihood, gp))
+    check_kernel(gp, gp.train_inputs[0])
     return gp
 
 
-def _best_posterior_mean(gp, mapping):
-    _, value = optimize_acqf(
-        acq_function=InputMappedAcquisition(PosteriorMean(gp), mapping),
-        bounds=unit_bounds,
-        q=1,
-        num_restarts=30,
-        raw_samples=256,
-    )
+def _observed_means(gp, mapping, X):
+    with torch.no_grad():
+        return torch.cat([raw_mean_variance(gp,mapping(batch).unsqueeze(-2))[0].reshape(-1)
+                          for batch in X.split(BO_POSTERIOR_BATCH_LIMIT)])
+
+
+def _best_posterior_mean(gp, mapping, X):
+    ranking = _observed_means(gp,mapping,X)
+    _, value = optimize_acquisition(
+        acq_function=InputMappedAcquisition(PosteriorMean(gp),mapping),
+        bounds=unit_bounds,X=X,ranking=ranking,num_restarts=30,raw_samples=256,
+        optimizer=optimize_acqf)
     return value.detach().item()
 
 
@@ -61,6 +71,8 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         raise ValueError(f'Unknown vanilla BO kernel: {kernel}')
     if iterations < 1 or Q != 1:
         raise ValueError("Use a positive iteration budget and Q=1 for these single-point loops.")
+    if BO_COIL_SELECT_EVERY < 1:
+        raise ValueError('BO_COIL_SELECT_EVERY must be positive.')
     stopping = SimpleRegretStopping()
 
     # Initial observations may be shared with the driver without simulating twice.
@@ -82,10 +94,13 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
     initial_evaluations = len(y_train)
     acquisition_hist, best_mean_hist, variance_hist = [], [], []
     evaluations, fitted_evaluations, attempted_iteration = 0, 0, 0
+    gp = None
+    scale_selection = None
+    selection_evaluation = 0
 
     def save_checkpoint(status, error=''):
         if checkpoint is not None:
-            checkpoint({'X':X_train.cpu().numpy(), 'y':y_train,
+            state = {'X':X_train.cpu().numpy(), 'y':y_train,
                         'variance':train_yvar.squeeze(-1).cpu().numpy(),
                         'acquisition':np.asarray(acquisition_hist),
                         'posterior_mean':np.asarray(best_mean_hist),
@@ -94,18 +109,42 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
                         'evaluations':np.asarray(evaluations),
                         'fitted_evaluations':np.asarray(fitted_evaluations),
                         'iteration':np.asarray(attempted_iteration),
-                        'initial_evaluations':np.asarray(initial_evaluations)},stopping.history)
+                        'initial_evaluations':np.asarray(initial_evaluations),
+                        'kernel':np.asarray(kernel)}
+            if scale_selection is not None:
+                state['scale_selection_json'] = np.asarray(json.dumps(scale_selection,allow_nan=False))
+            if gp is not None:
+                # Pure arrays preserve the exact last successful fit without pickle.
+                state.update({'gp_state__'+name:value.detach().cpu().numpy()
+                              for name,value in gp.state_dict().items() if torch.is_tensor(value)})
+            checkpoint(state,stopping.history)
 
     if kernel == 'coil-set':
-        base_kernel = CoilSetKernel(n_coils=K,normalize=True,chunk_size=200)
+        covar_module = make_coil_kernel(K)
     else:
         n_features = mapping(X_train).shape[-1]
         base_kernel = (MaternKernel(nu=nu, ard_num_dims=n_features) if kernel == 'matern'
                        else RBFKernel(ard_num_dims=n_features))
-    covar_module = ScaleKernel(base_kernel) # Fresh parameters at the start of every run.
+        covar_module = ScaleKernel(base_kernel)
+
+    def refit():
+        nonlocal covar_module, scale_selection, selection_evaluation
+        if kernel == 'coil-set' and (scale_selection is None
+                or evaluations-selection_evaluation >= BO_COIL_SELECT_EVERY):
+            ell,kappa,scale_selection = select_coil_scales(
+                mapping(X_train),y_train,train_yvar,K,lengthscales=BO_COIL_LENGTHSCALES,
+                kappas=BO_COIL_KAPPAS,seed=SEED,min_points=BO_COIL_MIN_SELECTION)
+            selection_evaluation = evaluations
+            if scale_selection['predictive_ok'] is False:
+                raise ModelFittingError('No coil-set scale candidate improves the constant-mean '
+                                        'validation baseline. Observations are saved; revise the model '
+                                        'before spending further simulation evaluations.')
+            covar_module = make_coil_kernel(K,ell,kappa)
+        return _fit_model(X_train,y_train,train_yvar,mapping,covar_module)
+
     save_checkpoint('fit_pending')
     try:
-        gp = _fit_model(X_train, y_train, train_yvar, mapping, covar_module)
+        gp = refit()
     except ModelFittingError as error:
         save_checkpoint('model_fitting_failed',str(error))
         raise
@@ -115,9 +154,24 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
     def check_model(evaluations):
         report = assess_model(gp, mapping, calibration)
         report['evaluations'] = evaluations
+        base = gp.covar_module.base_kernel
+        report['lengthscale'] = base.lengthscale.detach().cpu().reshape(-1).tolist()
+        if hasattr(base,'kappa'):
+            report['kappa'] = float(base.kappa.item())
+        if scale_selection is not None:
+            report['selection_skill'] = scale_selection['selection_skill']
+            report['selection_evaluation'] = selection_evaluation
+            report['predictive_ok'] = scale_selection['predictive_ok']
+            if evaluations == selection_evaluation:
+                report['scale_selection'] = scale_selection
+            if scale_selection['predictive_ok'] is not True:
+                report['model_ok'] = False
+                report['reasons'].append('Insufficient observations to establish predictive skill.')
         model_checks.append(report)
         print(f"GP check: model_ok={report['model_ok']}; "
               f"outputscale={report.get('outputscale')}; single-run noise={noise:.6g}; "
+              f"lengthscale={report['lengthscale']}; kappa={report.get('kappa')}; "
+              f"selection skill={report.get('selection_skill')}; "
               f"predicted calibration range={report.get('predicted_mean_range')}.")
         if not report['model_ok']:
             print('GP check failed: ' + ' '.join(report['reasons']))
@@ -132,7 +186,7 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
     stop_reason = 'iteration_budget'
     # Matérn retains the original KG acquisition. Subtract the current optimum
     # so its reported value is an improvement, rather than a future value level.
-    current_best_mean = _best_posterior_mean(gp, mapping) if kernel == 'matern' else None
+    current_best_mean = _best_posterior_mean(gp,mapping,X_train) if kernel == 'matern' else None
     for iteration in range(iterations):
         attempted_iteration = iteration+1
         model = InputMappedModel(gp, mapping)
@@ -141,18 +195,26 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
                 model=model, num_fantasies=2,
                 current_value=torch.tensor(current_best_mean, dtype=torch.double, device=device),
             )
+            # KG fantasy locations retain BoTorch's one-shot initialization.
+            starts = gen_one_shot_kg_initial_conditions(
+                acq_function=acquisition,bounds=unit_bounds,q=Q,num_restarts=40,raw_samples=512,
+                options={'batch_limit':2,'init_batch_limit':16,
+                         'num_inner_restarts':2,'raw_inner_samples':16})
+            starts[:20,:Q,:] = observed_local_points(
+                unit_bounds,X_train,_observed_means(gp,mapping,X_train),20)
             candidate, acquisition_value = optimize_acqf(
                 acq_function=acquisition, bounds=unit_bounds, q=Q,
                 num_restarts=40, raw_samples=512,
-                ic_generator=gen_one_shot_kg_initial_conditions,
+                batch_initial_conditions=starts,
             )
         else:
             # Keep the actual GP visible to BoTorch so baseline Cholesky caching works.
             acquisition = InputMappedAcquisition(qLogNoisyExpectedImprovement(
                 model=gp, X_baseline=mapping(X_train), cache_root=True),mapping)
-            candidate, acquisition_value = optimize_acqf(
+            candidate, acquisition_value = optimize_acquisition(
                 acq_function=acquisition, bounds=unit_bounds, q=Q,
-                num_restarts=60, raw_samples=1024,
+                X=X_train,ranking=_observed_means(gp,mapping,X_train),
+                num_restarts=60,raw_samples=1024,optimizer=optimize_acqf,
             )
         # Retain the acquisition value BEFORE fitting the updated GP.
         acquisition_scalar = acquisition_value.detach().item()
@@ -185,18 +247,18 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         variance_hist.append(float('nan'))
         save_checkpoint('fit_pending')
         try:
-            gp = _fit_model(X_train, y_train, train_yvar, mapping, covar_module)
+            gp = refit()
         except ModelFittingError as error:
             save_checkpoint('model_fitting_failed',str(error))
             raise
         fitted_evaluations = evaluations
 
         # Acquisition values stay in their native units: KG or log-NEI.
-        current_best_mean = _best_posterior_mean(gp, mapping)
+        current_best_mean = _best_posterior_mean(gp,mapping,X_train)
         best_mean_hist[-1] = current_best_mean
         top_idx = torch.as_tensor(np.argsort(y_train)[-min(5, len(y_train)):], device=device)
         with torch.no_grad():
-            posterior_var = gp.posterior(mapping(X_train[top_idx])).variance.mean().item()
+            posterior_var = raw_mean_variance(gp,mapping(X_train[top_idx]))[1].mean().item()
         variance_hist[-1] = posterior_var
         model_ok = check_model(evaluations)
         should_stop = stopping.check(gp, mapping, X_train, evaluations, iteration+1, model_ok=model_ok)

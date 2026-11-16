@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from botorch.acquisition import qLogNoisyExpectedImprovement
 from botorch.fit import fit_gpytorch_mll
+from botorch.exceptions.errors import ModelFittingError
 from botorch.sampling.normal import SobolQMCNormalSampler
 from gpytorch.kernels import ScaleKernel
 
@@ -35,6 +36,17 @@ class CoilSetTests(unittest.TestCase):
                             'names':['reference','near','far'], 'repeats':6,
                             'single_run_variance':[self.noise]*3, 'runs':[], 'settings':{}}
         self.initial = (self.X,self.y,np.full(len(self.y),.001))
+        def direct_optimizer(**kwargs):
+            for name in ('X','ranking','optimizer'):
+                kwargs.pop(name,None)
+            return BoLoop.optimize_acqf(**kwargs)
+        for patcher in (
+            patch.object(BoLoop,'optimize_acquisition',side_effect=direct_optimizer),
+            patch.object(BoLoop,'select_coil_scales',return_value=(.5,1.,
+                {'predictive_ok':True,'selection_skill':.1})),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def fit_gp(self):
         kernel = ScaleKernel(CoilSetKernel(n_coils=K,normalize=True,n_features=None))
@@ -154,6 +166,23 @@ class CoilSetTests(unittest.TestCase):
             self.assertEqual(checkpoints[-1]['X'].shape,(5+expected,D))
             np.testing.assert_array_equal(checkpoints[-1]['variance'],np.full(5+expected,self.noise))
             self.assertTrue(all(c.kwargs['log_variance'] == self.noise for c in objective.call_args_list))
+
+    def test_failed_predictive_selection_halts_before_fitting_or_new_simulations(self):
+        checkpoints = []
+        with patch.object(BoLoop,'select_coil_scales',return_value=(.5,1.,
+                {'predictive_ok':False,'selection_skill':-.2})), \
+             patch.object(BoLoop,'fit_gpytorch_mll') as fit, \
+             patch.object(BoLoop,'objective_function') as simulate, \
+             patch.object(BoLoop,'optimize_acquisition') as acquire, \
+             self.assertRaises(ModelFittingError):
+            BoLoop.bo_coil_set_kernel(max_iter=2,initial_data=self.initial,
+                calibration=self.calibration,checkpoint=lambda state,checks:checkpoints.append(state))
+        fit.assert_not_called()
+        simulate.assert_not_called()
+        acquire.assert_not_called()
+        self.assertEqual(checkpoints[-1]['status'].item(),'model_fitting_failed')
+        np.testing.assert_array_equal(checkpoints[-1]['y'],self.y)
+        self.assertEqual(checkpoints[-1]['evaluations'].item(),0)
 
     def test_cli_routes_coil_set_with_log_nei_metadata(self):
         diagnostics = {'settings':{},'checks':[],'incumbent_index':0,'stop_reason':'iteration_budget'}

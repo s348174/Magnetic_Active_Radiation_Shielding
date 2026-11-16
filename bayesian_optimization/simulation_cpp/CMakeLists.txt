@@ -156,7 +156,9 @@ if(BUILD_TESTING)
     )
     set_tests_properties(regret_reporting PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py")
-    foreach(check IN ITEMS noise_calibration model_diagnostics robust_gp_fitting fit_checkpoints coil_set_bo)
+    foreach(check IN ITEMS noise_calibration model_diagnostics robust_gp_fitting fit_checkpoints
+                           coil_set_bo kernel_numerics coil_set_model acquisition_starts
+                           regret_numerics surrogate_validation surrogate_pilot)
         add_test(NAME ${check}
             COMMAND ${CMAKE_COMMAND} -E env
                 "PYTHONPATH=$<TARGET_FILE_DIR:simulator>:${CMAKE_CURRENT_SOURCE_DIR}/../optimizer_py"
