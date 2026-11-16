@@ -51,6 +51,40 @@ class RobustFitTests(unittest.TestCase):
         self.assertAlmostEqual(starts[0][1], 8.)
         self.assertEqual(starts[1], (1., 1., 0.))
 
+    def test_coil_set_fresh_start_resets_kappa_and_preserves_kernel(self):
+        from BoUtils import map_coilwise
+        from Kernels_v3 import CoilSetKernel
+        from input import D, K
+
+        X = torch.quasirandom.SobolEngine(D, scramble=True, seed=67).draw(4).double()
+        y = torch.tensor([[-1.], [-1.2], [-1.1], [-1.3]], dtype=torch.double)
+        kernel = ScaleKernel(CoilSetKernel(n_coils=K)).double()
+        gp = SingleTaskGP(map_coilwise(X), y, train_Yvar=torch.full_like(y, .01),
+                          covar_module=kernel)
+        mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+        kernel.initialize(outputscale=.001)
+        kernel.base_kernel.initialize(lengthscale=8., kappa=5.)
+        gp.mean_module.initialize(constant=-2.)
+        starts = []
+
+        def fit(mll, **kwargs):
+            starts.append((kernel.outputscale.item(), kernel.base_kernel.lengthscale.item(),
+                           kernel.base_kernel.kappa.item(), gp.mean_module.constant.item()))
+            if len(starts) == 1:
+                with torch.no_grad():
+                    kernel.base_kernel.raw_kappa.fill_(float('nan'))
+                raise ModelFittingError('forced warm-start failure')
+            return mll.eval()
+
+        with patch.object(fitting, 'fit_gpytorch_mll', side_effect=fit):
+            fitted = fitting.fit_gpytorch_mll_robust(mll)
+        self.assertIs(gp.covar_module, kernel)
+        self.assertIs(fitted, mll)
+        self.assertAlmostEqual(starts[0][2], 5.)
+        self.assertEqual(starts[1], (1., 1., 1., 0.))
+        self.assertFalse(fitted.training)
+        self.assertTrue(torch.isfinite(gp.posterior(map_coilwise(X)).mean).all())
+
     def test_nonfinite_parameters_cannot_be_accepted_as_success(self):
         calls = []
         def fit(mll, **kwargs):

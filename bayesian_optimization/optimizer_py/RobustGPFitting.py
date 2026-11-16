@@ -15,7 +15,10 @@ def _fresh_parameters(mll):
     """Reset in place: the BO loop retains a reference to this kernel."""
     mll.train()
     mll.model.covar_module.initialize(outputscale=1.)
-    mll.model.covar_module.base_kernel.initialize(lengthscale=1.)
+    base_kernel = mll.model.covar_module.base_kernel
+    base_kernel.initialize(lengthscale=1.)
+    if hasattr(base_kernel, 'kappa'):
+        base_kernel.initialize(kappa=1.)
     mll.model.mean_module.initialize(constant=0.)
 
 

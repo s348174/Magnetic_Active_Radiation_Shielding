@@ -1,4 +1,4 @@
-"""Single-loop Bayesian optimization with standard Matérn and RBF kernels."""
+"""Single-loop Bayesian optimization with Matérn, RBF and coil-set kernels."""
 import warnings
 import numpy as np
 import torch
@@ -14,9 +14,10 @@ from botorch.models.utils.assorted import InputDataWarning
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from gpytorch.kernels import MaternKernel, RBFKernel, ScaleKernel
 from gpytorch.settings import min_fixed_noise
+from Kernels_v3 import CoilSetKernel
 
 from BoUtils import (
-    denormalize, unpack_configuration, map_fn, map_set,
+    denormalize, unpack_configuration, map_fn, map_set, map_coilwise,
     InputMappedAcquisition, InputMappedModel, sobol_sample,
     duplicate_safe_candidate,
 )
@@ -24,7 +25,7 @@ from RegretStopping import SimpleRegretStopping, lower_bound_incumbent
 from Objective import objective_function, next_optimization_seed
 from NoiseCalibration import calibrate_noise
 from ModelDiagnostics import assess_model
-from input import device, MAX_ITER, unit_bounds, Q, BO_NOISE_REPEATS
+from input import device, MAX_ITER, unit_bounds, Q, BO_NOISE_REPEATS, K
 
 
 def _fit_model(X_train, y_train, train_yvar, mapping, covar_module):
@@ -56,6 +57,8 @@ def _best_posterior_mean(gp, mapping):
 def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_diagnostics=False,
              checkpoint=None, calibration=None, model_callback=None):
     iterations = MAX_ITER if max_iter is None else int(max_iter)
+    if kernel not in ('matern','rbf','coil-set'):
+        raise ValueError(f'Unknown vanilla BO kernel: {kernel}')
     if iterations < 1 or Q != 1:
         raise ValueError("Use a positive iteration budget and Q=1 for these single-point loops.")
     stopping = SimpleRegretStopping()
@@ -93,9 +96,12 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
                         'iteration':np.asarray(attempted_iteration),
                         'initial_evaluations':np.asarray(initial_evaluations)},stopping.history)
 
-    n_features = mapping(X_train).shape[-1]
-    base_kernel = (MaternKernel(nu=nu, ard_num_dims=n_features) if kernel == 'matern'
-                   else RBFKernel(ard_num_dims=n_features))
+    if kernel == 'coil-set':
+        base_kernel = CoilSetKernel(n_coils=K,normalize=True,chunk_size=200)
+    else:
+        n_features = mapping(X_train).shape[-1]
+        base_kernel = (MaternKernel(nu=nu, ard_num_dims=n_features) if kernel == 'matern'
+                       else RBFKernel(ard_num_dims=n_features))
     covar_module = ScaleKernel(base_kernel) # Fresh parameters at the start of every run.
     save_checkpoint('fit_pending')
     try:
@@ -233,3 +239,14 @@ def bo_rbf_old(max_iter=None, initial_data=None, return_diagnostics=False, check
     """RBF ARD GP on map_fn features, with log noisy EI (legacy function name)."""
     return _bo_loop('rbf', map_fn, max_iter, initial_data, return_diagnostics=return_diagnostics,
                     checkpoint=checkpoint,calibration=calibration,model_callback=model_callback)
+
+
+def bo_coil_set_kernel(max_iter=None, initial_data=None, return_diagnostics=False, checkpoint=None,
+                       calibration=None, model_callback=None):
+    """Exact Kernels_v3 coil-set GP on Cartesian coils, with log noisy EI.
+
+    map_coilwise converts physical geometry; USE_FEATURE_MAPPING does not apply.
+    """
+    return _bo_loop('coil-set', map_coilwise, max_iter, initial_data,
+                    return_diagnostics=return_diagnostics,checkpoint=checkpoint,
+                    calibration=calibration,model_callback=model_callback)

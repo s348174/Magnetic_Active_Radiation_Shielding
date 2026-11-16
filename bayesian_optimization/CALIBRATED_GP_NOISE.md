@@ -1,7 +1,7 @@
 # Calibrated noise and guarded regret stopping
 
 This branch corrects the observation noise used by vanilla RBF, periodic RBF,
-pooled-feature RBF and Matérn BO. The objective remains **negative log received
+pooled-feature RBF, Matérn and the exact `Kernels_v3` coil-set BO. The objective remains **negative log received
 energy**. Common optimization energies, fresh spatial Owen scrambles, detector
 integration, C++ trajectories and independent final validation are unchanged.
 TuRBO retains its existing noise handling.
@@ -18,7 +18,9 @@ USE_FEATURE_MAPPING=1 python bo_main.py --method bo --kernel rbf
 
 Replace `../Release` with your actual build directory if needed. There is no
 C++ change to rebuild. Use `--kernel matern` or `--kernel rbf-set` for the other
-vanilla kernels; both use the same calibration and model checks.
+vanilla kernels; all use the same calibration and model checks. Use
+`--kernel coil-set` for `Kernels_v3.CoilSetKernel`, with Cartesian coil geometry
+and no optional periodic feature map.
 
 ## 1. Measure the noise that changes between evaluations
 
@@ -98,11 +100,12 @@ with fresh energy and spatial seeds.
 
 ## GP fitting recovery and checkpoints
 
-Vanilla RBF and Matérn share a bounded fitting sequence:
+All vanilla kernels share a bounded fitting sequence:
 
 1. Fit with warm-start L-BFGS-B: at most 300 iterations and 50 line-search steps
    per iteration, with one attempt from this initialization.
-2. On failure, reset the kernel lengthscales/outputscale to 1 and the standardized
+2. On failure, reset the kernel lengthscales/outputscale to 1 (and `kappa` to 1
+   for the coil-set kernel) and the standardized
    constant mean to 0, then try L-BFGS-B again with the same budget. This supplies
    a genuinely fresh start even though the custom kernels have no priors.
 3. On failure, reset again and use Adam with learning rate 0.05 and at most

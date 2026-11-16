@@ -10,7 +10,7 @@ import torch
 from botorch.exceptions.errors import ModelFittingError
 
 from MultiTurbo import bo_multi_turbo
-from BoLoop import bo_matern_kernel, bo_rbf_kernel, bo_rbf_old
+from BoLoop import bo_matern_kernel, bo_rbf_kernel, bo_rbf_old, bo_coil_set_kernel
 from BoUtils import sobol_sample, duplicate_safe_candidate
 from FinalEvaluation import evaluate_finalists
 from NoiseCalibration import calibrate_noise
@@ -34,10 +34,13 @@ def run_vanilla(kernel='matern', iterations=None, nu=2.5, checkpoint_dir=None):
     budget = MAX_ITER if iterations is None else int(iterations)
     if budget < 1 or FINALISTS < 1:
         raise ValueError('Use a positive iteration and finalist budget.')
+    functions = {'matern':bo_matern_kernel, 'rbf':bo_rbf_old, 'rbf-set':bo_rbf_kernel,
+                 'coil-set':bo_coil_set_kernel}
+    if kernel not in functions:
+        raise ValueError(f'Unknown vanilla BO kernel: {kernel}')
     initial = sobol_sample()
     calibration = calibrate_noise(initial[0],initial[1],repeats=BO_NOISE_REPEATS)
     initial = (initial[0],initial[1],np.full(len(initial[1]),calibration['variance']))
-    functions = {'matern':bo_matern_kernel, 'rbf':bo_rbf_old, 'rbf-set':bo_rbf_kernel}
     kwargs = {'max_iter':budget, 'initial_data':initial, 'return_diagnostics':True,
               'calibration':calibration}
     if checkpoint_dir is not None:
@@ -98,7 +101,8 @@ def run_vanilla(kernel='matern', iterations=None, nu=2.5, checkpoint_dir=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--method',choices=('turbo','bo'),default='turbo',help='Search method; default: turbo')
-    parser.add_argument('--kernel',choices=('matern','rbf','rbf-set'),default=None,help='Vanilla BO kernel; default: matern')
+    parser.add_argument('--kernel',choices=('matern','rbf','rbf-set','coil-set'),default=None,
+                        help='Vanilla BO kernel; coil-set uses Kernels_v3, default: matern')
     parser.add_argument('--nu',type=float,choices=(.5,1.5,2.5),default=None,help='Matérn smoothness; default: 2.5')
     parser.add_argument('--regions',type=int,default=None,help='0: automatic; or request 4/5 regions')
     parser.add_argument('--iterations',type=int,default=None,help='Total refinement iterations (shared across TuRBO regions)')
