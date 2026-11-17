@@ -7,10 +7,10 @@ import os
 device = torch.device("cpu")
 
 # Field parameters (fixed for this optimization)
-K = 4 # Number of coils
+K = 10 # Number of coils
 N = int(1e3) # Number of particles
 ENERGY_BINS = 8 # Logarithmic energy strata; at least two samples per nonempty bin
-I = 1e9 # Current in Amperes
+I = 1e8 # Current in Amperes
 R = 0.25 # Coil radius in meters
 
 # SIMULATION AND OPTIMIZATION HYPERPARAMETERS
@@ -51,7 +51,7 @@ BO_REGRET_PATIENCE = 3 # Consecutive checks below the tolerance
 BO_REGRET_SAMPLES = 1024 # Fixed scrambled Sobol grid supplements multistart UCB search
 
 # Multiple independent trust-region runs share the initial design and MAX_ITER budget.
-TURBO_REGIONS = 12      # Use 10--15 promising Sobol seeds; 0 retains automatic effective-rank selection
+TURBO_REGIONS = MAX_ITER // 100 # Use 10--15 promising Sobol seeds; 0 retains automatic effective-rank selection
 TURBO_MAX_REGIONS = 15
 TURBO_LENGTH_INIT = .8
 TURBO_FAILURE_TOLERANCE = 10 # Halve after ten accepted evaluations without a new observed best
