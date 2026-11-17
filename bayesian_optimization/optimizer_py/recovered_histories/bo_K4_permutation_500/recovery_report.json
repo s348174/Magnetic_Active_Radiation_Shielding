@@ -1,0 +1,52 @@
+{
+  "total_evaluations": 500,
+  "first_evaluations": 50,
+  "second_evaluations": 450,
+  "initial_sobol_evaluations": 100,
+  "saved_regret_records": 249,
+  "missing_even_evaluations": [
+    50
+  ],
+  "originals_unchanged": true,
+  "sources": [
+    {
+      "directory": "/workspace/Magnetic_Active_Radiation_Shielding/bayesian_optimization/optimizer_py/results/bo_K4_permutation_start",
+      "sha256": {
+        "bo_checkpoint.npz": "23b86fce149dd4964c8bd04973cbbe551a9bdad955b17960c3923f4f8a95035a",
+        "initial_design.npz": "7cc5846aeeb3c78d3422970046331cea2086c925decfdfee342354d447968387",
+        "model_diagnostics.json": "0c36cf222be3ee43fd1490f8d004ba34e38b98217b03eb5e873eda1a1d924e9a",
+        "noise_calibration.json": "bd6a5bc5f368c76ceca75361a07355529b001db945a3c9d0653e4143ffae9c68",
+        "regret_history.csv": "9b2c8139fb6d8ec6a3b328c3125f07fb595ec097e9b419b07fb4b2fb111a772b"
+      }
+    },
+    {
+      "directory": "/workspace/Magnetic_Active_Radiation_Shielding/bayesian_optimization/optimizer_py/results/bo_K4_permutation_good",
+      "sha256": {
+        "acq_function.png": "7661ceb0532648b5c4ef196950c3bb5070ce18fb4ddf9257dae450a6635f16ec",
+        "best_configuration.csv": "8ce38c6b1cc795ebc2142331b40f4be3d0b5ca0e8001acd43455fe38e32705e8",
+        "bo_checkpoint.npz": "3c50331a0b16cf336c027d7316cb1e8ce46d4cf460b08501c59930e014b0209b",
+        "bo_history.npz": "ffca745b39b5fc9b70cc62607f3ec07cec4ef5c6b5babe67f1a73a19624d3922",
+        "bo_settings.json": "421978b24998dd9030852910e8c15a4713dc66c346861c21198cc6633ca6e5ea",
+        "configuration.png": "56dd1cb1e45e63c1d3bd3f8507f597f878876798a351b85d0b521fbccab3a61a",
+        "final_validation.csv": "a67311025f6b2d1d3f210dfc8f8e1482df5c57320d181308d3807a8c63fa0096",
+        "finalist_1.csv": "12a47420e04f0ff2b510397af142ecede52509cbf0cbccdf0d37419325f6ef55",
+        "finalist_2.csv": "8ce38c6b1cc795ebc2142331b40f4be3d0b5ca0e8001acd43455fe38e32705e8",
+        "finalist_3.csv": "f3cf756f5af3c28403b2e465a8eb4b5fb595d6c559b55e54dac2f6e66ee2a2aa",
+        "initial_design.npz": "eb249b6bd129af75932725c6f955c48837c92a84882479859313e6308f3cda97",
+        "model_diagnostics.json": "7ae2fbb7ce74859d8a23bbad7007f4a2953168fc86aa0ad35e430fcccc6357cf",
+        "noise_calibration.json": "bd6a5bc5f368c76ceca75361a07355529b001db945a3c9d0653e4143ffae9c68",
+        "post_mean.png": "1a28f82a94e991eb8a3fc28e5dc9dfa23d4734356cf0f6e10cd89fabb765f521",
+        "post_var.png": "a2681d726aa0017e04596778ba0d9c980bbbb1ad4353a8f11eeee81cacf4efaa",
+        "regret_history.csv": "4ffebf89edd045b1b1db41443ff72e7c09afefa43bab74a8077a2ce1599c02c0",
+        "regret_plots/optimization_context.pdf": "e903fd156b5a72d34351ab45c1df27fedb68c639fc6819919c2cd3f9fa7b7db7",
+        "regret_plots/optimization_context.png": "09ab3250457f7b8c067832914c24c9c4bf51864788a5b16eb1f9f004096c8883",
+        "regret_plots/regret_components.pdf": "d6b299e462a3a84f5a89448eef9f2b475d8c6c96a91d40db6ebfecafa5a2ba43",
+        "regret_plots/regret_components.png": "7feeee444bc262197867e597b8f367069649f5e05ff3d40b536031492a186193",
+        "regret_plots/regret_convergence.pdf": "9d7d66103b6ebfd7b4a38f4abfb05f5d3f6b33878a1956110ca2106452aff158",
+        "regret_plots/regret_convergence.png": "819074baa50b5419e899c3cb8a8bf915b5ba87cb4300c027ce9a802abbca9c6a",
+        "validation_runs.csv": "210277ca83dc04992e008b78fa798ee3e34886310832145265abbdf3d1477d15"
+      }
+    }
+  ],
+  "note": "Missing estimates are blank/NaN, never interpolated. Incumbent row indices already refer to the shared observation prefix and are not shifted. The GP was refitted on resume; this is a concatenation of recorded diagnostics, not one uninterrupted model history."
+}
