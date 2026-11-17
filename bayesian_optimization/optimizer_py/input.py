@@ -51,8 +51,12 @@ BO_REGRET_PATIENCE = 3 # Consecutive checks below the tolerance
 BO_REGRET_SAMPLES = 1024 # Fixed scrambled Sobol grid supplements multistart UCB search
 
 # Multiple independent trust-region runs share the initial design and MAX_ITER budget.
-TURBO_REGIONS = 0       # 0: automatic effective-rank choice; set 4 or 5 to fix the count
-TURBO_MAX_REGIONS = 1
+TURBO_REGIONS = 12      # Use 10--15 promising Sobol seeds; 0 retains automatic effective-rank selection
+TURBO_MAX_REGIONS = 15
+TURBO_LENGTH_INIT = .8
+TURBO_FAILURE_TOLERANCE = 10 # Halve after ten accepted evaluations without a new observed best
+TURBO_LENGTH_MIN = .01      # Terminate this region strictly below this length
+TURBO_CANDIDATES = 512      # CPU-sized Thompson-sampling pool; increase for a denser search
 FINAL_PARTICLES = int(1e5) # Per species, in each independent validation Monte Carlo
 FINAL_REPEATS = 3
 FINALISTS = 3

@@ -18,8 +18,8 @@ Without `--method`, the driver still runs TuRBO. In BO mode the default kernel i
 Matérn with `nu=2.5`; supported smoothness values are 0.5, 1.5 and 2.5.
 `--regions` only applies to TuRBO; `--kernel` and `--nu` only configure vanilla BO.
 The existing TuRBO kernel and stopping policy are unchanged. Your current
-`TURBO_MAX_REGIONS=1` setting is respected; increase that limit in `input.py` to
-request multiple regions. Plots remain enabled by default; `--no-plot` disables
+`TURBO_REGIONS=12` and `TURBO_MAX_REGIONS=15` settings apply only to TuRBO;
+`--regions 1` retains a single region. Plots remain enabled by default; `--no-plot` disables
 them for headless terminals.
 
 | CLI kernel | Existing function | GP features | Acquisition |

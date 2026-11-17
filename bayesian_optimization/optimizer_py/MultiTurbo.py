@@ -2,21 +2,18 @@
 import math
 import numpy as np
 import torch
-from botorch.models import SingleTaskGP
-from botorch.models.transforms.outcome import Standardize
-from gpytorch.kernels import ScaleKernel
-
-from BoUtils import sobol_sample, map_coilwise, fit_gp_with_noise_floor, duplicate_safe_candidate
-from Kernels_v3 import CoilSetKernel
+from BoUtils import sobol_sample, map_coilwise, duplicate_safe_candidate
+from CoilSetModel import make_coil_kernel
 from TurBo import bo_turbo_matern
-from input import K, MAX_ITER, SEED, TURBO_REGIONS, TURBO_MAX_REGIONS, FINALISTS
+from input import (K, MAX_ITER, SEED, TURBO_REGIONS, TURBO_MAX_REGIONS, FINALISTS,
+                   TURBO_FAILURE_TOLERANCE,TURBO_LENGTH_INIT,TURBO_LENGTH_MIN)
 
 
-def choose_region_seeds(quality, correlation, total_iterations, n_regions=0, max_regions=5,
-                        min_region_iterations=20):
+def choose_region_seeds(quality, correlation, total_iterations, n_regions=0, max_regions=TURBO_MAX_REGIONS,
+                        min_region_iterations=TURBO_FAILURE_TOLERANCE):
     """Quality-restricted diversity, with effective rank choosing the automatic count.
 
-    quality is maximized. correlation is the fitted kernel correlation, not the
+    quality is maximized. correlation is a fixed geometry kernel correlation, not the
     posterior covariance at training points. The top quarter (at least 2*Lmax)
     forms a promising pool. Greedy selection avoids highly correlated seeds.
     """
@@ -39,7 +36,7 @@ def choose_region_seeds(quality, correlation, total_iterations, n_regions=0, max
     else:
         target = min(max_regions,pool_size,max(1,total_iterations//min_region_iterations),
                      max(1,math.ceil(effective_rank)))
-    selected = [0] # Best posterior mean in the promising pool.
+    selected = [0] # Best observed score in the promising pool.
     limit = 1-1e-9 if n_regions else .95
     while len(selected) < target:
         similarity = C[:,selected].max(axis=1)
@@ -53,19 +50,19 @@ def choose_region_seeds(quality, correlation, total_iterations, n_regions=0, max
                               'min_iterations_per_region':min_region_iterations}
 
 
-def select_initial_regions(X, y, total_iterations, n_regions=0, max_regions=5):
+def select_initial_regions(X, y, total_iterations, n_regions=0, max_regions=TURBO_MAX_REGIONS):
+    """Rank observed Sobol scores; a fixed physical kernel supplies diversity only."""
     mapped = map_coilwise(X)
-    gp = SingleTaskGP(mapped, torch.as_tensor(y,dtype=torch.double,device=X.device).unsqueeze(-1),
-                      covar_module=ScaleKernel(CoilSetKernel(n_coils=K)),
-                      outcome_transform=Standardize(m=1))
-    fit_gp_with_noise_floor(gp)
+    kernel = make_coil_kernel(K,lengthscale=.5,kappa=1.).to(mapped)
     with torch.no_grad():
-        quality = gp.posterior(mapped).mean.squeeze(-1).cpu().numpy()
-        covariance = gp.covar_module(mapped).to_dense()
+        covariance = kernel(mapped).to_dense()
         diagonal = covariance.diagonal().sqrt()
         correlation = covariance / (diagonal[:,None]*diagonal[None,:])
-    return choose_region_seeds(quality, correlation.cpu().numpy(), total_iterations,
-                               n_regions, max_regions, max(4,X.shape[-1]))
+    indices,report = choose_region_seeds(y,correlation.cpu().numpy(),total_iterations,
+                                         n_regions,max_regions,TURBO_FAILURE_TOLERANCE)
+    report.update(seed_quality='observed_negative_log_response',
+                  diversity='fixed_coil_kernel_correlation',seed_lengthscale_m=.5,seed_kappa=1.)
+    return indices,report
 
 
 def bo_multi_turbo(acqf='ts', total_iterations=None, n_regions=None,
@@ -88,25 +85,35 @@ def bo_multi_turbo(acqf='ts', total_iterations=None, n_regions=None,
     indices,selection = select_initial_regions(X0,y0,budget,requested,max_regions)
     print(f"Initial pool={selection['pool_size']}, effective rank={selection['effective_rank']:.2f}; "
           f"starting {len(indices)} independent regions.")
-    base,remainder = divmod(budget,len(indices))
-    if base < X0.shape[-1]:
-        print("Note: this short per-region budget may finish before a full failure window.")
+    halvings = max(0,math.floor(math.log2(TURBO_LENGTH_INIT/TURBO_LENGTH_MIN))+1)
+    stagnant_steps = TURBO_FAILURE_TOLERANCE*halvings
+    selection.update(refinement_budget=budget,stagnation_evaluations_to_terminate=stagnant_steps)
+    if budget < len(indices)*stagnant_steps:
+        print(f'Note: {len(indices)} regions need {len(indices)*stagnant_steps} evaluations '
+              f'to all reach length < {TURBO_LENGTH_MIN:g} with no improvements. '
+              f'The shared budget is {budget}; regions may finish on budget first.')
     regions,proposals = [],[]
+    remaining = budget
     for region,index in enumerate(indices):
-        steps = base + (region < remainder)
+        steps = math.ceil(remaining/(len(indices)-region))
         print(f"Region {region+1}: initial point {index}, budget {steps} iterations.")
         with torch.random.fork_rng():
             torch.manual_seed(int(seed)+region)
             result = bo_turbo_matern(acqf=acqf, initial_data=initial,
-                                     start_index=int(index), max_iter=steps)
-        X,y,acquisition,means,variances = result
+                                     start_index=int(index), max_iter=steps,return_diagnostics=True)
+        X,y,acquisition,means,variances,diagnostics = result
+        used = int(diagnostics['attempted_iterations'])
+        if not 0 <= used <= steps:
+            raise RuntimeError('A trust region exceeded its assigned iteration budget.')
+        remaining -= used
         own_indices = np.r_[int(index),np.arange(len(y0),len(y))]
         winner = int(own_indices[np.argmax(y[own_indices])])
         proposals.append({'x':X[winner].copy(), 'score':float(y[winner]), 'region':region+1})
         regions.append({'region':region+1, 'start_index':int(index), 'budget':steps,
                         'X':X, 'y':y, 'acquisition':acquisition,
                         'posterior_mean':np.asarray(means,dtype=float),
-                        'posterior_variance':np.asarray(variances)})
+                        'posterior_variance':np.asarray(variances),**diagnostics})
+    selection.update(used_iterations=budget-remaining,unused_iterations=remaining)
     best_initial = int(np.argmax(y0))
     proposals.append({'x':X0[best_initial].cpu().numpy().copy(),
                       'score':float(y0[best_initial]), 'region':0})

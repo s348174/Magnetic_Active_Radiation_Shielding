@@ -23,7 +23,7 @@ class RegionTests(unittest.TestCase):
     def test_effective_rank_and_budget(self):
         quality = np.arange(20,dtype=float)
         selected,info = multi.choose_region_seeds(quality,np.eye(20),200,
-                                                  min_region_iterations=50)
+                                                  min_region_iterations=50,max_regions=5)
         self.assertEqual(len(selected),4)
         self.assertEqual(info['effective_rank'],10)
         self.assertEqual(selected[0],19)
@@ -68,7 +68,9 @@ class RegionTests(unittest.TestCase):
             self.assertIs(kwargs['initial_data'],initial)
             point = np.full((1,D),.3 if index == 0 else .7)
             values = np.r_[y,.5 if index == 0 else -2.]
-            return np.vstack((X.numpy(),point)),values,np.array([np.nan]),[],[]
+            return (np.vstack((X.numpy(),point)),values,np.array([np.nan]),[],[],
+                    {'attempted_iterations':kwargs['max_iter'],'successful_evaluations':1,
+                     'stop_reason':'iteration_budget','final_length':.8,'length_history':[.8]})
         selection = {'effective_rank':2.,'pool_size':4,'regions':2}
         with patch.object(multi,'sobol_sample',return_value=initial) as sample, \
              patch.object(multi,'select_initial_regions',return_value=(np.array([0,2]),selection)), \
@@ -79,20 +81,15 @@ class RegionTests(unittest.TestCase):
         own = [p for p in result['finalists'] if p['region'] == 2][0]
         np.testing.assert_allclose(own['x'],.7)
 
-    def test_real_region_selection_fit(self):
+    def test_real_region_selection_uses_observed_quality(self):
         torch.manual_seed(67)
         X = .1+.8*torch.rand(6,D,dtype=torch.double)
         y = -BoUtils.denormalize(X)[:,:K].sum(-1).numpy()
-        # Coordinate tests exercise actual fitting; here bound its iteration count.
-        from botorch.fit import fit_gpytorch_mll
-        from gpytorch.mlls import ExactMarginalLogLikelihood
-        def fit(gp):
-            fit_gpytorch_mll(ExactMarginalLogLikelihood(gp.likelihood,gp),
-                             optimizer_kwargs={'options':{'maxiter':3}})
-        with patch.object(multi,'fit_gp_with_noise_floor',side_effect=fit):
-            indices,info = multi.select_initial_regions(X,y,250)
+        indices,info = multi.select_initial_regions(X,y,250)
         self.assertGreaterEqual(len(indices),1)
-        self.assertLessEqual(len(indices),5)
+        self.assertLessEqual(len(indices),len(X))
+        self.assertEqual(indices[0],np.argmax(y))
+        self.assertEqual(info['seed_quality'],'observed_negative_log_response')
         self.assertGreaterEqual(info['effective_rank'],1-1e-12)
 
 

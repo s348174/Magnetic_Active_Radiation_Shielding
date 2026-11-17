@@ -148,7 +148,7 @@ def main(argv=None):
     parser.add_argument('--kernel',choices=('matern','rbf','rbf-set','coil-set'),default=None,
                         help='Vanilla BO kernel; coil-set uses Kernels_v3, default: matern')
     parser.add_argument('--nu',type=float,choices=(.5,1.5,2.5),default=None,help='Matérn smoothness; default: 2.5')
-    parser.add_argument('--regions',type=int,default=None,help='0: automatic; or request 4/5 regions')
+    parser.add_argument('--regions',type=int,default=None,help='0: automatic; default: 12; choose 10--15 for multistart TuRBO')
     parser.add_argument('--iterations',type=int,default=None,help='Total refinement iterations (shared across TuRBO regions)')
     parser.add_argument('--resume-from',type=Path,help='Unfinished coil-set run directory; --iterations counts additional evaluations')
     parser.add_argument('--final-particles',type=int,default=FINAL_PARTICLES,help='Particles per species per validation MC')
@@ -197,7 +197,8 @@ def main(argv=None):
                        optimization_energy_seed=BO_ENERGY_SEED,
                        optimization_sampling='common_energies_fresh_spatial_owen_scrambles',
                        seed=SEED,initial_evaluations=len(y),
-                       total_refinement_budget=sum(r['budget'] for r in search['regions'])),file,indent=2)
+                       total_refinement_budget=search['selection'].get('refinement_budget',
+                           sum(r['budget'] for r in search['regions']))),file,indent=2)
     for region in search['regions']:
         history_file = f"region_{region['region']}.npz" if args.method == 'turbo' else 'bo_history.npz'
         np.savez(directory/history_file,**region)
