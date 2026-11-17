@@ -100,8 +100,11 @@ BO_COIL_MIN_SELECTION = 25
 ```
 
 These are modeling choices to validate, not universal physical lengthscale bounds.
-If no candidate improves the constant-mean selection baseline, the code saves
-observations and stops before further simulations. Runs smaller than 25 points
+If finite candidates do not improve the constant-mean selection baseline, the
+code warns, uses the best finite candidate and continues with denser fitting.
+This statistical warning blocks regret stopping; it is not a numerical fitting
+failure. If every candidate is numerically invalid, the code still saves
+observations and stops. Runs smaller than 25 points
 use 0.5 m and concentration 1 without claiming predictive validation; they cannot
 justify regret stopping. The selection score is a tuning diagnostic and is
 optimistic after choosing among candidates. Independent validation remains needed.
@@ -128,6 +131,8 @@ than likelihood fitting alone. The coil-set defaults now use:
 BO_COIL_ACQUISITION = 'log-ei'
 BO_COIL_REFIT_EVERY = 10
 BO_COIL_SELECT_EVERY = 50
+BO_COIL_RECOVERY_REFIT_EVERY = 2
+BO_COIL_RECOVERY_SELECT_EVERY = 10
 BO_COIL_RESTARTS = 12
 BO_COIL_RAW_SAMPLES = 256
 BO_COIL_OPT_MAXITER = 60
@@ -152,6 +157,36 @@ or reuse old variances. Full fits recompute standardization and refit on all dat
 every ten observations; geometry-scale reselection also forces a full fit.
 An update failure triggers a full-fit recovery attempt. `BO_COIL_REFIT_EVERY = 1`
 restores hyperparameter optimization after each observation.
+
+When predictive selection is weak (negative skill, or insufficient observations),
+the loop temporarily refits every two accepted evaluations and retries scale
+selection every ten. It respects any tighter normal intervals. Once a selection
+beats the constant baseline, normal 10/50 intervals resume. The selected finite
+candidate is fitted to all observations even if its holdout score is weak;
+the previous geometry is not automatically better on the current data. Model
+diagnostics explicitly retain `predictive_ok=False`, the negative score and the
+active intervals. Stopping patience stays reset until validation recovers.
+More frequent fitting refreshes parameters; it does not guarantee a better
+holdout score. Exact covariance and raw-variance checks are retained.
+
+The run `bo_K4_seed67_z5lixakj` stopped under the older statistical abort rule
+at new evaluation 50, the first geometry reselection after fits at 0/10/20/30/40.
+All twelve candidates were finite. Its best selection RMSE was 0.108627 versus
+0.103192 for the constant baseline (skill -0.1081). The checkpoint contains all
+150 observations, including the pending last observation; these can be reused:
+
+```bash
+OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 python bo_main.py --method bo --kernel coil-set \
+  --resume-from results/bo_K4_seed67_z5lixakj --iterations 450
+```
+
+`--resume-from` supports unfinished coil-set checkpoints. It validates the saved
+physical settings, reuses all raw observations and noise calibration, fits a new
+GP and continues from the saved next spatial seed. Initial sampling and noise
+calibration simulations are skipped. Results go into a new run directory; the
+source is retained. `--iterations` is an additional budget, so 450 gives a total
+of 500 BO evaluations including the 50 already done. The new run's
+diagnostic/stopping history starts afresh; prior history stays in the source run.
 
 The checkpoint's `fitted_evaluations` counts all observations in the conditioning
 data. `hyperparameter_evaluations` records when parameters were last optimized.

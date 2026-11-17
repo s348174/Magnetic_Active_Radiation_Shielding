@@ -168,10 +168,10 @@ class CoilSetTests(unittest.TestCase):
             np.testing.assert_array_equal(checkpoints[-1]['variance'],np.full(5+expected,self.noise))
             self.assertTrue(all(c.kwargs['log_variance'] == self.noise for c in objective.call_args_list))
 
-    def test_failed_predictive_selection_halts_before_fitting_or_new_simulations(self):
+    def test_numerically_failed_selection_halts_before_new_simulations(self):
         checkpoints = []
-        with patch.object(BoLoop,'select_coil_scales',return_value=(.5,1.,
-                {'predictive_ok':False,'selection_skill':-.2})), \
+        with patch.object(BoLoop,'select_coil_scales',side_effect=ModelFittingError(
+                'All fixed-scale coil GP candidates failed predictive validation.')), \
              patch.object(BoLoop,'fit_gpytorch_mll') as fit, \
              patch.object(BoLoop,'objective_function') as simulate, \
              patch.object(BoLoop,'optimize_acquisition') as acquire, \

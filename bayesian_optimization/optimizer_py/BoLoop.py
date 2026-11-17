@@ -36,7 +36,8 @@ from input import (device, MAX_ITER, unit_bounds, Q, BO_NOISE_REPEATS, K, SEED,
                    BO_COIL_MIN_SELECTION, BO_POSTERIOR_BATCH_LIMIT,
                    BO_OPT_BATCH_LIMIT, BO_OPT_INIT_BATCH_LIMIT,
                    BO_COIL_REFIT_EVERY, BO_COIL_ACQUISITION, BO_COIL_RESTARTS,
-                   BO_COIL_RAW_SAMPLES, BO_COIL_OPT_MAXITER)
+                   BO_COIL_RAW_SAMPLES, BO_COIL_OPT_MAXITER,
+                   BO_COIL_RECOVERY_REFIT_EVERY, BO_COIL_RECOVERY_SELECT_EVERY)
 
 
 def _fit_model(X_train, y_train, train_yvar, mapping, covar_module):
@@ -109,7 +110,8 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
     if BO_COIL_SELECT_EVERY < 1:
         raise ValueError('BO_COIL_SELECT_EVERY must be positive.')
     if kernel == 'coil-set' and (min(BO_COIL_REFIT_EVERY,BO_COIL_RESTARTS,
-            BO_COIL_RAW_SAMPLES,BO_COIL_OPT_MAXITER) < 1
+            BO_COIL_RAW_SAMPLES,BO_COIL_OPT_MAXITER,BO_COIL_RECOVERY_REFIT_EVERY,
+            BO_COIL_RECOVERY_SELECT_EVERY) < 1
             or BO_COIL_ACQUISITION not in ('log-ei','log-nei')):
         raise ValueError('Coil CPU budgets must be positive; acquisition must be log-ei or log-nei.')
     stopping = SimpleRegretStopping(fast_record=kernel == 'coil-set')
@@ -171,18 +173,27 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
                        else RBFKernel(ard_num_dims=n_features))
         covar_module = ScaleKernel(base_kernel)
 
+    def fitting_intervals():
+        weak = scale_selection is not None and scale_selection['predictive_ok'] is not True
+        return ((min(BO_COIL_REFIT_EVERY,BO_COIL_RECOVERY_REFIT_EVERY),
+                 min(BO_COIL_SELECT_EVERY,BO_COIL_RECOVERY_SELECT_EVERY)) if weak
+                else (BO_COIL_REFIT_EVERY,BO_COIL_SELECT_EVERY))
+
     def refit():
         nonlocal covar_module, scale_selection, selection_evaluation
+        _,select_every = fitting_intervals()
         if kernel == 'coil-set' and (scale_selection is None
-                or evaluations-selection_evaluation >= BO_COIL_SELECT_EVERY):
+                or evaluations-selection_evaluation >= select_every):
             ell,kappa,scale_selection = select_coil_scales(
                 mapping(X_train),y_train,train_yvar,K,lengthscales=BO_COIL_LENGTHSCALES,
                 kappas=BO_COIL_KAPPAS,seed=SEED,min_points=BO_COIL_MIN_SELECTION)
             selection_evaluation = evaluations
             if scale_selection['predictive_ok'] is False:
-                raise ModelFittingError('No coil-set scale candidate improves the constant-mean '
-                                        'validation baseline. Observations are saved; revise the model '
-                                        'before spending further simulation evaluations.')
+                fit_every,select_every = fitting_intervals()
+                warnings.warn('Coil validation did not beat the constant-mean baseline. '
+                              f'Continuing with the best finite candidate; refit every {fit_every} '
+                              f'evaluations and reselect scales every {select_every}. '
+                              'Regret-based stopping remains blocked.',UserWarning)
             covar_module = make_coil_kernel(K,ell,kappa)
         return _fit_model(X_train,y_train,train_yvar,mapping,covar_module)
 
@@ -213,7 +224,13 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
                 report['scale_selection'] = scale_selection
             if scale_selection['predictive_ok'] is not True:
                 report['model_ok'] = False
-                report['reasons'].append('Insufficient observations to establish predictive skill.')
+                report['reasons'].append(
+                    'Selected coil geometry did not beat the constant-mean validation baseline.'
+                    if scale_selection['predictive_ok'] is False else
+                    'Insufficient observations to establish predictive skill.')
+            fit_every,select_every = fitting_intervals()
+            report.update(recovery_mode=scale_selection['predictive_ok'] is not True,
+                          refit_every=fit_every,select_every=select_every)
         model_checks.append(report)
         print(f"GP check: model_ok={report['model_ok']}; "
               f"outputscale={report.get('outputscale')}; single-run noise={noise:.6g}; "
@@ -299,9 +316,10 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         variance_hist.append(float('nan'))
         save_checkpoint('fit_pending')
         update_start = perf_counter()
+        fit_every,select_every = fitting_intervals()
         full_refit = (kernel != 'coil-set'
-                      or evaluations-hyperparameter_evaluations >= BO_COIL_REFIT_EVERY
-                      or evaluations-selection_evaluation >= BO_COIL_SELECT_EVERY)
+                      or evaluations-hyperparameter_evaluations >= fit_every
+                      or evaluations-selection_evaluation >= select_every)
         try:
             if full_refit:
                 gp = refit()
@@ -362,6 +380,8 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
                        'acquisition':BO_COIL_ACQUISITION if kernel == 'coil-set' else
                                      'kg' if kernel == 'matern' else 'log-nei',
                        'hyperparameter_refit_every':BO_COIL_REFIT_EVERY if kernel == 'coil-set' else 1,
+                       'recovery_refit_every':BO_COIL_RECOVERY_REFIT_EVERY if kernel == 'coil-set' else None,
+                       'recovery_select_every':BO_COIL_RECOVERY_SELECT_EVERY if kernel == 'coil-set' else None,
                        'posterior_mean_scope':'evaluated_points' if kernel == 'coil-set' else 'continuous_search'}
         return (*result, diagnostics)
     return result

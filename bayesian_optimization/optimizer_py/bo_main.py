@@ -14,6 +14,7 @@ from BoLoop import bo_matern_kernel, bo_rbf_kernel, bo_rbf_old, bo_coil_set_kern
 from BoUtils import sobol_sample, duplicate_safe_candidate
 from FinalEvaluation import evaluate_finalists
 from NoiseCalibration import calibrate_noise
+from Objective import optimization_seed_state, set_optimization_seed
 from input import K, SEED, BO_ENERGY_SEED, device, MAX_ITER, ENERGY_BINS, TURBO_MAX_REGIONS, FINAL_PARTICLES, FINAL_REPEATS, FINALISTS, BO_NOISE_REPEATS
 
 
@@ -31,7 +32,41 @@ def save_regret_history(directory, checks):
     temporary.replace(Path(directory)/'regret_history.csv')
 
 
-def run_vanilla(kernel='matern', iterations=None, nu=2.5, checkpoint_dir=None):
+def _resume_coil_data(run_dir, checkpoint_dir):
+    """Reuse a failed/pending run's observations, not its last fitted GP state."""
+    from validate_surrogate import load_run
+
+    source_dir = Path(run_dir).expanduser().resolve()
+    if checkpoint_dir is not None and Path(checkpoint_dir).resolve() == source_dir:
+        raise ValueError('Resume output must be a new directory, not the source run.')
+    X,y,noise,_,source = load_run(source_dir)
+    if source.name != 'bo_checkpoint.npz':
+        raise ValueError('Resume needs an unfinished run with bo_checkpoint.npz and no bo_history.npz.')
+    with np.load(source,allow_pickle=False) as stored:
+        if not {'kernel','next_spatial_seed'}.issubset(stored.files):
+            raise ValueError('The checkpoint needs kernel and next_spatial_seed metadata to resume safely.')
+        if str(stored['kernel']) != 'coil-set':
+            raise ValueError('Resume currently supports coil-set checkpoints only.')
+        state = np.asarray(stored['next_spatial_seed'])
+        if state.ndim != 0 or state.dtype.kind not in 'iu':
+            raise ValueError('The checkpoint next_spatial_seed must be an integer.')
+        seed = int(state)
+        if not SEED+len(X) <= seed < SEED+1000000:
+            raise ValueError('The checkpoint spatial seed is invalid or its optimization range is exhausted.')
+    with open(source_dir/'noise_calibration.json') as file:
+        calibration = json.load(file)
+    seed = max(seed,optimization_seed_state())
+    if seed >= SEED+1000000:
+        raise ValueError('The optimization spatial-seed range is exhausted.')
+    set_optimization_seed(seed)
+    initial = (torch.as_tensor(X,dtype=torch.double,device=device),y,np.full(len(y),noise))
+    metadata = dict(resume_from=str(source_dir),resume_samples=len(y),resume_spatial_seed=seed)
+    print(f'Resuming {len(y)} saved observations; next spatial seed={seed}. '
+          'The GP is fitted afresh; the iteration budget counts additional evaluations.')
+    return initial,calibration,metadata
+
+
+def run_vanilla(kernel='matern', iterations=None, nu=2.5, checkpoint_dir=None, resume_from=None):
     """Adapt the existing single-loop results to the common saving/validation path."""
     budget = MAX_ITER if iterations is None else int(iterations)
     if budget < 1 or FINALISTS < 1:
@@ -40,9 +75,15 @@ def run_vanilla(kernel='matern', iterations=None, nu=2.5, checkpoint_dir=None):
                  'coil-set':bo_coil_set_kernel}
     if kernel not in functions:
         raise ValueError(f'Unknown vanilla BO kernel: {kernel}')
-    initial = sobol_sample()
-    calibration = calibrate_noise(initial[0],initial[1],repeats=BO_NOISE_REPEATS)
-    initial = (initial[0],initial[1],np.full(len(initial[1]),calibration['variance']))
+    resume_metadata = {}
+    if resume_from is not None:
+        if kernel != 'coil-set':
+            raise ValueError('Resume currently supports --method bo --kernel coil-set only.')
+        initial,calibration,resume_metadata = _resume_coil_data(resume_from,checkpoint_dir)
+    else:
+        initial = sobol_sample()
+        calibration = calibrate_noise(initial[0],initial[1],repeats=BO_NOISE_REPEATS)
+        initial = (initial[0],initial[1],np.full(len(initial[1]),calibration['variance']))
     kwargs = {'max_iter':budget, 'initial_data':initial, 'return_diagnostics':True,
               'calibration':calibration}
     if checkpoint_dir is not None:
@@ -85,6 +126,7 @@ def run_vanilla(kernel='matern', iterations=None, nu=2.5, checkpoint_dir=None):
             break
     return {'initial':initial,
             'selection':{'regions':1, 'kernel':kernel,
+                         **resume_metadata,
                          'acquisition':diagnostics.get('acquisition','kg' if kernel == 'matern' else 'log-nei'),
                          'nu':nu if kernel == 'matern' else None,
                          'noise_model':{'method':'pooled_spatial_scramble_log_variance',
@@ -108,6 +150,7 @@ def main(argv=None):
     parser.add_argument('--nu',type=float,choices=(.5,1.5,2.5),default=None,help='Matérn smoothness; default: 2.5')
     parser.add_argument('--regions',type=int,default=None,help='0: automatic; or request 4/5 regions')
     parser.add_argument('--iterations',type=int,default=None,help='Total refinement iterations (shared across TuRBO regions)')
+    parser.add_argument('--resume-from',type=Path,help='Unfinished coil-set run directory; --iterations counts additional evaluations')
     parser.add_argument('--final-particles',type=int,default=FINAL_PARTICLES,help='Particles per species per validation MC')
     parser.add_argument('--validation-repeats',type=int,default=FINAL_REPEATS)
     parser.add_argument('--output-dir',default=None,help='A new directory for this run')
@@ -120,6 +163,8 @@ def main(argv=None):
         parser.error('--regions applies only to --method turbo.')
     if args.method == 'turbo' and (args.kernel is not None or args.nu is not None):
         parser.error('--kernel and --nu apply only to --method bo.')
+    if args.resume_from is not None and (args.method != 'bo' or args.kernel != 'coil-set'):
+        parser.error('--resume-from requires --method bo --kernel coil-set.')
     if args.nu is not None and args.kernel not in (None,'matern'):
         parser.error('--nu applies only to the matern kernel.')
     if args.iterations is not None and args.iterations < 1:
@@ -142,7 +187,8 @@ def main(argv=None):
         search = bo_multi_turbo(total_iterations=args.iterations,n_regions=args.regions)
     else:
         search = run_vanilla(kernel=args.kernel or 'matern',iterations=args.iterations,
-                             nu=2.5 if args.nu is None else args.nu,checkpoint_dir=directory)
+                             nu=2.5 if args.nu is None else args.nu,checkpoint_dir=directory,
+                             **({'resume_from':args.resume_from} if args.resume_from is not None else {}))
     X,y,variance = search['initial']
     np.savez(directory/'initial_design.npz',X=X.cpu().numpy(),y=y,variance=variance)
     settings_file = 'region_selection.json' if args.method == 'turbo' else 'bo_settings.json'
