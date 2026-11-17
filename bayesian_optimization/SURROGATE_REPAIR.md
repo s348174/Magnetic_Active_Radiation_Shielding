@@ -14,6 +14,61 @@ paired-diagonal calculations use this stable path. The mathematical kernel,
 normalization, physical Cartesian mapping and optional RFF mode are retained.
 Independent equal-valued inputs retain independent autograd paths.
 
+### CPU performance
+
+The exact coil-set kernel reuses one constant self-covariance matrix during
+fixed-geometry fitting. Only the amplitude and constant mean are trained in this
+case, so recomputing every coil pair at each likelihood evaluation is unnecessary.
+Saved input and scale values are compared on each reuse. Changes to observations,
+scales, normalization, dtype or device invalidate the cached result. The cache is
+bypassed whenever input or geometry gradients are needed. It is omitted from
+checkpoints, and copies protect it from callers modifying returned matrices.
+
+Self-covariance normalization reuses the already computed diagonal. Forward-only
+Gaussian calculations reuse temporary distance storage. Small cross-covariances
+are evaluated in one operation rather than repeatedly splitting the training
+points; this shortcut is limited to 2 MiB per distance matrix, including batches.
+Larger calculations retain the existing chunking. Direct distances, float64,
+permutation invariance, acquisition restart counts and numerical checks are retained.
+RFF remains optional and is not enabled by this optimization.
+
+For `n` observations, `k` coils and `d=6` per-coil coordinates, the first exact
+Gram calculation still costs `O(n^2 k^2 d)`. A cache hit costs `O(n k d + n^2)` for
+value comparisons and the returned matrix copy, with one extra stored `n*n`
+matrix and an input snapshot. At 400 observations in float64 that matrix takes
+about 1.22 MiB. GP factorization still costs `O(n^3)`; this does not change the
+statistical model or its approximation level.
+
+CPU measurements against commit `f7ef3f2` used four coils, two PyTorch threads,
+PyTorch 2.14.1 and synthetic responses, including complete fixed-scale fitting
+and covariance checks:
+
+| Observations | Repeated geometry matrix, before / after | Complete GP fit, before / after |
+| --- | --- | --- |
+| 100 | 2.12 / 0.05 ms | 41.2 / 22.2 ms |
+| 400 | 27.71 / 0.09 ms | 234.9 / 64.8 ms |
+
+Fitted posterior means and variances agreed within `5e-16` in these comparisons.
+These are local timings, not a promised speedup for complete BO iterations;
+simulations, acquisition optimization and regret searches still take time.
+
+To measure the current code on your CPU, from `optimizer_py` in the usual Python
+environment, run:
+
+```bash
+python benchmark_coil_kernel.py --points 400 --threads 2
+```
+
+The benchmark uses synthetic targets, prints timings and launches no particle
+simulations or result files. Compare `--threads 1`, `2` and `4` on your machine.
+To use two numerical-library threads for a normal run without changing `input.py`:
+
+```bash
+OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 python bo_main.py --method bo --kernel coil-set
+```
+
+No C++ rebuild or additional Python package is needed.
+
 `PosteriorChecks.py` checks representative kernel symmetry, positive
 semidefiniteness, full/diagonal consistency and normalized unit diagonal. Raw
 posterior variance is checked before GPyTorch's reporting floor: material negative

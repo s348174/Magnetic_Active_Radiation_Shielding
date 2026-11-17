@@ -1,10 +1,13 @@
 """Exact set kernels and posterior checks must remain valid at narrow scales."""
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 import torch
+from botorch.acquisition import qLogNoisyExpectedImprovement
 from botorch.models import SingleTaskGP
 from botorch.models.transforms.outcome import Standardize
+from botorch.sampling.normal import SobolQMCNormalSampler
 from gpytorch.kernels import ScaleKernel
 
 from Kernels_v3 import CoilSetKernel
@@ -17,6 +20,27 @@ def configurations(count=6):
     values[..., :3] += 2.
     values[..., 3:] = torch.nn.functional.normalize(values[..., 3:], dim=-1)
     return values.reshape(count, 12)
+
+
+def direct_kernel(kernel, X, Y):
+    """Small independent coordinate-difference reference, including normalization."""
+    def scaled(values):
+        coils = values.reshape(*values.shape[:-1], kernel.n_coils, 6)
+        positions = coils[..., :3] / kernel.lengthscale.unsqueeze(-1)
+        normals = torch.nn.functional.normalize(coils[..., 3:], dim=-1, eps=1e-8)
+        return torch.cat((positions, normals*kernel.kappa.sqrt().unsqueeze(-1)), dim=-1)
+
+    def sums(a, b):
+        differences = a[..., :, :, None, None, :] - b[..., None, None, :, :, :]
+        return torch.exp(-.5*differences.square().sum(-1)).sum(dim=(-3,-1))
+
+    a, b = scaled(X), scaled(Y)
+    matrix = sums(a,b)
+    if kernel.normalize:
+        d1 = sums(a,a).diagonal(dim1=-2,dim2=-1)
+        d2 = sums(b,b).diagonal(dim1=-2,dim2=-1)
+        matrix = matrix/torch.sqrt(d1.unsqueeze(-1)*d2.unsqueeze(-2))
+    return matrix
 
 
 class PosteriorStub:
@@ -33,6 +57,131 @@ class PosteriorStub:
 
 
 class KernelNumericsTests(unittest.TestCase):
+    def test_exact_values_and_gradients_match_direct_formula(self):
+        # Exercise both cross-matrix orientations, chunking, and batch broadcasting.
+        for normalize in (False, True):
+            kernel = CoilSetKernel(n_coils=2, chunk_size=2, normalize=normalize).double()
+            for n1, n2 in ((2,5),(5,2)):
+                X = configurations(n1).unsqueeze(0).expand(2,-1,-1).clone().requires_grad_()
+                Y = (configurations(n2)+.1).requires_grad_()
+                actual = kernel(X,Y).to_dense()
+                expected = direct_kernel(kernel,X,Y)
+                torch.testing.assert_close(actual,expected,atol=1e-12,rtol=1e-12)
+                inputs = (X,Y,kernel.raw_lengthscale,kernel.raw_kappa)
+                actual_grad = torch.autograd.grad(actual.sum(),inputs)
+                expected_grad = torch.autograd.grad(expected.sum(),inputs)
+                for a,b in zip(actual_grad,expected_grad):
+                    torch.testing.assert_close(a,b,atol=1e-11,rtol=1e-10)
+
+    def test_fixed_geometry_cache_invalidates_after_input_or_scale_changes(self):
+        X = configurations()
+        kernel = CoilSetKernel(n_coils=2).double().requires_grad_(False)
+        with patch.object(kernel,'_full_exact',wraps=kernel._full_exact) as evaluate:
+            first = kernel(X,X).to_dense()
+            torch.testing.assert_close(kernel(X,X).to_dense(),first)
+            self.assertEqual(evaluate.call_count,1)
+            kernel(X,X).to_dense().zero_()
+            torch.testing.assert_close(kernel(X,X).to_dense(),first)
+            # Include .data mutation, which does not increment a version counter.
+            X.data[0,0] += .4
+            updated = kernel(X,X).to_dense()
+            torch.testing.assert_close(updated,direct_kernel(kernel,X,X))
+            self.assertFalse(torch.allclose(updated,first))
+            self.assertEqual(evaluate.call_count,2)
+            kernel.lengthscale = .3
+            kernel.kappa = 4.
+            torch.testing.assert_close(kernel(X,X).to_dense(),direct_kernel(kernel,X,X))
+            self.assertEqual(evaluate.call_count,3)
+            saved = {name:value.clone() for name,value in kernel.state_dict().items()}
+            kernel.lengthscale = 2.
+            kernel(X,X).to_dense()
+            kernel.load_state_dict(saved)
+            torch.testing.assert_close(kernel(X,X).to_dense(),direct_kernel(kernel,X,X))
+            self.assertEqual(evaluate.call_count,5)
+
+    def test_cache_respects_dtype_normalization_and_checkpoint_state(self):
+        X = configurations()
+        kernel = CoilSetKernel(n_coils=2).double().requires_grad_(False)
+        kernel(X,X).to_dense()
+        self.assertFalse(any('cache' in key for key in kernel.state_dict()))
+        kernel.normalize = False
+        torch.testing.assert_close(kernel(X,X).to_dense(),direct_kernel(kernel,X,X))
+        # Keep the same input dtype: parameter conversion alone also invalidates.
+        kernel.float()
+        torch.testing.assert_close(kernel(X,X).to_dense(),direct_kernel(kernel,X,X))
+        self.assertEqual(kernel(X.float(),X.float()).to_dense().dtype,torch.float)
+
+    def test_cache_never_reuses_an_autograd_graph_or_detaches_needed_gradients(self):
+        X = configurations()
+        kernel = CoilSetKernel(n_coils=2).double().requires_grad_(False)
+        kernel(X,X).to_dense()
+        X.requires_grad_()
+        actual = kernel(X,X).to_dense()
+        expected = direct_kernel(kernel,X,X)
+        a, = torch.autograd.grad(actual.sum(),X)
+        b, = torch.autograd.grad(expected.sum(),X)
+        torch.testing.assert_close(a,b,atol=1e-11,rtol=1e-10)
+        X = X.detach()
+        kernel.requires_grad_(True)
+        with torch.no_grad():
+            kernel(X,X).to_dense()
+        actual = kernel(X,X).to_dense()
+        expected = direct_kernel(kernel,X,X)
+        inputs = (kernel.raw_lengthscale,kernel.raw_kappa)
+        for a,b in zip(torch.autograd.grad(actual.sum(),inputs),
+                       torch.autograd.grad(expected.sum(),inputs)):
+            torch.testing.assert_close(a,b,atol=1e-11,rtol=1e-10)
+
+    def test_cached_geometry_keeps_outputscale_trainable(self):
+        X = configurations()
+        base = CoilSetKernel(n_coils=2).double().requires_grad_(False)
+        kernel = ScaleKernel(base).double()
+        for value in (.5,2.):
+            kernel.outputscale = value
+            kernel.zero_grad()
+            matrix = kernel(X,X).to_dense()
+            torch.testing.assert_close(matrix,kernel.outputscale*direct_kernel(base,X,X))
+            matrix.sum().backward()
+            self.assertTrue(torch.isfinite(kernel.raw_outputscale.grad).all())
+            self.assertGreater(kernel.raw_outputscale.grad.abs().sum().item(),0.)
+
+    def test_fixed_geometry_model_batches_match_direct_formula(self):
+        X = configurations().unsqueeze(0)
+        kernel = CoilSetKernel(n_coils=2,batch_shape=torch.Size([2])).double().requires_grad_(False)
+        kernel.lengthscale = torch.tensor([.3,1.],dtype=torch.double).reshape(2,1,1)
+        kernel.kappa = torch.tensor([1.,4.],dtype=torch.double).reshape(2,1,1)
+        for _ in range(2):
+            actual = kernel(X,X).to_dense()
+            self.assertEqual(actual.shape,(2,len(X[0]),len(X[0])))
+            torch.testing.assert_close(actual,direct_kernel(kernel,X,X),atol=1e-12,rtol=1e-12)
+
+    def test_cached_gp_and_noisy_ei_match_independent_exact_reference(self):
+        class ReferenceKernel(CoilSetKernel):
+            def forward(self,X,Y,diag=False,**kwargs):
+                matrix = direct_kernel(self,X,Y)
+                return matrix.diagonal(dim1=-2,dim2=-1) if diag else matrix
+
+        X = configurations()
+        y = torch.arange(len(X),dtype=X.dtype).unsqueeze(-1)/5
+        Z = (configurations(2)+.2).unsqueeze(-2).requires_grad_()
+        predictions, values, gradients = [], [], []
+        for cls in (CoilSetKernel,ReferenceKernel):
+            kernel = ScaleKernel(cls(n_coils=2).double().requires_grad_(False)).double()
+            gp = SingleTaskGP(X,y,train_Yvar=torch.full_like(y,.02),covar_module=kernel,
+                              outcome_transform=Standardize(m=1))
+            kernel(X,X).to_dense()  # Populate constant geometry before predictions.
+            posterior = gp.posterior(Z)
+            predictions.append((posterior.mean,posterior.variance))
+            acquisition = qLogNoisyExpectedImprovement(gp,X_baseline=X,cache_root=True,
+                prune_baseline=False,sampler=SobolQMCNormalSampler(torch.Size([32]),seed=67))
+            value = acquisition(Z)
+            values.append(value)
+            gradients.append(torch.autograd.grad(value.sum(),Z)[0])
+        for a,b in zip(predictions[0],predictions[1]):
+            torch.testing.assert_close(a,b,atol=1e-12,rtol=1e-10)
+        torch.testing.assert_close(values[0],values[1],atol=1e-10,rtol=1e-9)
+        torch.testing.assert_close(gradients[0],gradients[1],atol=1e-10,rtol=1e-9)
+
     def test_tiny_lengthscale_and_large_concentration_remain_valid(self):
         X = configurations()
         for ell, kappa in [(1e-8, 1.), (1., 1e12), (1e-8, 1e12)]:

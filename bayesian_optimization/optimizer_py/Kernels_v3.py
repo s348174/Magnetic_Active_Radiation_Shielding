@@ -19,6 +19,7 @@ Scaled representation:
     i.e. the per-coil kernel is a plain Gaussian RBF on a 6-dim scaled vector z.
     Direct coordinate differences are used to avoid cancellation when a fitted
     lengthscale is very small or the directional concentration is large.
+    Fixed-geometry self-covariances are cached only when no gradients are needed.
 
 Two evaluation modes (selected by `n_features`):
     n_features=None  -> EXACT. Chunked direct Euclidean distances and one exp.
@@ -66,6 +67,7 @@ class CoilSetKernel(Kernel):
         self.normalize = normalize
         self.chunk_size = chunk_size
         self.n_features = n_features
+        self._exact_cache = None  # One constant Gram matrix; excluded from state_dict.
 
         lengthscale_constraint = lengthscale_constraint or Positive()
         kappa_constraint = kappa_constraint or Positive()
@@ -132,8 +134,24 @@ class CoilSetKernel(Kernel):
         return torch.cat([pos * inv_ell, nrm * sqrt_kappa], dim=-1)
 
     # -- exact path -------------------------------------------------------------
+    @staticmethod
+    def _gaussian(first, second):
+        """Stable distances; reuse their storage only outside the autograd graph."""
+        distances = torch.cdist(first, second, compute_mode='donot_use_mm_for_euclid_dist')
+        if distances.requires_grad:
+            return torch.exp(-.5 * distances.square())
+        return distances.square_().mul_(-.5).exp_()
+
     def _full_exact(self, z1, z2):
         """Direct differences avoid cancellation for small learned lengthscales."""
+        # For a few candidates against many observations, make one small cross
+        # matrix instead of launching a separate operation per training chunk.
+        # Only do this below 2 MiB per distance matrix, including batch copies.
+        pairs = (math.prod(torch.broadcast_shapes(z1.shape[:-3], z2.shape[:-3]))
+                 * z1.shape[-3] * z2.shape[-3] * self.n_coils**2)
+        transpose = z1.shape[-3] < z2.shape[-3] and pairs*z1.element_size() <= 2*1024**2
+        if transpose:
+            z1, z2 = z2, z1
         nc, d = self.n_coils, z1.shape[-1]
         N1, N2 = z1.shape[-3], z2.shape[-3]
         first = z1.reshape(*z1.shape[:-3], N1 * nc, d)
@@ -143,18 +161,16 @@ class CoilSetKernel(Kernel):
             e = min(s + self.chunk_size, N2)
             zc = z2[..., s:e, :, :]
             second = zc.reshape(*zc.shape[:-3], (e - s) * nc, d)
-            distances = torch.cdist(first, second, compute_mode='donot_use_mm_for_euclid_dist')
-            E = torch.exp(-.5 * distances.square())
+            E = self._gaussian(first, second)
             E = E.reshape(*E.shape[:-2], N1, nc, e - s, nc).sum(dim=(-3, -1))   # (..., N1, w)
             out.append(E)
         Kmat = out[0] if len(out) == 1 else torch.cat(out, dim=-1)
         assert Kmat.shape[-2:] == (N1, N2), f"shape bug: {tuple(Kmat.shape)} vs ({N1},{N2})"
-        return Kmat
+        return Kmat.transpose(-2, -1) if transpose else Kmat
 
     def _diag_exact(self, z1, z2):
         """Paired cross-diagonals use the same stable distances as the full path."""
-        distances = torch.cdist(z1, z2, compute_mode='donot_use_mm_for_euclid_dist')
-        return torch.exp(-.5 * distances.square()).sum(dim=(-2, -1))
+        return self._gaussian(z1, z2).sum(dim=(-2, -1))
 
     # -- random-Fourier-feature path [NEW] --------------------------------------
     def _phi(self, z):
@@ -170,10 +186,26 @@ class CoilSetKernel(Kernel):
 
     # -- forward ----------------------------------------------------------------
     def forward(self, x1, x2, diag=False, **params):
-        z1 = self._coil_z(x1)
         # [NEW] K(X,X) is the common case during fitting: reuse features instead of recomputing
         # Equal-valued independent inputs still need their own autograd paths.
         same = x1 is x2
+        cacheable = (self.n_features is None and not diag and same
+                     and not x1.requires_grad
+                     and (not torch.is_grad_enabled() or
+                          not (self.raw_lengthscale.requires_grad or self.raw_kappa.requires_grad)))
+        if cacheable:
+            scales = torch.cat((self.lengthscale.reshape(-1), self.kappa.reshape(-1))).detach()
+            signature = (x1.dtype, x1.device, scales.dtype, scales.device,
+                         self.raw_lengthscale.shape, self.raw_kappa.shape,
+                         self.n_coils, self.per_coil_dim, self.pos_dim, self.normalize)
+            cached = self._exact_cache
+            # Compare saved VALUES: GPyTorch initialization may update .data
+            # without incrementing PyTorch's tensor version counter.
+            if (cached is not None and signature == cached[0]
+                    and torch.equal(scales, cached[1]) and torch.equal(x1, cached[2])):
+                return cached[3].clone()
+
+        z1 = self._coil_z(x1)
         z2 = z1 if same else self._coil_z(x2)
 
         if self.n_features is not None:                                   # ---- RFF path
@@ -188,12 +220,19 @@ class CoilSetKernel(Kernel):
 
         # Paired cross-diagonals need the same normalization as the full matrix.
         Kmat = self._diag_exact(z1, z2) if diag else self._full_exact(z1, z2)
-        if not self.normalize:
-            return Kmat
-        d1 = self._diag_exact(z1, z1)
-        d2 = d1 if same else self._diag_exact(z2, z2)
-        denom = torch.sqrt(d1 * d2) if diag else torch.sqrt(d1.unsqueeze(-1) * d2.unsqueeze(-2))
-        return Kmat / denom.clamp_min(1e-12)
+        if self.normalize:
+            # The self-pair sums are already present in a self-covariance.
+            if same:
+                d1 = Kmat if diag else Kmat.diagonal(dim1=-2, dim2=-1)
+            else:
+                d1 = self._diag_exact(z1, z1)
+            d2 = d1 if same else self._diag_exact(z2, z2)
+            denom = torch.sqrt(d1 * d2) if diag else torch.sqrt(d1.unsqueeze(-1) * d2.unsqueeze(-2))
+            Kmat = Kmat / denom.clamp_min(1e-12)
+        if cacheable:
+            # Callers may modify returned tensors; never expose the stored matrix.
+            self._exact_cache = (signature, scales.clone(), x1.detach().clone(), Kmat.detach().clone())
+        return Kmat
 
 
 class CoilMomentKernel(Kernel):
