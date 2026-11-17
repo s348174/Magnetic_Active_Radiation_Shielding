@@ -39,7 +39,9 @@ class RawUpperConfidenceBound(AcquisitionFunction):
 
 def _observed_moments(gp, mapping, X):
     with torch.no_grad():
-        moments = [raw_mean_variance(gp,mapping(batch).unsqueeze(-2))
+        # A shared q-point query avoids copying all training coordinates into
+        # a separate GP batch for every diagnostic point. q stays bounded.
+        moments = [raw_mean_variance(gp,mapping(batch))
                    for batch in X.split(BO_POSTERIOR_BATCH_LIMIT)]
         mean = torch.cat([m.reshape(-1) for m,v in moments])
         sigma = torch.cat([_sigma(v).reshape(-1) for m,v in moments])
@@ -64,6 +66,7 @@ class SimpleRegretStopping:
     patience: int = BO_REGRET_PATIENCE
     grid_size: int = BO_REGRET_SAMPLES
     record_every: int = BO_REGRET_RECORD_EVERY
+    fast_record: bool = False # Grid-only diagnostics; stopping ALWAYS optimizes UCB
     consecutive: int = field(default=0, init=False)
     history: list = field(default_factory=list, init=False)
 
@@ -79,7 +82,7 @@ class SimpleRegretStopping:
         grid = sobol.draw(self.grid_size).to(dtype=torch.double, device=device)
         self.grid = unit_bounds[0] + (unit_bounds[1]-unit_bounds[0]) * grid
 
-    def estimate(self, gp, mapping, X):
+    def estimate(self, gp, mapping, X, optimize=True):
         mean,sigma = _observed_moments(gp,mapping,X)
         lower_values = mean-self.confidence*sigma
         incumbent = int(lower_values.argmax().item())
@@ -87,31 +90,34 @@ class SimpleRegretStopping:
         acquisition = InputMappedAcquisition(RawUpperConfidenceBound(gp,self.confidence),mapping)
         # Every evaluated point remains eligible, even if the global optimizer misses it.
         points = torch.cat((self.grid,X.detach()))
-        with torch.no_grad():
-            values = torch.cat([acquisition(batch.unsqueeze(-2)).reshape(-1)
-                                for batch in points.split(BO_POSTERIOR_BATCH_LIMIT)])
+        grid_mean,grid_sigma = _observed_moments(gp,mapping,self.grid)
+        all_means = torch.cat((grid_mean,mean))
+        all_sigmas = torch.cat((grid_sigma,sigma))
+        values = all_means+self.confidence*all_sigmas
         if not torch.isfinite(values).all():
             raise RuntimeError('Non-finite UCB grid values.')
-        restarts = min(20,len(points))
-        starts = points[values.topk(restarts).indices].unsqueeze(-2)
-        candidate,_ = optimize_acqf(acq_function=acquisition,bounds=unit_bounds,q=1,
-            num_restarts=restarts,batch_initial_conditions=starts,require_convergence=True)
-        with torch.no_grad():
-            optimized = acquisition(candidate.detach()).reshape(-1)
-        if not torch.isfinite(candidate).all() or not torch.isfinite(optimized).all():
-            raise RuntimeError('Non-finite UCB optimization result.')
-        upper_point = (candidate.detach() if optimized.max() >= values.max()
-                       else points[values.argmax()].unsqueeze(-2))
-        with torch.no_grad():
-            upper_mean,upper_variance = raw_mean_variance(gp,mapping(upper_point))
-        upper_mean = float(upper_mean.item())
-        upper_sigma = float(_sigma(upper_variance).item())
+        best = int(values.argmax())
+        upper_mean,upper_sigma = float(all_means[best]),float(all_sigmas[best])
+        if optimize:
+            restarts = min(20,len(points))
+            starts = points[values.topk(restarts).indices].unsqueeze(-2)
+            candidate,_ = optimize_acqf(acq_function=acquisition,bounds=unit_bounds,q=1,
+                num_restarts=restarts,batch_initial_conditions=starts,require_convergence=True)
+            with torch.no_grad():
+                optimized = acquisition(candidate.detach()).reshape(-1)
+            if not torch.isfinite(candidate).all() or not torch.isfinite(optimized).all():
+                raise RuntimeError('Non-finite UCB optimization result.')
+            if optimized.max() >= values.max():
+                with torch.no_grad():
+                    upper_prediction,upper_variance = raw_mean_variance(gp,mapping(candidate.detach()))
+                upper_mean,upper_sigma = float(upper_prediction.item()),float(_sigma(upper_variance).item())
         incumbent_mean = float(mean[incumbent].item())
         incumbent_sigma = float(sigma[incumbent].item())
         upper = upper_mean+self.confidence*upper_sigma
         mean_gap = upper_mean-incumbent_mean
         uncertainty_gap = self.confidence*(upper_sigma+incumbent_sigma)
         return {'max_ucb':upper,'incumbent_lcb':lower,'incumbent_index':incumbent,
+                'search_method':'optimized' if optimize else 'grid',
                 'estimated_regret':max(0.,mean_gap+uncertainty_gap),
                 'upper_mean':upper_mean,'upper_sigma':upper_sigma,
                 'incumbent_mean':incumbent_mean,'incumbent_sigma':incumbent_sigma,
@@ -127,12 +133,16 @@ class SimpleRegretStopping:
         if not (stopping_check or record_due):
             return False
         record = {'evaluations':evaluations, 'iteration':iteration, 'delta':self.delta,
-                  'stopping_check':bool(stopping_check), 'model_ok':bool(model_ok)}
+                  'stopping_check':bool(stopping_check), 'model_ok':bool(model_ok),
+                  'search_method':'grid' if self.fast_record and not stopping_check else 'optimized'}
         try:
             # Diagnostic work must not consume the acquisition sampler's RNG state.
             devices = [X.device.index] if torch.is_tensor(X) and X.is_cuda else []
             with torch.random.fork_rng(devices=devices):
-                result = self.estimate(gp, mapping, X)
+                if self.fast_record and not stopping_check:
+                    result = self.estimate(gp,mapping,X,optimize=False)
+                else:
+                    result = self.estimate(gp,mapping,X)
             if not math.isfinite(result['estimated_regret']):
                 raise RuntimeError('Non-finite estimated regret.')
             record.update(result, search_ok=True)
@@ -162,4 +172,5 @@ class SimpleRegretStopping:
         return {'enabled':self.enabled, 'relative_tolerance':self.relative_tolerance,
                 'delta':self.delta, 'confidence':self.confidence,
                 'min_evaluations':self.min_evaluations, 'check_every':self.check_every,
-                'patience':self.patience, 'grid_size':self.grid_size,'record_every':self.record_every}
+                'patience':self.patience, 'grid_size':self.grid_size,'record_every':self.record_every,
+                'fast_record':self.fast_record}

@@ -49,11 +49,18 @@ def read_checks(directory):
         data['stopping_check'] = True
     if 'model_ok' not in data:
         data['model_ok'] = True # Older reports predate repeat-based model checks.
+    if 'search_method' not in data:
+        data['search_method'] = 'optimized'
+    data['search_method'] = data['search_method'].fillna('optimized')
+    if not data['search_method'].isin(['grid','optimized']).all():
+        raise ValueError('Unknown regret search method.')
     for column in ('search_ok','below_threshold','stopping_check','model_ok'):
         values = data[column].astype(str).str.lower()
         if not values.isin(['true','false','1','0']).all():
             raise ValueError(f'Invalid boolean values in {column}.')
         data[column] = values.isin(['true','1'])
+    if ((data['search_method'] == 'grid') & data['stopping_check']).any():
+        raise ValueError('Grid-only diagnostic records cannot be stopping checks.')
     for column in set(columns)-{'search_ok','below_threshold'}:
         data[column] = pd.to_numeric(data[column],errors='raise')
     data = data.sort_values('evaluations').reset_index(drop=True)
@@ -105,7 +112,7 @@ def decomposition_figure(data):
     axes[0].axhline(0,color='grey',linewidth=.7)
     axes[0].set_ylabel('Log-response gap')
     axes[0].set_title('What keeps the regret estimate high?')
-    for name,label in [('upper_sigma','UCB maximizer'),('incumbent_sigma','LCB incumbent')]:
+    for name,label in [('upper_sigma','Selected UCB point'),('incumbent_sigma','LCB incumbent')]:
         axes[1].plot(x,np.where(good,100*values[name],np.nan),label=label)
     axes[1].set_ylabel('Latent log-response SD (%)')
     axes[1].set_xlabel('Successful new evaluations (initial design excluded)')
@@ -125,7 +132,12 @@ def convergence_figure(data, settings, name):
     tolerance = data['delta'].to_numpy()
     figure,axes = plt.subplots(3,1,figsize=(8,9),sharex=True)
     ax = axes[0]
-    ax.plot(x,bound,'o-',color='tab:blue',label='Estimated simple-regret bound')
+    grid = (data['search_method'].to_numpy() == 'grid') if 'search_method' in data else np.zeros(len(data),dtype=bool)
+    for mask,label,style in ((grid,'Grid gap (record only)','.-'),
+                             (~grid,'Optimized UCB–LCB gap','o-')):
+        valid = mask & good
+        if valid.any():
+            ax.plot(x[valid],bound[valid],style,label=label)
     ax.plot(x,tolerance,'--',color='tab:orange',label='Stopping tolerance')
     failed_model = good & ~data['model_ok'].to_numpy()
     if failed_model.any():
@@ -147,7 +159,7 @@ def convergence_figure(data, settings, name):
         origin = float(data.loc[good,'incumbent_lcb'].iloc[0])
         upper = np.where(good,data['max_ucb']-origin,np.nan)
         lower = np.where(good,data['incumbent_lcb']-origin,np.nan)
-        ax.plot(x,upper,'o-',color='tab:blue',label='Maximum UCB (shifted)')
+        ax.plot(x,upper,'o-',color='tab:blue',label='Largest searched UCB (shifted)')
         ax.plot(x,lower,'o-',color='tab:green',label='Best evaluated LCB (shifted)')
         ax.fill_between(x,lower,upper,where=good,color='tab:blue',alpha=.12,label='Estimated regret gap')
         ax.legend(fontsize=9)
@@ -189,9 +201,12 @@ def convergence_figure(data, settings, name):
     for ax in axes:
         ax.grid(alpha=.25)
     figure.suptitle(f'Estimated simple-regret convergence\n{name}',fontsize=13)
-    figure.text(.5,.01,'Model-based estimates, not measured regret or a global-optimality certificate.',
+    note = 'Model-based estimates, not measured regret or a global-optimality certificate.'
+    if grid.any():
+        note += '\nGrid gaps may miss UCB peaks; grid records never trigger stopping.'
+    figure.text(.5,.01,note,
                 ha='center',fontsize=9)
-    figure.tight_layout(rect=(0,.035,1,.94),h_pad=1.6)
+    figure.tight_layout(rect=(0,.06 if grid.any() else .035,1,.94),h_pad=1.6)
     return figure
 
 

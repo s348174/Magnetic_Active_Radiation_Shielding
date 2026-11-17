@@ -25,8 +25,13 @@ BO_ENERGY_SEED = SEED # Common optimization energies; spatial Owen scrambles sti
 BO_NOISE_REPEATS = 6 # Independent spatial scrambles at each of three calibration configurations
 BO_COIL_LENGTHSCALES = (.25, .5, 1., 2.) # Physical position scales in metres, selected by validation
 BO_COIL_KAPPAS = (.25, 1., 4.) # Normal concentration candidates
-BO_COIL_SELECT_EVERY = 20 # Reselect coil-set scales after this many new observations
+BO_COIL_SELECT_EVERY = 50 # Reselect coil-set scales after this many new observations
 BO_COIL_MIN_SELECTION = 25 # Smaller test runs cannot establish predictive skill
+BO_COIL_REFIT_EVERY = 10 # Refit hyperparameters; condition on EVERY new observation
+BO_COIL_ACQUISITION = 'log-ei' # Fast plug-in noisy EI; 'log-nei' retains sampled noisy EI
+BO_COIL_RESTARTS = 12
+BO_COIL_RAW_SAMPLES = 256
+BO_COIL_OPT_MAXITER = 60
 
 # Limit simultaneous GP/acquisition work, without reducing the restart count.
 BO_OPT_BATCH_LIMIT = 2

@@ -95,6 +95,27 @@ class RecordingScheduleTests(unittest.TestCase):
 
 
 class SavedReportTests(unittest.TestCase):
+    def test_grid_records_have_distinct_plot_labels_and_cannot_claim_stopping(self):
+        import matplotlib.pyplot as plt
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            grid = dict(GOOD,evaluations=2,iteration=2,delta=.001,search_ok=True,
+                        below_threshold=True,consecutive_passes=0,stopping_check=False,
+                        search_method='grid')
+            optimized = dict(grid,evaluations=10,iteration=10,stopping_check=True,
+                             consecutive_passes=1,search_method='optimized')
+            bo_main.save_regret_history(directory,[grid,optimized])
+            data = plot_regret.read_checks(directory)
+            figure = plot_regret.convergence_figure(data,{},'test')
+            labels = figure.axes[0].get_legend_handles_labels()[1]
+            self.assertIn('Grid gap (record only)',labels)
+            self.assertIn('Optimized UCB–LCB gap',labels)
+            plt.close(figure)
+            grid['stopping_check'] = True
+            bo_main.save_regret_history(directory,[grid])
+            with self.assertRaisesRegex(ValueError,'cannot be stopping checks'):
+                plot_regret.read_checks(directory)
+
     def test_new_csv_flags_roundtrip_and_old_records_remain_compatible(self):
         with tempfile.TemporaryDirectory() as folder:
             directory = Path(folder)

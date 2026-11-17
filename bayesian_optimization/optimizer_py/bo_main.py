@@ -20,7 +20,8 @@ from input import K, SEED, BO_ENERGY_SEED, device, MAX_ITER, ENERGY_BINS, TURBO_
 def save_regret_history(directory, checks):
     columns = ['evaluations','iteration','max_ucb','incumbent_lcb','incumbent_index',
                'estimated_regret','delta','search_ok','below_threshold','stopping_check','consecutive_passes','model_ok',
-               'upper_mean','upper_sigma','incumbent_mean','incumbent_sigma','mean_gap','uncertainty_gap']
+               'upper_mean','upper_sigma','incumbent_mean','incumbent_sigma','mean_gap','uncertainty_gap',
+               'search_method']
     temporary = Path(directory)/'regret_history.csv.tmp'
     with open(temporary,'w',newline='') as file:
         writer = csv.DictWriter(file,fieldnames=columns)
@@ -84,7 +85,7 @@ def run_vanilla(kernel='matern', iterations=None, nu=2.5, checkpoint_dir=None):
             break
     return {'initial':initial,
             'selection':{'regions':1, 'kernel':kernel,
-                         'acquisition':'kg' if kernel == 'matern' else 'log-nei',
+                         'acquisition':diagnostics.get('acquisition','kg' if kernel == 'matern' else 'log-nei'),
                          'nu':nu if kernel == 'matern' else None,
                          'noise_model':{'method':'pooled_spatial_scramble_log_variance',
                                         'variance':calibration['variance'],

@@ -1,6 +1,7 @@
 """Single-loop Bayesian optimization with Matérn, RBF and coil-set kernels."""
 import warnings
 import json
+from time import perf_counter
 import numpy as np
 import torch
 
@@ -28,10 +29,14 @@ from RegretStopping import SimpleRegretStopping, lower_bound_incumbent
 from Objective import objective_function, next_optimization_seed, optimization_seed_state
 from NoiseCalibration import calibrate_noise
 from ModelDiagnostics import assess_model
+from GPConditioning import condition_on_observations
+from FastCoilAcquisition import CheckedLogExpectedImprovement
 from input import (device, MAX_ITER, unit_bounds, Q, BO_NOISE_REPEATS, K, SEED,
                    BO_COIL_LENGTHSCALES, BO_COIL_KAPPAS, BO_COIL_SELECT_EVERY,
                    BO_COIL_MIN_SELECTION, BO_POSTERIOR_BATCH_LIMIT,
-                   BO_OPT_BATCH_LIMIT, BO_OPT_INIT_BATCH_LIMIT)
+                   BO_OPT_BATCH_LIMIT, BO_OPT_INIT_BATCH_LIMIT,
+                   BO_COIL_REFIT_EVERY, BO_COIL_ACQUISITION, BO_COIL_RESTARTS,
+                   BO_COIL_RAW_SAMPLES, BO_COIL_OPT_MAXITER)
 
 
 def _fit_model(X_train, y_train, train_yvar, mapping, covar_module):
@@ -52,7 +57,7 @@ def _fit_model(X_train, y_train, train_yvar, mapping, covar_module):
 
 def _observed_means(gp, mapping, X):
     with torch.no_grad():
-        return torch.cat([raw_mean_variance(gp,mapping(batch).unsqueeze(-2))[0].reshape(-1)
+        return torch.cat([raw_mean_variance(gp,mapping(batch))[0].reshape(-1)
                           for batch in X.split(BO_POSTERIOR_BATCH_LIMIT)])
 
 
@@ -103,7 +108,11 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         raise ValueError("Use a positive iteration budget and Q=1 for these single-point loops.")
     if BO_COIL_SELECT_EVERY < 1:
         raise ValueError('BO_COIL_SELECT_EVERY must be positive.')
-    stopping = SimpleRegretStopping()
+    if kernel == 'coil-set' and (min(BO_COIL_REFIT_EVERY,BO_COIL_RESTARTS,
+            BO_COIL_RAW_SAMPLES,BO_COIL_OPT_MAXITER) < 1
+            or BO_COIL_ACQUISITION not in ('log-ei','log-nei')):
+        raise ValueError('Coil CPU budgets must be positive; acquisition must be log-ei or log-nei.')
+    stopping = SimpleRegretStopping(fast_record=kernel == 'coil-set')
 
     # Initial observations may be shared with the driver without simulating twice.
     X_train, y_train, train_yvar = sobol_sample() if initial_data is None else initial_data
@@ -127,6 +136,8 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
     gp = None
     scale_selection = None
     selection_evaluation = 0
+    hyperparameter_evaluations = 0
+    timings = []
 
     def save_checkpoint(status, error=''):
         if checkpoint is not None:
@@ -142,6 +153,8 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
                         'initial_evaluations':np.asarray(initial_evaluations),
                         'kernel':np.asarray(kernel)}
             state['next_spatial_seed'] = np.asarray(optimization_seed_state())
+            state['hyperparameter_evaluations'] = np.asarray(hyperparameter_evaluations)
+            state['timings_json'] = np.asarray(json.dumps(timings,allow_nan=False))
             if scale_selection is not None:
                 state['scale_selection_json'] = np.asarray(json.dumps(scale_selection,allow_nan=False))
             if gp is not None:
@@ -174,11 +187,14 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         return _fit_model(X_train,y_train,train_yvar,mapping,covar_module)
 
     save_checkpoint('fit_pending')
+    initial_fit_start = perf_counter()
     try:
         gp = refit()
     except ModelFittingError as error:
         save_checkpoint('model_fitting_failed',str(error))
         raise
+    initial_fit_seconds = perf_counter()-initial_fit_start
+    print(f'Initial GP fit and scale selection: {initial_fit_seconds:.2f}s.')
     save_checkpoint('ready')
     model_checks = []
 
@@ -219,6 +235,8 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
     # so its reported value is an improvement, rather than a future value level.
     current_best_mean = _best_posterior_mean(gp,mapping,X_train) if kernel == 'matern' else None
     for iteration in range(iterations):
+        iteration_start = perf_counter()
+        acquisition_start = iteration_start
         attempted_iteration = iteration+1
         model = InputMappedModel(gp, mapping)
         if kernel == 'matern':
@@ -228,22 +246,35 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
             )
             candidate, acquisition_value = _kg_candidate(acquisition,gp,mapping,X_train)
         else:
-            # Keep the actual GP visible to BoTorch so baseline Cholesky caching works.
-            acquisition = InputMappedAcquisition(qLogNoisyExpectedImprovement(
-                model=gp, X_baseline=mapping(X_train), cache_root=True),mapping)
+            ranking = _observed_means(gp,mapping,X_train)
+            if kernel == 'coil-set' and BO_COIL_ACQUISITION == 'log-ei':
+                # The incumbent is a denoised plug-in estimate, not the noisiest
+                # observed score. Exact latent uncertainty still drives exploration.
+                base_acquisition = CheckedLogExpectedImprovement(gp,best_f=ranking.max())
+            else:
+                # Keep the actual GP visible for baseline Cholesky caching.
+                base_acquisition = qLogNoisyExpectedImprovement(
+                    model=gp,X_baseline=mapping(X_train),cache_root=True)
+            acquisition = InputMappedAcquisition(base_acquisition,mapping)
+            budget = (dict(num_restarts=BO_COIL_RESTARTS,raw_samples=BO_COIL_RAW_SAMPLES,
+                           options={'maxiter':BO_COIL_OPT_MAXITER}) if kernel == 'coil-set'
+                      else dict(num_restarts=60,raw_samples=1024))
             candidate, acquisition_value = optimize_acquisition(
                 acq_function=acquisition, bounds=unit_bounds, q=Q,
-                X=X_train,ranking=_observed_means(gp,mapping,X_train),
-                num_restarts=60,raw_samples=1024,optimizer=optimize_acqf,allow_observed=False,
+                X=X_train,ranking=ranking,**budget,optimizer=optimize_acqf,allow_observed=False,
             )
         # Retain the acquisition value BEFORE fitting the updated GP.
         acquisition_scalar = acquisition_value.detach().item()
         cand = candidate[:1].detach().clone()
         del acquisition, model, candidate, acquisition_value
+        if kernel != 'matern':
+            del base_acquisition
         if duplicate_safe_candidate(X_train, cand):
             print("Duplicate candidate returned by optimizer — skipping this iteration")
             continue
 
+        acquisition_seconds = perf_counter()-acquisition_start
+        simulation_start = perf_counter()
         physical = denormalize(cand).detach().cpu().numpy()
         centers_next, normals_next = unpack_configuration(physical[0])
         energy_next, var_next = objective_function(next_optimization_seed(), centers_next, normals_next,
@@ -254,6 +285,7 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
             if warnings_counter > iterations // 3:
                 raise ValueError("Too many invalid simulator observations encountered.")
             continue
+        simulation_seconds = perf_counter()-simulation_start
 
         # Append inputs, negative log-responses and variances together, only if valid.
         X_train = torch.vstack((X_train, cand))
@@ -266,15 +298,34 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         best_mean_hist.append(float('nan'))
         variance_hist.append(float('nan'))
         save_checkpoint('fit_pending')
+        update_start = perf_counter()
+        full_refit = (kernel != 'coil-set'
+                      or evaluations-hyperparameter_evaluations >= BO_COIL_REFIT_EVERY
+                      or evaluations-selection_evaluation >= BO_COIL_SELECT_EVERY)
         try:
-            gp = refit()
+            if full_refit:
+                gp = refit()
+            else:
+                try:
+                    gp = condition_on_observations(gp,mapping(X_train),y_train,train_yvar)
+                except (ModelFittingError,RuntimeError,ValueError) as error:
+                    print(f'Conditioning failed; refitting on all observations: {error}')
+                    gp = refit()
+                    full_refit = True
         except ModelFittingError as error:
             save_checkpoint('model_fitting_failed',str(error))
             raise
         fitted_evaluations = evaluations
+        if full_refit:
+            hyperparameter_evaluations = evaluations
+        update_seconds = perf_counter()-update_start
+        diagnostic_start = perf_counter()
 
-        # Acquisition values stay in their native units: KG or log-NEI.
-        current_best_mean = _best_posterior_mean(gp,mapping,X_train)
+        # Acquisition values stay in their native units: KG, log-EI or log-NEI.
+        # Coil diagnostics report the best evaluated posterior mean. A global
+        # continuous optimization just to draw this plot can dominate the run.
+        current_best_mean = (float(_observed_means(gp,mapping,X_train).max())
+                             if kernel == 'coil-set' else _best_posterior_mean(gp,mapping,X_train))
         best_mean_hist[-1] = current_best_mean
         top_idx = torch.as_tensor(np.argsort(y_train)[-min(5, len(y_train)):], device=device)
         with torch.no_grad():
@@ -284,6 +335,14 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         should_stop = stopping.check(gp, mapping, X_train, evaluations, iteration+1, model_ok=model_ok)
         if should_stop:
             stop_reason = 'estimated_simple_regret'
+        timing = dict(evaluations=evaluations,acquisition_seconds=acquisition_seconds,
+                      simulation_seconds=simulation_seconds,update_seconds=update_seconds,
+                      diagnostic_seconds=perf_counter()-diagnostic_start,full_refit=bool(full_refit),
+                      total_seconds=perf_counter()-iteration_start)
+        timings.append(timing)
+        print(f"CPU timing: acquisition={timing['acquisition_seconds']:.2f}s; "
+              f"model {'refit' if full_refit else 'conditioning'}={update_seconds:.2f}s; "
+              f"diagnostics={timing['diagnostic_seconds']:.2f}s; simulation={simulation_seconds:.2f}s.")
         save_checkpoint('ready')
         if should_stop:
             print(f"Estimated simple-regret criterion reached after {evaluations} new evaluations.")
@@ -297,7 +356,13 @@ def _bo_loop(kernel, mapping, max_iter=None, initial_data=None, nu=2.5, return_d
         diagnostics = {'settings':stopping.settings(), 'checks':stopping.history,
                        'stop_reason':stop_reason, 'successful_evaluations':evaluations,
                        'attempted_iterations':iteration+1, 'incumbent_index':incumbent,
-                       'model_checks':model_checks, 'noise_calibration':calibration}
+                       'model_checks':model_checks, 'noise_calibration':calibration,
+                       'iteration_timings':timings,
+                       'initial_fit_seconds':initial_fit_seconds,
+                       'acquisition':BO_COIL_ACQUISITION if kernel == 'coil-set' else
+                                     'kg' if kernel == 'matern' else 'log-nei',
+                       'hyperparameter_refit_every':BO_COIL_REFIT_EVERY if kernel == 'coil-set' else 1,
+                       'posterior_mean_scope':'evaluated_points' if kernel == 'coil-set' else 'continuous_search'}
         return (*result, diagnostics)
     return result
 
@@ -325,7 +390,7 @@ def bo_rbf_old(max_iter=None, initial_data=None, return_diagnostics=False, check
 
 def bo_coil_set_kernel(max_iter=None, initial_data=None, return_diagnostics=False, checkpoint=None,
                        calibration=None, model_callback=None):
-    """Exact Kernels_v3 coil-set GP on Cartesian coils, with log noisy EI.
+    """Exact coil-set GP with fast q=1 acquisition and periodic hyperparameter fits.
 
     map_coilwise converts physical geometry; USE_FEATURE_MAPPING does not apply.
     """

@@ -88,14 +88,14 @@ single-run log variance; the lowest prediction RMSE on the selection fold wins.
 The selected position scale and concentration remain fixed during subsequent
 likelihood fitting and its recovery attempts. Different candidates supply
 genuinely different geometry scales without letting unrestricted likelihood
-optimization collapse them. Selection repeats after 20 new observations.
+optimization collapse them. Selection repeats after 50 new observations.
 
 Settings in `input.py`:
 
 ```python
 BO_COIL_LENGTHSCALES = (.25, .5, 1., 2.)  # metres
 BO_COIL_KAPPAS = (.25, 1., 4.)
-BO_COIL_SELECT_EVERY = 20
+BO_COIL_SELECT_EVERY = 50
 BO_COIL_MIN_SELECTION = 25
 ```
 
@@ -118,6 +118,88 @@ it without advancing, and `set_optimization_seed()` restores it. No iterator
 pickling or serialization internals are used, including on Python 3.14.
 
 ## Acquisition and regret
+
+### Fast CPU defaults for the coil-set loop
+
+Minute-long updates were largely acquisition and diagnostic searches, rather
+than likelihood fitting alone. The coil-set defaults now use:
+
+```python
+BO_COIL_ACQUISITION = 'log-ei'
+BO_COIL_REFIT_EVERY = 10
+BO_COIL_SELECT_EVERY = 50
+BO_COIL_RESTARTS = 12
+BO_COIL_RAW_SAMPLES = 256
+BO_COIL_OPT_MAXITER = 60
+```
+
+`log-ei` uses BoTorch's stable analytic single-point log expected improvement,
+with the largest posterior mean at evaluated designs as its incumbent. This is
+a **plug-in approximation for a noisy incumbent**: it treats that denoised value
+as fixed instead of integrating uncertainty in which evaluated design is best.
+Calibrated observation noise is still in the GP, and latent means and variances
+are still computed exactly. This changes the acquisition rule, not the objective,
+particle samples, exact set kernel or log scaling. Set
+`BO_COIL_ACQUISITION = 'log-nei'` to retain the previous sampled noisy-improvement
+rule. Budgets remain configurable with either rule.
+
+`GPConditioning.py` conditions on **every** accepted observation. Between full
+hyperparameter fits it keeps the last fitted mean/covariance parameters and
+`Standardize` statistics, transforms both new scores and observation noise with
+those same statistics, and clears prediction caches. The next posterior rebuilds
+the exact Cholesky factor using all observations. It does not ignore recent data
+or reuse old variances. Full fits recompute standardization and refit on all data
+every ten observations; geometry-scale reselection also forces a full fit.
+An update failure triggers a full-fit recovery attempt. `BO_COIL_REFIT_EVERY = 1`
+restores hyperparameter optimization after each observation.
+
+The checkpoint's `fitted_evaluations` counts all observations in the conditioning
+data. `hyperparameter_evaluations` records when parameters were last optimized.
+When reconstructing a saved GP, use saved `outcome_transform` buffers to transform
+the raw checkpoint targets and variances; recomputing fresh statistics without a
+refit changes their units relative to the saved parameters.
+
+The coil-set posterior-mean curve now reports the best posterior mean **at
+evaluated points**, eliminating a 30-restart global optimization used only for
+plotting. This scope is recorded as `posterior_mean_scope` in settings.
+Raw variance, calibration, kernel PSD and duplicate-candidate checks remain active.
+RBF and Matérn retain their acquisition and refitting behavior.
+
+Dense regret records (every two evaluations by default) use the fixed Sobol grid
+plus all observations, with exact marginal variances and no gradient search.
+`search_method=grid` identifies these diagnostic gaps, which can underestimate
+unexplored UCB peaks. They **never trigger stopping**. If stopping is enabled,
+each actual stopping decision still performs the validated multistart UCB search,
+records `search_method=optimized`, and requires the existing model and optimizer
+checks. `plot_regret.py` distinguishes these two kinds of records.
+
+Iteration console output separates acquisition, model conditioning/refit,
+diagnostics and simulation seconds. Timings are also saved in checkpoint
+`timings_json` and the final settings' `iteration_timings`; the initial model
+selection/fit is timed separately. Final independent high-particle validation is
+retained.
+
+In a two-thread CPU benchmark with 100 observations and four coils, acquisition
+optimization took 26.84 s for the old 60-restart sampled log-NEI search and 1.79 s
+for the new 12-restart analytic search (about 15 times faster). These are synthetic
+timing measurements, not a claim that the acquisition choices have equal quality.
+The earlier kernel-only benchmark above does not represent whole BO iteration time.
+
+A complete-loop CPU smoke comparison at 100 observations averaged 27.7 s of
+overhead per iteration before these changes and 1.75 s afterward. At 400
+observations the new loop averaged 2.29 s. These short synthetic runs used real
+fits, candidate searches and regret diagnostics, but stubbed the simulator,
+calibration diagnostic and initial scale selection identically; they do not
+include initial Monte Carlo design/calibration or prove equal optimization quality.
+All new-loop proposals and metrics were finite, with no numerical warnings.
+To benchmark candidate-search cost locally without launching particle simulations:
+
+```bash
+python benchmark_coil_kernel.py --points 100 --threads 2 --acquisition
+```
+
+This optional comparison needs the usual compiled-simulator import path because
+it uses the physical mapping. It also runs the slower legacy search for comparison.
 
 The q=1 acquisitions reserve restart slots for known observations, perturbations
 near promising observations, and global Sobol samples. Both close and broader

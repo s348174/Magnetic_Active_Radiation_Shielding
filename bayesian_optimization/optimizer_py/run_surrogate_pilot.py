@@ -144,7 +144,7 @@ def run_pilot(run_dir, output_dir=None, evaluations=10, final_particles=None,
     np.savez(directory/'bo_history.npz',X=final_X,y=final_y,acquisition=acquisition,
              posterior_mean=means,posterior_variance=variances,next_spatial_seed=next_spatial_seed)
     _save_json(directory/'bo_settings.json',dict(
-        method='bo',kernel='coil-set',acquisition='log-nei',initial_evaluations=len(y),
+        method='bo',kernel='coil-set',acquisition=diagnostics.get('acquisition','log-nei'),initial_evaluations=len(y),
         seed=config.SEED,optimization_energy_seed=config.BO_ENERGY_SEED,
         total_refinement_budget=evaluations,
         stopping={key:value for key,value in diagnostics.items()

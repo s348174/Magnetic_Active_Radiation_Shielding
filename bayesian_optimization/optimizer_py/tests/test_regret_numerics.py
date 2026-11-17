@@ -77,6 +77,21 @@ class RegretNumericalTests(unittest.TestCase):
         self.assertTrue(torch.isfinite(gradient).all())
         self.assertAlmostEqual(gradient[0,0,0].item(),1.)
 
+    def test_fast_records_never_replace_optimized_stopping_decisions(self):
+        stopping = RegretStopping.SimpleRegretStopping(enabled=True,fast_record=True,
+            min_evaluations=2,check_every=2,record_every=1,patience=1,grid_size=8)
+        gp = RawGP(variance=1e-14)
+        with patch.object(RegretStopping,'optimize_acqf',return_value=(self.candidate,torch.tensor(1.))) as optimize:
+            self.assertFalse(stopping.check(gp,lambda X:X,self.X,1,1))
+            optimize.assert_not_called()
+            self.assertEqual(stopping.consecutive,0)
+            self.assertEqual(stopping.history[-1]['search_method'],'grid')
+            self.assertFalse(stopping.history[-1]['stopping_check'])
+            self.assertTrue(stopping.check(gp,lambda X:X,self.X,2,2))
+            optimize.assert_called_once()
+            self.assertEqual(stopping.history[-1]['search_method'],'optimized')
+            self.assertTrue(stopping.history[-1]['stopping_check'])
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

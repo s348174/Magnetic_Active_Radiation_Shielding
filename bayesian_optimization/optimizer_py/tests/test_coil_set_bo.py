@@ -143,6 +143,7 @@ class CoilSetTests(unittest.TestCase):
                  patch.object(BoLoop,'map_fn',side_effect=AssertionError('Periodic map used')), \
                  patch.object(BoLoop,'map_set',side_effect=AssertionError('Pooled map used')), \
                  patch.object(BoLoop,'fit_gpytorch_mll',side_effect=fit), \
+                 patch.object(BoLoop,'BO_COIL_REFIT_EVERY',1), \
                  patch.object(BoLoop,'_best_posterior_mean',return_value=-34.), \
                  patch.object(BoLoop,'optimize_acqf',side_effect=lambda **kw:(next(proposals),torch.tensor(-7.))), \
                  patch.object(BoLoop,'objective_function',return_value=(34.,self.noise)) as objective, \
@@ -184,8 +185,9 @@ class CoilSetTests(unittest.TestCase):
         np.testing.assert_array_equal(checkpoints[-1]['y'],self.y)
         self.assertEqual(checkpoints[-1]['evaluations'].item(),0)
 
-    def test_cli_routes_coil_set_with_log_nei_metadata(self):
-        diagnostics = {'settings':{},'checks':[],'incumbent_index':0,'stop_reason':'iteration_budget'}
+    def test_cli_routes_coil_set_with_log_ei_metadata(self):
+        diagnostics = {'settings':{},'checks':[],'incumbent_index':0,'stop_reason':'iteration_budget',
+                       'acquisition':'log-ei'}
         result = (self.X.numpy(),self.y,np.array([]),[],[],diagnostics)
         validation = [{'mean_response':1.,'ci95_lower':.9,'ci95_upper':1.1}]
         with tempfile.TemporaryDirectory() as folder, \
@@ -204,7 +206,7 @@ class CoilSetTests(unittest.TestCase):
             self.assertIs(run.call_args.kwargs['calibration'],self.calibration)
             self.assertEqual(search['selection']['kernel'],'coil-set')
             settings = json.loads((output/'bo_settings.json').read_text())
-            self.assertEqual(settings['acquisition'],'log-nei')
+            self.assertEqual(settings['acquisition'],'log-ei')
             self.assertIsNone(settings['nu'])
         with patch.object(bo_main,'sobol_sample') as sample, self.assertRaises(SystemExit):
             bo_main.main(['--method','bo','--kernel','coil-set','--nu','2.5'])
